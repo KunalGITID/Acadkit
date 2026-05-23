@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Copy, Download, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarX2, Check, Copy, Download, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ export default function SettingsPage() {
   // User name (localStorage)
   const [userName, setUserName] = useState(() => localStorage.getItem("ACADKIT_USER_NAME") ?? "");
   const [exporting, setExporting] = useState(false);
+  const [clearingSchedule, setClearingSchedule] = useState(false);
 
   // Section A state
   const [semester, setSemester] = useState(settings?.semester ?? 3);
@@ -126,6 +127,22 @@ export default function SettingsPage() {
       toast("Failed to export data");
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleClearSchedule = async () => {
+    const confirmed = window.confirm(
+      "This will delete your entire timetable schedule. Subjects and attendance records will not be affected."
+    );
+    if (!confirmed) return;
+    setClearingSchedule(true);
+    try {
+      await supabase.from("timetable_slots").delete().eq("device_id", deviceId);
+      toast("Schedule cleared");
+    } catch {
+      toast("Failed to clear schedule");
+    } finally {
+      setClearingSchedule(false);
     }
   };
 
@@ -399,6 +416,20 @@ export default function SettingsPage() {
               >
                 <Download className="mr-2 h-4 w-4" />
                 {exporting ? "Exporting…" : "Export Data (JSON)"}
+              </Button>
+            </div>
+            <div className="rounded-lg border border-[#f97316]/30 bg-[#111118] p-4">
+              <p className="mb-3 text-sm text-muted-foreground">
+                Removes all timetable slots. Your subjects, attendance, and marks stay intact.
+              </p>
+              <Button
+                className="w-full border border-[#f97316]/40 bg-[#f97316]/10 text-[#f97316] hover:bg-[#f97316]/20"
+                variant="outline"
+                onClick={handleClearSchedule}
+                disabled={clearingSchedule}
+              >
+                <CalendarX2 className="mr-2 h-4 w-4" />
+                {clearingSchedule ? "Clearing…" : "Clear Schedule Only"}
               </Button>
             </div>
             <div className="rounded-lg border border-[#fb7185]/30 bg-[#111118] p-4">
