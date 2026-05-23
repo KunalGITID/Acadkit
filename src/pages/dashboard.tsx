@@ -133,7 +133,7 @@ export default function DashboardPage() {
               {formatLongDate()}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <DayStatusBadge status={todayStatus} />
             <Link
               to="/settings"
@@ -342,28 +342,28 @@ function DayStatusBadge({
 }) {
   if (status.isPreSemester) {
     return (
-      <span className="rounded-md bg-cyan-500/15 px-2 py-1 text-right text-xs font-medium text-cyan-300">
+      <span className="whitespace-nowrap rounded-md bg-cyan-500/15 px-2 py-1 text-xs font-medium text-cyan-300">
         Sem starts in {daysUntilSemesterStart(status.todayStr)} days
       </span>
     );
   }
   if (status.isHoliday) {
     return (
-      <span className="rounded-md bg-amber-500/15 px-2 py-1 text-right text-xs font-medium text-amber-300">
+      <span className="whitespace-nowrap rounded-md bg-amber-500/15 px-2 py-1 text-xs font-medium text-amber-300">
         {status.holidayName}
       </span>
     );
   }
   if (status.isWeekend) {
     return (
-      <span className="rounded-md bg-[#1e1e2e] px-2 py-1 text-xs font-medium text-[#6b6b8a]">
+      <span className="whitespace-nowrap rounded-md bg-[#1e1e2e] px-2 py-1 text-xs font-medium text-[#6b6b8a]">
         Weekend
       </span>
     );
   }
   if (status.dayOrder) {
     return (
-      <span className="rounded-md bg-[#7c6af7]/20 px-2 py-1 text-xs font-medium text-[#c4b5fd]">
+      <span className="whitespace-nowrap rounded-md bg-[#7c6af7]/20 px-2 py-1 text-xs font-medium text-[#c4b5fd]">
         Day {status.dayOrder}
       </span>
     );
