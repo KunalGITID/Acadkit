@@ -12,7 +12,6 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { useDeleteSubject } from "@/hooks/useSubjects";
 import { useAppStore } from "@/store/useAppStore";
-import { cn } from "@/lib/utils";
 
 export function SubjectList() {
   const subjects = useAppStore((s) => s.subjects);

@@ -7,7 +7,6 @@ import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { useAddSubject } from "@/hooks/useSubjects";
 import { SUBJECT_COLORS } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 
 interface SubjectSheetProps {

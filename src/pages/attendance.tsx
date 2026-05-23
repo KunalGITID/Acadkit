@@ -445,6 +445,7 @@ function MarkTodayPreview() {
           start_time: "08:00",
           end_time: "08:50",
           room: "AB1-101",
+          slot_type: "theory" as const,
           created_at: "",
           subject: {
             id: "preview-dsa",
@@ -469,6 +470,7 @@ function MarkTodayPreview() {
           start_time: "09:00",
           end_time: "09:50",
           room: "AB2-204",
+          slot_type: "theory" as const,
           created_at: "",
           subject: {
             id: "preview-dbms",
