@@ -257,6 +257,8 @@ function OverviewTab({
         </div>
       </div>
 
+      <AbsentLogSection allAttendance={allAttendance} subjects={subjects} />
+
       <div className="space-y-3">
         {stats.map((stat) => {
           const isOpen = expandedId === stat.subjectId;
@@ -651,5 +653,65 @@ function MarkButton({
       {icon}
       {label}
     </button>
+  );
+}
+
+function AbsentLogSection({
+  allAttendance,
+  subjects,
+}: {
+  allAttendance: Attendance[];
+  subjects: Subject[];
+}) {
+  const MON_SHORT = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+
+  const absentByDate = useMemo(() => {
+    const absents = allAttendance.filter((r) => r.status === "absent");
+    const byDate: Record<string, Record<string, number>> = {};
+    for (const r of absents) {
+      if (!byDate[r.date]) byDate[r.date] = {};
+      byDate[r.date][r.subject_id] = (byDate[r.date][r.subject_id] ?? 0) + 1;
+    }
+    return Object.entries(byDate)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .slice(0, 30)
+      .map(([date, subjectCounts]) => {
+        const d = new Date(date + "T00:00:00");
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diff = Math.round((d.getTime() - today.getTime()) / 86_400_000);
+        const label =
+          diff === 0
+            ? "TODAY"
+            : diff === -1
+              ? "YEST"
+              : `${String(d.getDate()).padStart(2, "0")} ${MON_SHORT[d.getMonth()]}`;
+        const parts = Object.entries(subjectCounts).map(([sid, count]) => {
+          const name = subjects.find((s) => s.id === sid)?.code ?? "???";
+          return count > 1 ? `${name} (×${count})` : name;
+        });
+        return { date, label, parts };
+      });
+  }, [allAttendance, subjects]);
+
+  if (absentByDate.length === 0) return null;
+
+  return (
+    <div className="mb-4 rounded-lg border border-[#fb7185]/20 bg-[#111118] p-3">
+      <p className="mb-2 text-[10px] font-medium tracking-widest text-[#fb7185]/60">
+        ABSENCE LOG
+      </p>
+      <div className="space-y-1.5">
+        {absentByDate.map(({ date, label, parts }) => (
+          <div key={date} className="flex items-start gap-2 font-mono text-xs">
+            <span className="w-10 shrink-0 text-[10px] text-muted-foreground">{label}</span>
+            <span className="shrink-0 text-[#fb7185]/40">→</span>
+            <span className="min-w-0 flex-1 break-words text-[#fb7185]/80">
+              {parts.join(", ")}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -34,6 +34,7 @@ const AttendancePage = lazy(() => import("@/pages/attendance"));
 const TimetablePage = lazy(() => import("@/pages/timetable"));
 const CalendarPage = lazy(() => import("@/pages/calendar"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
+const LogPage = lazy(() => import("@/pages/log"));
 
 function AppDataProvider({ children }: { children: React.ReactNode }) {
   const subjectsQuery = useSubjects();
@@ -77,6 +78,7 @@ function PageRoutes() {
           <Route path="/timetable" element={<TimetablePage />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/log" element={<LogPage />} />
         </Routes>
       </Suspense>
     </div>

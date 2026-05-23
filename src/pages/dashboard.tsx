@@ -4,6 +4,7 @@ import {
   Check,
   CheckCircle2,
   Clock3,
+  ClipboardList,
   Plus,
   Settings,
   Share2,
@@ -121,6 +122,20 @@ export default function DashboardPage() {
     });
   };
 
+  const markAll = (status: "present" | "absent") => {
+    const today = getLocalDateString();
+    for (const slot of todaySlots) {
+      markAttendance.mutate({
+        subject_id: slot.subject_id,
+        date: today,
+        status,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+      });
+    }
+    toast(`All ${todaySlots.length} classes marked ${status}`);
+  };
+
   return (
     <main className="min-h-screen bg-background pb-24">
       <div className="space-y-5 px-4 py-5">
@@ -133,15 +148,24 @@ export default function DashboardPage() {
               {formatLongDate()}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
             <DayStatusBadge status={todayStatus} />
-            <Link
-              to="/settings"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#1e1e2e] text-muted-foreground hover:border-[#7c6af7]/40 hover:text-[#7c6af7]"
-              aria-label="Settings"
-            >
-              <Settings className="h-4 w-4" />
-            </Link>
+            <div className="flex items-center gap-1.5">
+              <Link
+                to="/log"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#1e1e2e] text-muted-foreground hover:border-[#7c6af7]/40 hover:text-[#7c6af7]"
+                aria-label="Activity Log"
+              >
+                <ClipboardList className="h-4 w-4" />
+              </Link>
+              <Link
+                to="/settings"
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#1e1e2e] text-muted-foreground hover:border-[#7c6af7]/40 hover:text-[#7c6af7]"
+                aria-label="Settings"
+              >
+                <Settings className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </header>
 
@@ -196,6 +220,26 @@ export default function DashboardPage() {
               Mark Attendance →
             </Link>
           </div>
+          {activeDay && todaySlots.length > 0 && (
+            <div className="mb-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => markAll("present")}
+                disabled={markAttendance.isPending}
+                className="flex-1 rounded-md border border-[#4ade80]/30 bg-[#4ade80]/10 py-1.5 text-xs font-medium text-[#4ade80] transition-colors hover:bg-[#4ade80]/20 disabled:opacity-50"
+              >
+                ✓ All Present
+              </button>
+              <button
+                type="button"
+                onClick={() => markAll("absent")}
+                disabled={markAttendance.isPending}
+                className="flex-1 rounded-md border border-[#fb7185]/30 bg-[#fb7185]/10 py-1.5 text-xs font-medium text-[#fb7185] transition-colors hover:bg-[#fb7185]/20 disabled:opacity-50"
+              >
+                ✗ All Absent
+              </button>
+            </div>
+          )}
           {todaySlots.length === 0 && upcoming.isLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-10 rounded-md" />
