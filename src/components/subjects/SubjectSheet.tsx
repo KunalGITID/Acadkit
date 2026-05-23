@@ -1,31 +1,47 @@
 import { Check } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
-import { useAddSubject } from "@/hooks/useSubjects";
+import { useAddSubject, useUpdateSubject } from "@/hooks/useSubjects";
+import type { Subject } from "@/types/database";
 import { SUBJECT_COLORS } from "@/lib/constants";
 import { useAppStore } from "@/store/useAppStore";
 
 interface SubjectSheetProps {
   open: boolean;
   onClose: () => void;
+  editSubject?: Subject;
 }
 
-export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
+export function SubjectSheet({ open, onClose, editSubject }: SubjectSheetProps) {
   const { toast } = useToast();
   const addSubject = useAddSubject();
+  const updateSubject = useUpdateSubject();
   const existingSubjects = useAppStore((s) => s.subjects);
+  const isEditing = !!editSubject;
 
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [credits, setCredits] = useState(3);
-  const [faculty, setFaculty] = useState("");
-  const [colorHex, setColorHex] = useState(SUBJECT_COLORS[0]);
+  const [name, setName] = useState(editSubject?.name ?? "");
+  const [code, setCode] = useState(editSubject?.code ?? "");
+  const [credits, setCredits] = useState(editSubject?.credits ?? 3);
+  const [faculty, setFaculty] = useState(editSubject?.faculty ?? "");
+  const [colorHex, setColorHex] = useState(editSubject?.color_hex ?? SUBJECT_COLORS[0]);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (open) {
+      setName(editSubject?.name ?? "");
+      setCode(editSubject?.code ?? "");
+      setCredits(editSubject?.credits ?? 3);
+      setFaculty(editSubject?.faculty ?? "");
+      setColorHex(editSubject?.color_hex ?? SUBJECT_COLORS[0]);
+      setError(null);
+      setErrors({});
+    }
+  }, [open, editSubject]);
 
   const reset = () => {
     setName("");
@@ -49,12 +65,12 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
     const trimmedCode = code.trim().toUpperCase();
     if (!trimmedName || trimmedName.length < 2) {
       newErrors.name = "Name must be at least 2 characters";
-    } else if (existingSubjects.some((s) => s.name.toLowerCase() === trimmedName.toLowerCase())) {
+    } else if (existingSubjects.some((s) => s.name.toLowerCase() === trimmedName.toLowerCase() && s.id !== editSubject?.id)) {
       newErrors.name = "A subject with this name already exists";
     }
     if (!trimmedCode || trimmedCode.length < 3) {
       newErrors.code = "Code must be at least 3 characters";
-    } else if (existingSubjects.some((s) => s.code === trimmedCode)) {
+    } else if (existingSubjects.some((s) => s.code === trimmedCode && s.id !== editSubject?.id)) {
       newErrors.code = "A subject with this code already exists";
     }
     if (credits < 0 || credits > 5) {
@@ -66,15 +82,27 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
     }
 
     try {
-      await addSubject.mutateAsync({
-        name: name.trim(),
-        code: code.trim().toUpperCase(),
-        credits,
-        type: "theory",
-        faculty: faculty.trim() || undefined,
-        color_hex: colorHex,
-      });
-      toast(`${name.trim()} added`);
+      if (isEditing && editSubject) {
+        await updateSubject.mutateAsync({
+          id: editSubject.id,
+          name: name.trim(),
+          code: code.trim().toUpperCase(),
+          credits,
+          faculty: faculty.trim() || undefined,
+          color_hex: colorHex,
+        });
+        toast(`${name.trim()} updated`);
+      } else {
+        await addSubject.mutateAsync({
+          name: name.trim(),
+          code: code.trim().toUpperCase(),
+          credits,
+          type: "theory",
+          faculty: faculty.trim() || undefined,
+          color_hex: colorHex,
+        });
+        toast(`${name.trim()} added`);
+      }
       handleClose();
     } catch (err) {
       const message =
@@ -91,7 +119,7 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
   };
 
   return (
-    <Sheet open={open} onClose={handleClose} title="Add Subject">
+    <Sheet open={open} onClose={handleClose} title={isEditing ? "Edit Subject" : "Add Subject"}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="subject-name">Subject Name</Label>
@@ -184,7 +212,7 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
           className="w-full bg-[#7c6af7] hover:bg-[#7c6af7]/90"
           disabled={addSubject.isPending}
         >
-          {addSubject.isPending ? "Adding…" : "Add Subject"}
+          {(addSubject.isPending || updateSubject.isPending) ? (isEditing ? "Saving…" : "Adding…") : (isEditing ? "Save Changes" : "Add Subject")}
         </Button>
       </form>
     </Sheet>

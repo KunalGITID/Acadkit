@@ -51,6 +51,34 @@ export function useAddSubject() {
   });
 }
 
+type UpdateSubject = Partial<NewSubject> & { id: string };
+
+export function useUpdateSubject() {
+  const deviceId = useAppStore((s) => s.deviceId);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: UpdateSubject) => {
+      const { data, error } = await supabase
+        .from("subjects")
+        .update(updates)
+        .eq("id", id)
+        .eq("device_id", deviceId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as Subject;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["subjects", deviceId] });
+    },
+    onError: () => {
+      toast("Failed to update subject. Try again.");
+    },
+  });
+}
+
 export function useDeleteSubject() {
   const deviceId = useAppStore((s) => s.deviceId);
   const queryClient = useQueryClient();

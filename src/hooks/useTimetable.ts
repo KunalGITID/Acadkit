@@ -86,6 +86,34 @@ export function useAddSlot() {
   });
 }
 
+type UpdateSlot = Partial<Omit<TimetableSlot, "id" | "device_id" | "created_at">> & { id: string };
+
+export function useUpdateSlot() {
+  const deviceId = useAppStore((s) => s.deviceId);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: UpdateSlot) => {
+      const { data, error } = await supabase
+        .from("timetable_slots")
+        .update(updates)
+        .eq("id", id)
+        .eq("device_id", deviceId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as TimetableSlot;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["timetable", deviceId] });
+    },
+    onError: () => {
+      toast("Failed to update slot. Try again.");
+    },
+  });
+}
+
 export function useDeleteSlot() {
   const deviceId = useAppStore((s) => s.deviceId);
   const queryClient = useQueryClient();

@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,12 +12,15 @@ import {
 import { useToast } from "@/components/ui/toast";
 import { useDeleteSubject } from "@/hooks/useSubjects";
 import { useAppStore } from "@/store/useAppStore";
+import type { Subject } from "@/types/database";
+import { SubjectSheet } from "./SubjectSheet";
 
 export function SubjectList() {
   const subjects = useAppStore((s) => s.subjects);
   const deleteSubject = useDeleteSubject();
   const { toast } = useToast();
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [editSubject, setEditSubject] = useState<Subject | null>(null);
 
   const subjectToDelete = subjects.find((s) => s.id === confirmId);
 
@@ -61,18 +64,35 @@ export function SubjectList() {
                 </p>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 text-muted-foreground hover:text-red-400"
-              onClick={() => setConfirmId(subject.id)}
-              aria-label={`Delete ${subject.name}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="flex shrink-0 gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-[#7c6af7]"
+                onClick={() => setEditSubject(subject)}
+                aria-label={`Edit ${subject.name}`}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-red-400"
+                onClick={() => setConfirmId(subject.id)}
+                aria-label={`Delete ${subject.name}`}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>
+
+      <SubjectSheet
+        open={!!editSubject}
+        onClose={() => setEditSubject(null)}
+        editSubject={editSubject ?? undefined}
+      />
 
       <Dialog open={!!confirmId} onOpenChange={() => setConfirmId(null)}>
         <DialogContent>

@@ -1,4 +1,4 @@
-import { CalendarDays, Plus } from "lucide-react";
+import { CalendarDays, Pencil, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSwipeTabs } from "@/hooks/useSwipeTabs";
 import { SubjectList } from "@/components/subjects/SubjectList";
@@ -29,6 +29,7 @@ import {
 import {
   useAddSlot,
   useDeleteSlot,
+  useUpdateSlot,
   useTimetable,
   useTimetableByDay,
 } from "@/hooks/useTimetable";
@@ -57,6 +58,7 @@ export default function TimetablePage() {
   const swipe = useSwipeTabs(TABS, tab, setTab);
   const [subjectSheetOpen, setSubjectSheetOpen] = useState(false);
   const [addSlotOpen, setAddSlotOpen] = useState(false);
+  const [editSlot, setEditSlot] = useState<TimetableSlot | null>(null);
   const [holidaySheetOpen, setHolidaySheetOpen] = useState(false);
   const [deleteSlotId, setDeleteSlotId] = useState<string | null>(null);
 
@@ -72,6 +74,7 @@ export default function TimetablePage() {
   const { data: daySlots = [] } = useTimetableByDay(selectedDay);
   const { data: allSlots = [] } = useTimetable();
   const addSlot = useAddSlot();
+  const updateSlot = useUpdateSlot();
   const deleteSlot = useDeleteSlot();
   const declareHoliday = useDeclareTodayHoliday();
   const undoHoliday = useUndoTodayHoliday();
@@ -174,6 +177,7 @@ export default function TimetablePage() {
             isViewingToday={isViewingToday}
             dayOrder={selectedDay}
             onAddSlot={() => setAddSlotOpen(true)}
+            onEdit={(slot) => setEditSlot(slot)}
             onLongPressDelete={(id) => setDeleteSlotId(id)}
           />
         </div>
@@ -201,13 +205,15 @@ export default function TimetablePage() {
       />
 
       <AddSlotSheet
-        open={addSlotOpen}
-        onClose={() => setAddSlotOpen(false)}
+        open={addSlotOpen || !!editSlot}
+        onClose={() => { setAddSlotOpen(false); setEditSlot(null); }}
         subjects={subjects}
         allSlots={allSlots}
         defaultDayOrder={todayDayOrder ?? selectedDay}
         onSuccess={(msg) => toast(msg)}
         addSlot={addSlot}
+        updateSlot={updateSlot}
+        editSlot={editSlot ?? undefined}
       />
 
       <DeclareHolidaySheet
@@ -385,6 +391,7 @@ function TimelineView({
   isViewingToday,
   dayOrder,
   onAddSlot,
+  onEdit,
   onLongPressDelete,
 }: {
   slots: TimetableSlot[];
@@ -392,6 +399,7 @@ function TimelineView({
   isViewingToday: boolean;
   dayOrder: number;
   onAddSlot: () => void;
+  onEdit: (slot: TimetableSlot) => void;
   onLongPressDelete: (id: string) => void;
 }) {
   const slotsWithSubject = useMemo(
@@ -448,6 +456,7 @@ function TimelineView({
               subject={subject}
               active={active}
               past={past}
+              onEdit={onEdit}
               onLongPressDelete={onLongPressDelete}
             />
           </div>
@@ -462,12 +471,14 @@ function SlotCard({
   subject,
   active,
   past,
+  onEdit,
   onLongPressDelete,
 }: {
   slot: TimetableSlot;
   subject?: Subject;
   active: boolean;
   past: boolean;
+  onEdit: (slot: TimetableSlot) => void;
   onLongPressDelete: (id: string) => void;
 }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -522,13 +533,21 @@ function SlotCard({
           <p className="text-xs text-muted-foreground">{subject.faculty}</p>
         )}
       </div>
+      <button
+        type="button"
+        onClick={() => onEdit(slot)}
+        className="flex items-center justify-center self-stretch px-3 text-muted-foreground hover:text-[#7c6af7]"
+        aria-label="Edit slot"
+      >
+        <Pencil className="h-4 w-4" />
+      </button>
       {active && (
-        <span className="absolute right-2 top-2 rounded bg-[#7c6af7] px-2 py-0.5 text-[10px] font-bold text-white">
+        <span className="absolute right-10 top-2 rounded bg-[#7c6af7] px-2 py-0.5 text-[10px] font-bold text-white">
           NOW
         </span>
       )}
       {past && !active && (
-        <span className="absolute right-2 top-2 rounded bg-[#1e1e2e] px-2 py-0.5 text-[10px] text-muted-foreground">
+        <span className="absolute right-10 top-2 rounded bg-[#1e1e2e] px-2 py-0.5 text-[10px] text-muted-foreground">
           Done
         </span>
       )}
@@ -589,6 +608,8 @@ function AddSlotSheet({
   defaultDayOrder,
   onSuccess,
   addSlot,
+  updateSlot,
+  editSlot,
 }: {
   open: boolean;
   onClose: () => void;
@@ -597,7 +618,10 @@ function AddSlotSheet({
   defaultDayOrder: number;
   onSuccess: (msg: string) => void;
   addSlot: ReturnType<typeof useAddSlot>;
+  updateSlot: ReturnType<typeof useUpdateSlot>;
+  editSlot?: TimetableSlot;
 }) {
+  const isEditing = !!editSlot;
   const deviceId = useAppStore((s) => s.deviceId);
   const timeOptions = useMemo(() => generateTimeOptions(), []);
 
@@ -608,6 +632,18 @@ function AddSlotSheet({
   const [endTime, setEndTime] = useState("08:50");
   const [room, setRoom] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setDayOrder(editSlot?.day_order ?? defaultDayOrder);
+      setSubjectId(editSlot?.subject_id ?? "");
+      setSlotType(editSlot?.slot_type ?? "theory");
+      setStartTime(editSlot?.start_time ?? "08:00");
+      setEndTime(editSlot?.end_time ?? "08:50");
+      setRoom(editSlot?.room ?? "");
+      setError(null);
+    }
+  }, [open, editSlot, defaultDayOrder]);
 
   const handleStartChange = (t: string) => {
     setStartTime(t);
@@ -637,7 +673,7 @@ function AddSlotSheet({
       return;
     }
 
-    const daySlots = allSlots.filter((s) => s.day_order === dayOrder);
+    const daySlots = allSlots.filter((s) => s.day_order === dayOrder && s.id !== editSlot?.id);
     for (const existing of daySlots) {
       if (
         slotsOverlap(start, end, existing.start_time, existing.end_time)
@@ -650,16 +686,29 @@ function AddSlotSheet({
     }
 
     try {
-      await addSlot.mutateAsync({
-        device_id: deviceId,
-        subject_id: subjectId,
-        day_order: dayOrder,
-        start_time: start,
-        end_time: end,
-        room: room.trim() || undefined,
-        slot_type: slotType,
-      });
-      onSuccess(`Class added to Day ${dayOrder}`);
+      if (isEditing && editSlot) {
+        await updateSlot.mutateAsync({
+          id: editSlot.id,
+          subject_id: subjectId,
+          day_order: dayOrder,
+          start_time: start,
+          end_time: end,
+          room: room.trim() || undefined,
+          slot_type: slotType,
+        });
+        onSuccess("Slot updated");
+      } else {
+        await addSlot.mutateAsync({
+          device_id: deviceId,
+          subject_id: subjectId,
+          day_order: dayOrder,
+          start_time: start,
+          end_time: end,
+          room: room.trim() || undefined,
+          slot_type: slotType,
+        });
+        onSuccess(`Class added to Day ${dayOrder}`);
+      }
       onClose();
     } catch {
       setError("Failed to add slot.");
@@ -667,7 +716,7 @@ function AddSlotSheet({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Add Class">
+    <Sheet open={open} onClose={onClose} title={isEditing ? "Edit Class" : "Add Class"}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
           <Label>Day Order</Label>
@@ -782,9 +831,9 @@ function AddSlotSheet({
         <Button
           type="submit"
           className="w-full bg-[#7c6af7]"
-          disabled={addSlot.isPending || subjects.length === 0}
+          disabled={addSlot.isPending || updateSlot.isPending || subjects.length === 0}
         >
-          {addSlot.isPending ? "Saving…" : "Add Class"}
+          {(addSlot.isPending || updateSlot.isPending) ? "Saving…" : isEditing ? "Save Changes" : "Add Class"}
         </Button>
       </form>
     </Sheet>
