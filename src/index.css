@@ -40,6 +40,8 @@
   body {
     @apply bg-background text-foreground antialiased;
     background-color: #0a0a0f;
+    touch-action: pan-x pan-y;
+    -ms-touch-action: pan-x pan-y;
   }
   .font-syne {
     font-family: "Syne", sans-serif;
