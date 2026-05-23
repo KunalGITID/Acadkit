@@ -1,0 +1,702 @@
+import { BookOpen } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useSwipeTabs } from "@/hooks/useSwipeTabs";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { SubjectMarksCard } from "@/components/marks/SubjectMarksCard";
+import { GradeBadge } from "@/components/ui/grade-badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { MarksProgress } from "@/components/ui/marks-progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  useAllSubjectsSGPA,
+  useMarks,
+  useSubjectMarksDetail,
+} from "@/hooks/useMarks";
+import { useSettings } from "@/hooks/useSettings";
+import { useSubjects } from "@/hooks/useSubjects";
+import {
+  GRADE_OPTIONS,
+  predictRequiredExternal,
+  scaleInternalTo60,
+  type SubjectSGPAResult,
+} from "@/lib/sgpa";
+import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/useAppStore";
+import type { Mark, Subject } from "@/types/database";
+
+type Tab = "marks" | "sgpa";
+const TABS = ["marks", "sgpa"] as const satisfies readonly Tab[];
+
+interface ChartDatum {
+  code: string;
+  name: string;
+  internal: number;
+  external: number;
+  total: number;
+}
+
+interface SubjectMarksProgress {
+  internalScaled: number;
+  externalMark: number | null;
+  totalMark: number | null;
+}
+
+type TooltipPayload = {
+  name?: string;
+  value?: number;
+  color?: string;
+  payload: ChartDatum;
+};
+
+type ChartTooltipProps = {
+  active?: boolean;
+  payload?: TooltipPayload[];
+};
+
+const GRADE_POINT_ORDER = [
+  { grade: "O", points: 10 },
+  { grade: "A+", points: 9 },
+  { grade: "A", points: 8 },
+  { grade: "B+", points: 7 },
+  { grade: "B", points: 6 },
+  { grade: "C", points: 5 },
+  { grade: "F", points: 0 },
+];
+
+function gradeForRequiredPoints(points: number): string {
+  const target = Math.max(0, points);
+  const match = [...GRADE_POINT_ORDER]
+    .reverse()
+    .find((item) => item.points >= target);
+  return match?.grade ?? "O";
+}
+
+export default function MarksPage() {
+  const [tab, setTab] = useState<Tab>("marks");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const swipe = useSwipeTabs(TABS, tab, setTab);
+
+  const subjectsQuery = useSubjects();
+  const marksQuery = useMarks();
+  useSettings();
+
+  const subjects = useAppStore((s) => s.subjects);
+  const settings = useAppStore((s) => s.settings);
+  const { results, sgpa } = useAllSubjectsSGPA();
+
+  const isLoading = subjectsQuery.isLoading || marksQuery.isLoading;
+  const isError = subjectsQuery.isError || marksQuery.isError;
+  const completedCount = results.filter((result) => result.isComplete).length;
+
+  return (
+    <main
+      className="min-h-screen bg-background pb-24"
+      onTouchStart={swipe.onTouchStart}
+      onTouchEnd={swipe.onTouchEnd}
+    >
+      <header className="sticky top-0 z-40 border-b border-[#1e1e2e] bg-background/95 px-4 pb-3 pt-4 backdrop-blur">
+        <h1 className="font-syne text-xl font-bold text-foreground">Marks</h1>
+        <div className="mt-3 flex rounded-lg bg-[#111118] p-1">
+          {(["marks", "sgpa"] as const).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setTab(item)}
+              className={cn(
+                "relative flex-1 rounded-md py-2 text-sm font-medium transition-all",
+                tab === item
+                  ? "text-[#7c6af7]"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {item === "marks" ? "Marks" : "SGPA"}
+              {tab === item && (
+                <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[#7c6af7]" />
+              )}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {isLoading ? (
+        <div className="space-y-3 px-4 py-4">
+          <Skeleton className="h-16 rounded-lg" />
+          <Skeleton className="h-16 rounded-lg" />
+          <Skeleton className="h-16 rounded-lg" />
+        </div>
+      ) : isError ? (
+        <StateMessage
+          title="Could not load marks"
+          body="Check your connection and try again."
+        />
+      ) : tab === "marks" ? (
+        <MarksTab
+          subjects={subjects}
+          expandedId={expandedId}
+          onExpand={setExpandedId}
+        />
+      ) : (
+        <SGPATab
+          results={results}
+          sgpa={sgpa}
+          subjects={subjects}
+          allMarks={marksQuery.data ?? []}
+          targetSgpa={settings?.target_sgpa ?? null}
+          completedCount={completedCount}
+        />
+      )}
+    </main>
+  );
+}
+
+function MarksTab({
+  subjects,
+  expandedId,
+  onExpand,
+}: {
+  subjects: Subject[];
+  expandedId: string | null;
+  onExpand: (subjectId: string | null) => void;
+}) {
+  if (subjects.length === 0) {
+    return (
+      <div className="flex flex-col items-center px-6 py-16 text-center">
+        <BookOpen className="mb-4 h-12 w-12 text-muted-foreground/40" />
+        <p className="font-syne text-lg text-foreground">No subjects yet</p>
+        <p className="mt-2 text-sm text-muted-foreground">Add subjects in Timetable → Manage</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-2 space-y-3 px-4 py-4 duration-300">
+      {subjects.map((subject) => (
+        <SubjectMarksCard
+          key={subject.id}
+          subject={subject}
+          open={expandedId === subject.id}
+          onOpenChange={(open) => onExpand(open ? subject.id : null)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function SGPATab({
+  results,
+  sgpa,
+  subjects,
+  allMarks,
+  targetSgpa,
+  completedCount,
+}: {
+  results: SubjectSGPAResult[];
+  sgpa: number | null;
+  subjects: Subject[];
+  allMarks: Mark[];
+  targetSgpa: number | null;
+  completedCount: number;
+}) {
+  const [predictSubjectId, setPredictSubjectId] = useState(subjects[0]?.id ?? "");
+  const [targetGrade, setTargetGrade] = useState<string>("A");
+  const [targetSgpaInput, setTargetSgpaInput] = useState(9.8);
+
+  useEffect(() => {
+    if (!predictSubjectId && subjects[0]) {
+      setPredictSubjectId(subjects[0].id);
+    }
+  }, [predictSubjectId, subjects]);
+
+  const progressBySubject = useMemo(
+    () => getMarksProgressBySubject(subjects, allMarks),
+    [subjects, allMarks]
+  );
+
+  const chartData = useMemo<ChartDatum[]>(
+    () =>
+      results.map((result) => {
+        const subject = subjects.find((item) => item.id === result.subjectId);
+        const progress = progressBySubject[result.subjectId];
+        return {
+          code: subject?.code ?? "?",
+          name: result.subjectName,
+          internal: progress?.internalScaled ?? 0,
+          external: progress?.externalMark ?? 0,
+          total: progress?.totalMark ?? progress?.internalScaled ?? 0,
+        };
+      }),
+    [progressBySubject, results, subjects]
+  );
+
+  const selectedSubject = subjects.find((subject) => subject.id === predictSubjectId);
+  const predictDetail = useSubjectMarksDetail(predictSubjectId);
+  const requiredExternal = predictRequiredExternal(
+    targetGrade,
+    predictDetail.internalScaled
+  );
+  const targetGradeMin = getGradeThreshold(targetGrade);
+  const alreadyAchieved =
+    predictDetail.externalRecord !== null &&
+    predictDetail.gradeResult !== null &&
+    predictDetail.gradeResult.totalMark >= targetGradeMin;
+
+  const targetSgpaAnalysis = useMemo(
+    () =>
+      calculateTargetSgpa(
+        results,
+        subjects,
+        targetSgpaInput,
+        progressBySubject
+      ),
+    [progressBySubject, results, subjects, targetSgpaInput]
+  );
+
+  const onTrack = sgpa !== null && sgpa >= targetSgpaInput;
+
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-2 space-y-4 px-4 py-4 duration-300">
+      <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] px-6 py-8 text-center">
+        <p className="text-sm text-muted-foreground">Current SGPA</p>
+        <p className="font-syne text-5xl font-bold text-[#7c6af7]">
+          {sgpa !== null ? sgpa.toFixed(2) : "-"}
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Based on {completedCount} completed subject
+          {completedCount === 1 ? "" : "s"}
+        </p>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">
+          Target: {targetSgpaInput.toFixed(2)}
+        </p>
+        {targetSgpa !== null && targetSgpa !== targetSgpaInput && (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Saved target: {targetSgpa.toFixed(2)}
+          </p>
+        )}
+        <p
+          className={cn(
+            "mt-2 text-sm font-medium",
+            onTrack ? "text-[#4ade80]" : "text-amber-400"
+          )}
+        >
+          {sgpa === null
+            ? "Add complete marks to calculate"
+            : onTrack
+              ? "On track"
+              : `${(targetSgpaInput - sgpa).toFixed(2)} needed`}
+        </p>
+      </section>
+
+      <SubjectBreakdown
+        results={results}
+        subjects={subjects}
+        sgpa={sgpa}
+        progressBySubject={progressBySubject}
+      />
+
+      <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-4">
+        <h3 className="font-syne font-semibold">What do I need?</h3>
+
+        <div className="mt-4 space-y-3 border-b border-[#1e1e2e] pb-4">
+          <p className="text-xs text-muted-foreground">
+            To reach a target grade in a subject
+          </p>
+          <select
+            value={predictSubjectId}
+            onChange={(event) => setPredictSubjectId(event.target.value)}
+            className="w-full rounded-md border border-input bg-[#0a0a0f] px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-[#7c6af7]/50"
+          >
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id}>
+                {subject.name}
+              </option>
+            ))}
+          </select>
+
+          <div className="grid grid-cols-6 gap-1">
+            {GRADE_OPTIONS.map((grade) => (
+              <button
+                key={grade}
+                type="button"
+                onClick={() => setTargetGrade(grade)}
+                className={cn(
+                  "min-h-[34px] rounded-md border font-mono text-xs transition-colors",
+                  targetGrade === grade
+                    ? "border-[#7c6af7] bg-[#7c6af7]/20 text-[#c4b5fd]"
+                    : "border-[#1e1e2e] bg-[#0a0a0f] text-muted-foreground"
+                )}
+              >
+                {grade}
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-md bg-[#0a0a0f] p-3 font-mono text-xs">
+            <p className="text-muted-foreground">
+              Current internal scaled: {predictDetail.internalScaled.toFixed(1)}
+              /60
+            </p>
+            {!selectedSubject ? (
+              <p className="mt-2 text-muted-foreground">Add a subject first.</p>
+            ) : alreadyAchieved ? (
+              <p className="mt-2 text-[#4ade80]">
+                Already achieved {targetGrade}. Total:{" "}
+                {predictDetail.gradeResult?.totalMark.toFixed(1)}/100
+              </p>
+            ) : predictDetail.externalRecord ? (
+              <p className="mt-2 text-foreground">
+                Your current grade is {predictDetail.gradeResult?.grade ?? "?"}.
+                Total: {predictDetail.gradeResult?.totalMark.toFixed(1)}/100
+              </p>
+            ) : requiredExternal > 40 ? (
+              <p className="mt-2 text-[#fb7185]">
+                {targetGrade} is not reachable from current internals. You would
+                need {requiredExternal.toFixed(1)}/40 in End Sem.
+              </p>
+            ) : (
+              <p className="mt-2 text-foreground">
+                You need {requiredExternal.toFixed(1)}/40 in End Sem to get{" "}
+                {targetGrade}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Target SGPA calculator
+          </p>
+          <div>
+            <Label>Target SGPA</Label>
+            <Input
+              type="number"
+              min={0}
+              max={10}
+              step={0.1}
+              value={targetSgpaInput}
+              onChange={(event) =>
+                setTargetSgpaInput(Number(event.target.value))
+              }
+            />
+          </div>
+          <p className="font-mono text-xs text-muted-foreground">
+            {targetSgpaAnalysis.summary}
+          </p>
+          {targetSgpaAnalysis.remaining.length > 0 && (
+            <div className="space-y-1">
+              {targetSgpaAnalysis.remaining.map((item) => (
+                <div
+                  key={item.subjectId}
+                  className="flex items-center justify-between gap-2 rounded-md bg-[#0a0a0f] px-3 py-2 text-xs"
+                >
+                  <span className="min-w-0 truncate">{item.subjectName}</span>
+                  <span
+                    className={cn(
+                      "shrink-0 text-right font-mono",
+                      item.externalNeeded !== null && item.externalNeeded > 40
+                        ? "text-[#fb7185]"
+                        : "text-[#c4b5fd]"
+                    )}
+                  >
+                    {item.gradeNeeded} ·{" "}
+                    {item.externalNeeded === null
+                      ? "add internals"
+                      : item.externalNeeded > 40
+                        ? `${item.externalNeeded.toFixed(1)}/40 impossible`
+                        : `${item.externalNeeded.toFixed(1)}/40 End Sem`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {chartData.length > 0 && <MarksChart data={chartData} />}
+    </div>
+  );
+}
+
+function SubjectBreakdown({
+  results,
+  subjects,
+  sgpa,
+  progressBySubject,
+}: {
+  results: SubjectSGPAResult[];
+  subjects: Subject[];
+  sgpa: number | null;
+  progressBySubject: Record<string, SubjectMarksProgress>;
+}) {
+  return (
+    <section className="overflow-x-auto rounded-lg border border-[#1e1e2e]">
+      <table className="w-full min-w-[640px] text-left text-sm">
+        <thead className="border-b border-[#1e1e2e] bg-[#111118] text-xs text-muted-foreground">
+          <tr>
+            <th className="p-3 font-medium">Subject</th>
+            <th className="p-3 font-medium">Credits</th>
+            <th className="p-3 font-medium">Internal</th>
+            <th className="p-3 font-medium">External</th>
+            <th className="p-3 font-medium">Total</th>
+            <th className="p-3 font-medium">Grade</th>
+            <th className="p-3 font-medium">Points</th>
+          </tr>
+        </thead>
+        <tbody>
+          {results.map((result) => {
+            const subject = subjects.find((item) => item.id === result.subjectId);
+            const gradeResult = result.gradeResult;
+            const progress = progressBySubject[result.subjectId];
+
+            return (
+              <tr
+                key={result.subjectId}
+                className="border-b border-[#1e1e2e]/70 bg-[#0a0a0f] last:border-b-0"
+              >
+                <td className="p-3">
+                  <p className="max-w-[150px] truncate font-syne font-medium">
+                    {result.subjectName}
+                  </p>
+                  <p className="font-mono text-[10px] text-muted-foreground">
+                    {subject?.code}
+                  </p>
+                </td>
+                <td className="p-3 font-mono">{result.credits}</td>
+                <td className="p-3">
+                  {progress && progress.internalScaled > 0 ? (
+                    <div className="w-28">
+                      <MarksProgress
+                        obtained={progress.internalScaled}
+                        max={60}
+                        color="#38bdf8"
+                      />
+                    </div>
+                  ) : (
+                    <span className="font-mono text-xs text-muted-foreground">
+                      -
+                    </span>
+                  )}
+                </td>
+                <td className="p-3 font-mono text-xs">
+                  {progress?.externalMark !== null &&
+                  progress?.externalMark !== undefined
+                    ? `${progress.externalMark.toFixed(1)}/40`
+                    : "-"}
+                </td>
+                <td className="p-3 font-mono text-xs">
+                  {gradeResult ? `${gradeResult.totalMark.toFixed(1)}/100` : "-"}
+                </td>
+                <td className="p-3">
+                  <GradeBadge grade={gradeResult?.grade ?? null} size="sm" />
+                </td>
+                <td className="p-3 font-mono">
+                  {gradeResult?.gradePoints ?? "-"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="border-t border-[#1e1e2e] bg-[#111118] p-3 font-mono text-xs text-muted-foreground">
+        SGPA Calculation: sum(points x credits) / sum(credits)
+        {sgpa !== null ? ` = ${sgpa.toFixed(2)}` : " = -"}
+      </p>
+    </section>
+  );
+}
+
+function MarksChart({ data }: { data: ChartDatum[] }) {
+  const minWidth = Math.max(340, data.length * 72);
+
+  return (
+    <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-3">
+      <h3 className="mb-3 font-syne text-sm font-medium">Marks Breakdown</h3>
+      <div className="h-72 overflow-x-auto">
+        <div style={{ minWidth }}>
+          <ResponsiveContainer width="100%" height={272}>
+            <BarChart
+              data={data}
+              margin={{ top: 8, right: 12, left: -20, bottom: 0 }}
+            >
+              <CartesianGrid stroke="#1e1e2e" strokeDasharray="3 3" />
+              <XAxis
+                dataKey="code"
+                tick={{ fill: "#a1a1aa", fontSize: 10 }}
+                axisLine={{ stroke: "#1e1e2e" }}
+                tickLine={{ stroke: "#1e1e2e" }}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fill: "#a1a1aa", fontSize: 10 }}
+                axisLine={{ stroke: "#1e1e2e" }}
+                tickLine={{ stroke: "#1e1e2e" }}
+              />
+              <Tooltip
+                cursor={{ fill: "#1e1e2e", opacity: 0.35 }}
+                content={(props) => (
+                  <MarksTooltip {...(props as ChartTooltipProps)} />
+                )}
+              />
+              <ReferenceLine y={75} stroke="#facc15" strokeDasharray="4 4" />
+              <ReferenceLine y={91} stroke="#7c6af7" strokeDasharray="4 4" />
+              <Bar dataKey="internal" stackId="marks" fill="#38bdf8" />
+              <Bar
+                dataKey="external"
+                stackId="marks"
+                fill="#7c6af7"
+                radius={[4, 4, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <div className="mt-2 flex justify-center gap-4 font-mono text-[10px] text-muted-foreground">
+        <span>75 target line</span>
+        <span>91 O grade line</span>
+      </div>
+    </section>
+  );
+}
+
+function MarksTooltip({ active, payload }: ChartTooltipProps) {
+  if (!active || !payload || payload.length === 0) return null;
+  const datum = payload[0].payload;
+
+  return (
+    <div className="rounded-md border border-[#1e1e2e] bg-[#0a0a0f] p-3 text-xs shadow-xl">
+      <p className="mb-2 font-syne font-semibold text-foreground">
+        {datum.name}
+      </p>
+      <p className="font-mono text-[#38bdf8]">
+        Internal: {datum.internal.toFixed(1)} / 60
+      </p>
+      <p className="font-mono text-[#7c6af7]">
+        External: {datum.external.toFixed(1)} / 40
+      </p>
+      <p className="mt-1 font-mono text-foreground">
+        Total: {datum.total.toFixed(1)} / 100
+      </p>
+    </div>
+  );
+}
+
+function StateMessage({ title, body }: { title: string; body?: string }) {
+  return (
+    <div className="px-6 py-16 text-center">
+      <p className="font-syne text-foreground">{title}</p>
+      {body && <p className="mt-2 text-sm text-muted-foreground">{body}</p>}
+    </div>
+  );
+}
+
+function getGradeThreshold(grade: string): number {
+  const thresholds: Record<string, number> = {
+    O: 91,
+    "A+": 81,
+    A: 71,
+    "B+": 61,
+    B: 56,
+    C: 50,
+    F: 0,
+  };
+  return thresholds[grade] ?? 50;
+}
+
+function getMarksProgressBySubject(subjects: Subject[], marks: Mark[]) {
+  return subjects.reduce<Record<string, SubjectMarksProgress>>(
+    (progress, subject) => {
+      const subjectMarks = marks.filter((mark) => mark.subject_id === subject.id);
+      const internalRecords = subjectMarks.filter((mark) => !mark.is_external);
+      const externalRecord =
+        subjectMarks.find((mark) => mark.is_external) ?? null;
+      const internalScaled = scaleInternalTo60(internalRecords);
+      const externalMark = externalRecord
+        ? Math.round(
+            (externalRecord.marks_obtained / externalRecord.max_marks) *
+              40 *
+              100
+          ) / 100
+        : null;
+
+      progress[subject.id] = {
+        internalScaled,
+        externalMark,
+        totalMark:
+          externalMark === null
+            ? null
+            : Math.round((internalScaled + externalMark) * 100) / 100,
+      };
+      return progress;
+    },
+    {}
+  );
+}
+
+function calculateTargetSgpa(
+  results: SubjectSGPAResult[],
+  subjects: Subject[],
+  targetSgpa: number,
+  progressBySubject: Record<string, SubjectMarksProgress>
+) {
+  const totalCredits = subjects.reduce((sum, subject) => sum + subject.credits, 0);
+  const earnedPoints = results.reduce(
+    (sum, result) =>
+      sum + (result.gradeResult?.gradePoints ?? 0) * result.credits,
+    0
+  );
+  const remaining = results.filter((result) => !result.isComplete);
+  const remainingCredits = remaining.reduce(
+    (sum, result) => sum + result.credits,
+    0
+  );
+
+  if (subjects.length === 0) {
+    return { summary: "Add subjects to use the calculator.", remaining: [] };
+  }
+
+  if (remainingCredits === 0) {
+    return { summary: "All subjects have complete marks.", remaining: [] };
+  }
+
+  const neededPoints =
+    (targetSgpa * totalCredits - earnedPoints) / remainingCredits;
+  const roundedNeeded = Math.round(neededPoints * 100) / 100;
+  const impossible = roundedNeeded > 10;
+  const alreadyCovered = roundedNeeded <= 0;
+  const gradeNeeded = alreadyCovered
+    ? "F"
+    : gradeForRequiredPoints(roundedNeeded);
+  const targetGradeMinimum = getGradeThreshold(gradeNeeded);
+
+  return {
+    summary: impossible
+      ? `Target ${targetSgpa.toFixed(2)} is not reachable from the remaining credits.`
+      : alreadyCovered
+        ? `You have enough earned points for ${targetSgpa.toFixed(2)}.`
+        : `You need about ${roundedNeeded.toFixed(
+            2
+          )} points on average across remaining subjects.`,
+    remaining: remaining.map((result) => {
+      const progress = progressBySubject[result.subjectId];
+      const externalNeeded = progress
+        ? Math.max(0, targetGradeMinimum - progress.internalScaled)
+        : null;
+
+      return {
+        subjectId: result.subjectId,
+        subjectName: result.subjectName,
+        gradeNeeded: impossible ? "O+" : gradeNeeded,
+        externalNeeded: impossible ? 41 : externalNeeded,
+      };
+    }),
+  };
+}
