@@ -11,6 +11,7 @@ import {
   useUpdateSettings,
 } from "@/hooks/useSettings";
 import { supabase } from "@/lib/supabase";
+import { setSyncPin } from "@/lib/device";
 import { useAppStore } from "@/store/useAppStore";
 
 export default function SettingsPage() {
@@ -34,6 +35,19 @@ export default function SettingsPage() {
 
   // Section B state
   const [minAttendance, setMinAttendance] = useState(settings?.min_attendance ?? 75);
+
+  // Sync PIN
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+
+  const handleSwitchPin = () => {
+    if (!/^\d{4}$/.test(pinInput)) {
+      setPinError("Enter exactly 4 digits");
+      return;
+    }
+    setSyncPin(pinInput);
+    window.location.reload();
+  };
 
   // Copy state
   const [copied, setCopied] = useState(false);
@@ -308,7 +322,66 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Section E - Data */}
+        {/* Section E - Sync */}
+        <section>
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Sync
+          </p>
+          <div className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-4 space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">Your sync PIN</p>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-3xl font-bold tracking-[0.3em] text-[#7c6af7]">
+                  {deviceId.length === 4 ? deviceId : "????"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(deviceId);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="ml-2 flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[#7c6af7] hover:bg-[#7c6af7]/10"
+                >
+                  {copied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Share this PIN with your other devices to sync data.
+              </p>
+            </div>
+            <div className="border-t border-[#1e1e2e] pt-4 space-y-2">
+              <Label htmlFor="pin-input">Switch to another PIN</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="pin-input"
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="1234"
+                  maxLength={4}
+                  value={pinInput}
+                  onChange={(e) => {
+                    setPinInput(e.target.value.slice(0, 4));
+                    setPinError("");
+                  }}
+                  className="w-28 font-mono text-lg tracking-widest"
+                />
+                <Button
+                  className="bg-[#7c6af7] hover:bg-[#6b5be0]"
+                  onClick={handleSwitchPin}
+                >
+                  Switch
+                </Button>
+              </div>
+              {pinError && <p className="text-xs text-[#fb7185]">{pinError}</p>}
+              <p className="text-xs text-muted-foreground">
+                Entering another device's PIN will load its data on this device.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Section F - Data */}
         <section>
           <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Data
