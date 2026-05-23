@@ -182,6 +182,8 @@ export default function AttendancePage() {
           markSlot={markSlot}
           markAll={markAll}
           markPending={markAttendance.isPending}
+          allAttendance={allAttendance}
+          subjects={subjects}
         />
       )}
     </main>
@@ -256,8 +258,6 @@ function OverviewTab({
           />
         </div>
       </div>
-
-      <AbsentLogSection allAttendance={allAttendance} subjects={subjects} />
 
       <div className="space-y-3">
         {stats.map((stat) => {
@@ -338,6 +338,8 @@ function MarkTodayTab({
   markSlot,
   markAll,
   markPending,
+  allAttendance,
+  subjects,
 }: {
   todayStatus: ReturnType<typeof getTodayStatus>;
   formattedToday: string;
@@ -349,6 +351,8 @@ function MarkTodayTab({
   ) => void;
   markAll: (status: "present" | "holiday") => void;
   markPending: boolean;
+  allAttendance: Attendance[];
+  subjects: Subject[];
 }) {
   const [showPreview, setShowPreview] = useState(false);
 
@@ -372,6 +376,10 @@ function MarkTodayTab({
             {showPreview ? "Hide preview" : "Preview Mark Today UI (sample)"}
           </button>
           {showPreview && <MarkTodayPreview />}
+        </div>
+
+        <div className="mt-6">
+          <AbsentLogSection allAttendance={allAttendance} subjects={subjects} />
         </div>
       </div>
     );
@@ -430,6 +438,10 @@ function MarkTodayTab({
           </div>
         </>
       )}
+
+      <div className="mt-6">
+        <AbsentLogSection allAttendance={allAttendance} subjects={subjects} />
+      </div>
     </div>
   );
 }

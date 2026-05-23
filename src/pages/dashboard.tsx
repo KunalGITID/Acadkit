@@ -4,7 +4,6 @@ import {
   Check,
   CheckCircle2,
   Clock3,
-  ClipboardList,
   Plus,
   Settings,
   Share2,
@@ -148,24 +147,15 @@ export default function DashboardPage() {
               {formatLongDate()}
             </p>
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <div className="flex shrink-0 items-center gap-2">
             <DayStatusBadge status={todayStatus} />
-            <div className="flex items-center gap-1.5">
-              <Link
-                to="/log"
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#1e1e2e] text-muted-foreground hover:border-[#7c6af7]/40 hover:text-[#7c6af7]"
-                aria-label="Activity Log"
-              >
-                <ClipboardList className="h-4 w-4" />
-              </Link>
-              <Link
-                to="/settings"
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#1e1e2e] text-muted-foreground hover:border-[#7c6af7]/40 hover:text-[#7c6af7]"
-                aria-label="Settings"
-              >
-                <Settings className="h-4 w-4" />
-              </Link>
-            </div>
+            <Link
+              to="/settings"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#1e1e2e] text-muted-foreground hover:border-[#7c6af7]/40 hover:text-[#7c6af7]"
+              aria-label="Settings"
+            >
+              <Settings className="h-4 w-4" />
+            </Link>
           </div>
         </header>
 
