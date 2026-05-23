@@ -1,16 +1,6 @@
 import { BookOpen } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSwipeTabs } from "@/hooks/useSwipeTabs";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import { SubjectMarksCard } from "@/components/marks/SubjectMarksCard";
 import { GradeBadge } from "@/components/ui/grade-badge";
 import { Input } from "@/components/ui/input";
@@ -36,34 +26,14 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import type { Mark, Subject } from "@/types/database";
 
-type Tab = "marks" | "sgpa";
-const TABS = ["marks", "sgpa"] as const satisfies readonly Tab[];
-
-interface ChartDatum {
-  code: string;
-  name: string;
-  internal: number;
-  external: number;
-  total: number;
-}
+type Tab = "marks" | "analytics" | "calculator";
+const TABS = ["marks", "analytics", "calculator"] as const satisfies readonly Tab[];
 
 interface SubjectMarksProgress {
   internalScaled: number;
   externalMark: number | null;
   totalMark: number | null;
 }
-
-type TooltipPayload = {
-  name?: string;
-  value?: number;
-  color?: string;
-  payload: ChartDatum;
-};
-
-type ChartTooltipProps = {
-  active?: boolean;
-  payload?: TooltipPayload[];
-};
 
 const GRADE_POINT_ORDER = [
   { grade: "O", points: 10 },
@@ -109,19 +79,19 @@ export default function MarksPage() {
       <header className="sticky top-0 z-40 border-b border-[#1e1e2e] bg-background/95 px-4 pb-3 pt-4 backdrop-blur">
         <h1 className="font-syne text-xl font-bold text-foreground">Marks</h1>
         <div className="mt-3 flex rounded-lg bg-[#111118] p-1">
-          {(["marks", "sgpa"] as const).map((item) => (
+          {(["marks", "analytics", "calculator"] as const).map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setTab(item)}
               className={cn(
-                "relative flex-1 rounded-md py-2 text-sm font-medium transition-all",
+                "relative flex-1 rounded-md py-2 text-xs font-medium transition-all",
                 tab === item
                   ? "text-[#7c6af7]"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {item === "marks" ? "Marks" : "SGPA"}
+              {item === "marks" ? "Marks" : item === "analytics" ? "Analytics" : "Calculator"}
               {tab === item && (
                 <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-[#7c6af7]" />
               )}
@@ -147,14 +117,21 @@ export default function MarksPage() {
           expandedId={expandedId}
           onExpand={setExpandedId}
         />
+      ) : tab === "analytics" ? (
+        <AnalyticsTab
+          results={results}
+          sgpa={sgpa}
+          subjects={subjects}
+          allMarks={marksQuery.data ?? []}
+          completedCount={completedCount}
+        />
       ) : (
-        <SGPATab
+        <CalculatorTab
           results={results}
           sgpa={sgpa}
           subjects={subjects}
           allMarks={marksQuery.data ?? []}
           targetSgpa={settings?.target_sgpa ?? null}
-          completedCount={completedCount}
         />
       )}
     </main>
@@ -194,56 +171,25 @@ function MarksTab({
   );
 }
 
-function SGPATab({
+function AnalyticsTab({
   results,
   sgpa,
   subjects,
   allMarks,
-  targetSgpa,
   completedCount,
 }: {
   results: SubjectSGPAResult[];
   sgpa: number | null;
   subjects: Subject[];
   allMarks: Mark[];
-  targetSgpa: number | null;
   completedCount: number;
 }) {
-  const [predictSubjectId, setPredictSubjectId] = useState(subjects[0]?.id ?? "");
-  const [targetGrade, setTargetGrade] = useState<string>("A");
-  const [targetSgpaInput, setTargetSgpaInput] = useState(9.8);
-  const [predictMode, setPredictMode] = useState<"ext-needed" | "int-needed">("ext-needed");
-  const [predictExternalInput, setPredictExternalInput] = useState("35");
+  const [fillAllValue, setFillAllValue] = useState("");
   const [assumedExternals, setAssumedExternals] = useState<Record<string, string>>({});
-  const [cgpaRows, setCgpaRows] = useState<{ sgpa: string; credits: string }[]>(
-    Array.from({ length: 8 }, () => ({ sgpa: "", credits: "" }))
-  );
-
-  useEffect(() => {
-    if (!predictSubjectId && subjects[0]) {
-      setPredictSubjectId(subjects[0].id);
-    }
-  }, [predictSubjectId, subjects]);
 
   const progressBySubject = useMemo(
     () => getMarksProgressBySubject(subjects, allMarks),
     [subjects, allMarks]
-  );
-
-  const chartData = useMemo<ChartDatum[]>(
-    () =>
-      results.map((result) => {
-        const subject = subjects.find((item) => item.id === result.subjectId);
-        const progress = progressBySubject[result.subjectId];
-        return {
-          code: subject?.code ?? "?",
-          name: result.subjectName,
-          internal: progress?.internalScaled ?? 0,
-          external: progress?.externalMark ?? 0,
-          total: progress?.totalMark ?? progress?.internalScaled ?? 0,
-        };
-      }),
-    [progressBySubject, results, subjects]
   );
 
   const incompleteSubjects = results.filter((r) => !r.isComplete);
@@ -275,46 +221,15 @@ function SGPATab({
     return computeSGPA(projected);
   }, [results, assumedExternals, progressBySubject]);
 
-  const selectedSubject = subjects.find((subject) => subject.id === predictSubjectId);
-  const predictDetail = useSubjectMarksDetail(predictSubjectId);
-  const requiredExternal = predictRequiredExternal(targetGrade, predictDetail.internalScaled);
-  const targetGradeMin = getGradeThreshold(targetGrade);
-  const alreadyAchieved =
-    predictDetail.externalRecord !== null &&
-    predictDetail.gradeResult !== null &&
-    predictDetail.gradeResult.totalMark >= targetGradeMin;
-
-  const predictExternalValue = Math.max(0, Math.min(40, Number(predictExternalInput) || 0));
-
-  const cgpaResult = useMemo(() => {
-    let totalPoints = 0;
-    let totalCredits = 0;
-    let semCount = 0;
-    for (const row of cgpaRows) {
-      const s = Number(row.sgpa);
-      const c = Number(row.credits);
-      if (row.sgpa !== "" && row.credits !== "" && !isNaN(s) && !isNaN(c) && c > 0 && s >= 0 && s <= 10) {
-        totalPoints += s * c;
-        totalCredits += c;
-        semCount++;
-      }
-    }
-    if (totalCredits === 0) return null;
-    return { cgpa: Math.round((totalPoints / totalCredits) * 100) / 100, semCount, totalCredits };
-  }, [cgpaRows]);
-
-  const targetSgpaAnalysis = useMemo(
-    () =>
-      calculateTargetSgpa(
-        results,
-        subjects,
-        targetSgpaInput,
-        progressBySubject
-      ),
-    [progressBySubject, results, subjects, targetSgpaInput]
-  );
-
-  const onTrack = sgpa !== null && sgpa >= targetSgpaInput;
+  const handleFillAll = () => {
+    const val = fillAllValue.trim();
+    if (!val) return;
+    const filled: Record<string, string> = {};
+    incompleteSubjects.forEach((r) => {
+      filled[r.subjectId] = val;
+    });
+    setAssumedExternals(filled);
+  };
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 space-y-4 px-4 py-4 duration-300">
@@ -335,34 +250,36 @@ function SGPATab({
             </p>
           </div>
         )}
-        <p className="mt-3 font-mono text-xs text-muted-foreground">
-          Target: {targetSgpaInput.toFixed(2)}
-        </p>
-        {targetSgpa !== null && targetSgpa !== targetSgpaInput && (
-          <p className="mt-1 text-[10px] text-muted-foreground">
-            Saved target: {targetSgpa.toFixed(2)}
-          </p>
-        )}
-        <p
-          className={cn(
-            "mt-2 text-sm font-medium",
-            onTrack ? "text-[#4ade80]" : "text-amber-400"
-          )}
-        >
-          {sgpa === null
-            ? "Add complete marks to calculate"
-            : onTrack
-              ? "On track"
-              : `${(targetSgpaInput - sgpa).toFixed(2)} needed`}
-        </p>
       </section>
 
       {incompleteSubjects.length > 0 && (
         <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-4">
           <h3 className="font-syne font-semibold">Projected SGPA</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Set expected external marks for subjects with no End Sem yet
+            Set expected externals for subjects with no End Sem yet
           </p>
+
+          <div className="mt-3 flex items-center gap-2 border-b border-[#1e1e2e] pb-3">
+            <Input
+              type="number"
+              min={0}
+              max={40}
+              step={0.5}
+              value={fillAllValue}
+              onChange={(e) => setFillAllValue(e.target.value)}
+              placeholder="e.g. 35"
+              className="w-20 font-mono text-xs"
+            />
+            <span className="text-xs text-muted-foreground">/40</span>
+            <button
+              type="button"
+              onClick={handleFillAll}
+              className="rounded-md bg-[#7c6af7]/20 px-3 py-1.5 text-xs font-medium text-[#c4b5fd] transition-colors hover:bg-[#7c6af7]/30"
+            >
+              Apply to all
+            </button>
+          </div>
+
           <div className="mt-3 space-y-2">
             {incompleteSubjects.map((result) => {
               const progress = progressBySubject[result.subjectId];
@@ -422,7 +339,80 @@ function SGPATab({
         sgpa={sgpa}
         progressBySubject={progressBySubject}
       />
+    </div>
+  );
+}
 
+function CalculatorTab({
+  results,
+  sgpa,
+  subjects,
+  allMarks,
+  targetSgpa,
+}: {
+  results: SubjectSGPAResult[];
+  sgpa: number | null;
+  subjects: Subject[];
+  allMarks: Mark[];
+  targetSgpa: number | null;
+}) {
+  const [predictSubjectId, setPredictSubjectId] = useState(subjects[0]?.id ?? "");
+  const [targetGrade, setTargetGrade] = useState<string>("A");
+  const [targetSgpaInput, setTargetSgpaInput] = useState(9.8);
+  const [predictMode, setPredictMode] = useState<"ext-needed" | "int-needed">("ext-needed");
+  const [predictExternalInput, setPredictExternalInput] = useState("35");
+  const [cgpaRows, setCgpaRows] = useState<{ sgpa: string; credits: string }[]>(
+    Array.from({ length: 8 }, () => ({ sgpa: "", credits: "" }))
+  );
+
+  useEffect(() => {
+    if (!predictSubjectId && subjects[0]) {
+      setPredictSubjectId(subjects[0].id);
+    }
+  }, [predictSubjectId, subjects]);
+
+  const progressBySubject = useMemo(
+    () => getMarksProgressBySubject(subjects, allMarks),
+    [subjects, allMarks]
+  );
+
+  const selectedSubject = subjects.find((subject) => subject.id === predictSubjectId);
+  const predictDetail = useSubjectMarksDetail(predictSubjectId);
+  const requiredExternal = predictRequiredExternal(targetGrade, predictDetail.internalScaled);
+  const targetGradeMin = getGradeThreshold(targetGrade);
+  const alreadyAchieved =
+    predictDetail.externalRecord !== null &&
+    predictDetail.gradeResult !== null &&
+    predictDetail.gradeResult.totalMark >= targetGradeMin;
+
+  const predictExternalValue = Math.max(0, Math.min(40, Number(predictExternalInput) || 0));
+
+  const cgpaResult = useMemo(() => {
+    let totalPoints = 0;
+    let totalCredits = 0;
+    let semCount = 0;
+    for (const row of cgpaRows) {
+      const s = Number(row.sgpa);
+      const c = Number(row.credits);
+      if (row.sgpa !== "" && row.credits !== "" && !isNaN(s) && !isNaN(c) && c > 0 && s >= 0 && s <= 10) {
+        totalPoints += s * c;
+        totalCredits += c;
+        semCount++;
+      }
+    }
+    if (totalCredits === 0) return null;
+    return { cgpa: Math.round((totalPoints / totalCredits) * 100) / 100, semCount, totalCredits };
+  }, [cgpaRows]);
+
+  const targetSgpaAnalysis = useMemo(
+    () => calculateTargetSgpa(results, subjects, targetSgpaInput, progressBySubject),
+    [progressBySubject, results, subjects, targetSgpaInput]
+  );
+
+  const onTrack = sgpa !== null && sgpa >= targetSgpaInput;
+
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-2 space-y-4 px-4 py-4 duration-300">
       <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-4">
         <h3 className="font-syne font-semibold">What do I need?</h3>
 
@@ -582,22 +572,35 @@ function SGPATab({
 
         <div className="mt-4 space-y-3">
           <p className="text-xs text-muted-foreground">Target SGPA calculator</p>
-          <div>
-            <Label>Target SGPA</Label>
+          <div className="flex items-center gap-2">
+            <Label className="shrink-0">Target SGPA</Label>
             <Input
               type="number"
               min={0}
               max={10}
               step={0.1}
               value={targetSgpaInput}
-              onChange={(event) =>
-                setTargetSgpaInput(Number(event.target.value))
-              }
+              onChange={(event) => setTargetSgpaInput(Number(event.target.value))}
+              className="w-24 font-mono"
             />
           </div>
-          <p className="font-mono text-xs text-muted-foreground">
-            {targetSgpaAnalysis.summary}
-          </p>
+          <div className="rounded-md bg-[#0a0a0f] p-3">
+            <p className="font-mono text-xs text-muted-foreground">
+              {targetSgpaAnalysis.summary}
+            </p>
+            <p
+              className={cn(
+                "mt-1 text-xs font-medium",
+                onTrack ? "text-[#4ade80]" : "text-amber-400"
+              )}
+            >
+              {sgpa === null
+                ? ""
+                : onTrack
+                  ? "On track"
+                  : `${(targetSgpaInput - (sgpa ?? 0)).toFixed(2)} points needed`}
+            </p>
+          </div>
           {targetSgpaAnalysis.remaining.length > 0 && (
             <div className="space-y-1">
               {targetSgpaAnalysis.remaining.map((item) => (
@@ -625,10 +628,13 @@ function SGPATab({
               ))}
             </div>
           )}
+          {targetSgpa !== null && targetSgpa !== targetSgpaInput && (
+            <p className="text-[10px] text-muted-foreground">
+              Saved target: {targetSgpa.toFixed(2)}
+            </p>
+          )}
         </div>
       </section>
-
-      {chartData.length > 0 && <MarksChart data={chartData} />}
 
       <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-4">
         <h3 className="font-syne font-semibold">CGPA Calculator</h3>
@@ -750,14 +756,11 @@ function SubjectBreakdown({
                       />
                     </div>
                   ) : (
-                    <span className="font-mono text-xs text-muted-foreground">
-                      -
-                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">-</span>
                   )}
                 </td>
                 <td className="p-3 font-mono text-xs">
-                  {progress?.externalMark !== null &&
-                  progress?.externalMark !== undefined
+                  {progress?.externalMark !== null && progress?.externalMark !== undefined
                     ? `${progress.externalMark.toFixed(1)}/40`
                     : "-"}
                 </td>
@@ -776,85 +779,10 @@ function SubjectBreakdown({
         </tbody>
       </table>
       <p className="border-t border-[#1e1e2e] bg-[#111118] p-3 font-mono text-xs text-muted-foreground">
-        SGPA Calculation: sum(points x credits) / sum(credits)
+        SGPA = sum(points × credits) / sum(credits)
         {sgpa !== null ? ` = ${sgpa.toFixed(2)}` : " = -"}
       </p>
     </section>
-  );
-}
-
-function MarksChart({ data }: { data: ChartDatum[] }) {
-  const minWidth = Math.max(340, data.length * 72);
-
-  return (
-    <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-3">
-      <h3 className="mb-3 font-syne text-sm font-medium">Marks Breakdown</h3>
-      <div className="h-72 overflow-x-auto">
-        <div style={{ minWidth }}>
-          <ResponsiveContainer width="100%" height={272}>
-            <BarChart
-              data={data}
-              margin={{ top: 8, right: 12, left: -20, bottom: 0 }}
-            >
-              <CartesianGrid stroke="#1e1e2e" strokeDasharray="3 3" />
-              <XAxis
-                dataKey="code"
-                tick={{ fill: "#a1a1aa", fontSize: 10 }}
-                axisLine={{ stroke: "#1e1e2e" }}
-                tickLine={{ stroke: "#1e1e2e" }}
-              />
-              <YAxis
-                domain={[0, 100]}
-                tick={{ fill: "#a1a1aa", fontSize: 10 }}
-                axisLine={{ stroke: "#1e1e2e" }}
-                tickLine={{ stroke: "#1e1e2e" }}
-              />
-              <Tooltip
-                cursor={{ fill: "#1e1e2e", opacity: 0.35 }}
-                content={(props) => (
-                  <MarksTooltip {...(props as ChartTooltipProps)} />
-                )}
-              />
-              <ReferenceLine y={75} stroke="#facc15" strokeDasharray="4 4" />
-              <ReferenceLine y={91} stroke="#7c6af7" strokeDasharray="4 4" />
-              <Bar dataKey="internal" stackId="marks" fill="#38bdf8" />
-              <Bar
-                dataKey="external"
-                stackId="marks"
-                fill="#7c6af7"
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-      <div className="mt-2 flex justify-center gap-4 font-mono text-[10px] text-muted-foreground">
-        <span>75 target line</span>
-        <span>91 O grade line</span>
-      </div>
-    </section>
-  );
-}
-
-function MarksTooltip({ active, payload }: ChartTooltipProps) {
-  if (!active || !payload || payload.length === 0) return null;
-  const datum = payload[0].payload;
-
-  return (
-    <div className="rounded-md border border-[#1e1e2e] bg-[#0a0a0f] p-3 text-xs shadow-xl">
-      <p className="mb-2 font-syne font-semibold text-foreground">
-        {datum.name}
-      </p>
-      <p className="font-mono text-[#38bdf8]">
-        Internal: {datum.internal.toFixed(1)} / 60
-      </p>
-      <p className="font-mono text-[#7c6af7]">
-        External: {datum.external.toFixed(1)} / 40
-      </p>
-      <p className="mt-1 font-mono text-foreground">
-        Total: {datum.total.toFixed(1)} / 100
-      </p>
-    </div>
   );
 }
 
@@ -885,14 +813,11 @@ function getMarksProgressBySubject(subjects: Subject[], marks: Mark[]) {
     (progress, subject) => {
       const subjectMarks = marks.filter((mark) => mark.subject_id === subject.id);
       const internalRecords = subjectMarks.filter((mark) => !mark.is_external);
-      const externalRecord =
-        subjectMarks.find((mark) => mark.is_external) ?? null;
+      const externalRecord = subjectMarks.find((mark) => mark.is_external) ?? null;
       const internalScaled = scaleInternalTo60(internalRecords);
       const externalMark = externalRecord
         ? Math.round(
-            (externalRecord.marks_obtained / externalRecord.max_marks) *
-              40 *
-              100
+            (externalRecord.marks_obtained / externalRecord.max_marks) * 40 * 100
           ) / 100
         : null;
 
@@ -951,9 +876,7 @@ function calculateTargetSgpa(
       ? `Target ${targetSgpa.toFixed(2)} is not reachable from the remaining credits.`
       : alreadyCovered
         ? `You have enough earned points for ${targetSgpa.toFixed(2)}.`
-        : `You need about ${roundedNeeded.toFixed(
-            2
-          )} points on average across remaining subjects.`,
+        : `You need about ${roundedNeeded.toFixed(2)} points on average across remaining subjects.`,
     remaining: remaining.map((result) => {
       const progress = progressBySubject[result.subjectId];
       const externalNeeded = progress
