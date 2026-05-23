@@ -55,16 +55,6 @@ export function SubjectList() {
                 <span className="rounded-full bg-[#1e1e2e] px-2 py-0.5 text-xs text-muted-foreground">
                   {subject.credits} cr
                 </span>
-                <span
-                  className={cn(
-                    "rounded-full px-2 py-0.5 text-xs capitalize",
-                    subject.type === "theory"
-                      ? "bg-[#7c6af7]/20 text-[#7c6af7]"
-                      : "bg-cyan-500/20 text-cyan-300"
-                  )}
-                >
-                  {subject.type}
-                </span>
               </div>
               {subject.faculty && (
                 <p className="mt-1 text-xs text-muted-foreground">

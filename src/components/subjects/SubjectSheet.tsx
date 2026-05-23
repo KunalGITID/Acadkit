@@ -23,7 +23,6 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [credits, setCredits] = useState(3);
-  const [type, setType] = useState<"theory" | "lab">("theory");
   const [faculty, setFaculty] = useState("");
   const [colorHex, setColorHex] = useState(SUBJECT_COLORS[0]);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +32,6 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
     setName("");
     setCode("");
     setCredits(3);
-    setType("theory");
     setFaculty("");
     setColorHex(SUBJECT_COLORS[0]);
     setError(null);
@@ -73,7 +71,7 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
         name: name.trim(),
         code: code.trim().toUpperCase(),
         credits,
-        type,
+        type: "theory",
         faculty: faculty.trim() || undefined,
         color_hex: colorHex,
       });
@@ -148,27 +146,6 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
           {errors.credits && (
             <p className="text-xs text-[#fb7185]">{errors.credits}</p>
           )}
-        </div>
-
-        <div className="space-y-2">
-          <Label>Type</Label>
-          <div className="flex gap-2">
-            {(["theory", "lab"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setType(t)}
-                className={cn(
-                  "flex-1 rounded-md border py-2 text-sm capitalize transition-colors",
-                  type === t
-                    ? "border-[#7c6af7] bg-[#7c6af7]/20 text-[#7c6af7]"
-                    : "border-[#1e1e2e] bg-[#0a0a0f] text-muted-foreground"
-                )}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="space-y-2">
