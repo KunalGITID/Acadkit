@@ -38,22 +38,12 @@ const SettingsPage = lazy(() => import("@/pages/settings"));
 function AppDataProvider({ children }: { children: React.ReactNode }) {
   const subjectsQuery = useSubjects();
   const settingsQuery = useSettings();
-  const [timedOut, setTimedOut] = useState(false);
   useDayOrderSync();
   useBroadcastSync();
 
   const isLoading = subjectsQuery.isLoading || settingsQuery.isLoading;
 
-  useEffect(() => {
-    if (!isLoading) return;
-    const id = setTimeout(() => setTimedOut(true), 20_000);
-    return () => clearTimeout(id);
-  }, [isLoading]);
-
-  const isError = subjectsQuery.isError || settingsQuery.isError || (timedOut && isLoading);
-
-  if (isLoading && !isError) return <Splash />;
-  if (isError) return <ErrorScreen />;
+  if (isLoading) return <Splash />;
 
   return <>{children}</>;
 }
