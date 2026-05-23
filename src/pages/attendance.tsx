@@ -694,24 +694,26 @@ function AbsentLogSection({
       });
   }, [allAttendance, subjects]);
 
-  if (absentByDate.length === 0) return null;
-
   return (
     <div className="mb-4 rounded-lg border border-[#fb7185]/20 bg-[#111118] p-3">
       <p className="mb-2 text-[10px] font-medium tracking-widest text-[#fb7185]/60">
         ABSENCE LOG
       </p>
-      <div className="space-y-1.5">
-        {absentByDate.map(({ date, label, parts }) => (
-          <div key={date} className="flex items-start gap-2 font-mono text-xs">
-            <span className="w-10 shrink-0 text-[10px] text-muted-foreground">{label}</span>
-            <span className="shrink-0 text-[#fb7185]/40">→</span>
-            <span className="min-w-0 flex-1 break-words text-[#fb7185]/80">
-              {parts.join(", ")}
-            </span>
-          </div>
-        ))}
-      </div>
+      {absentByDate.length === 0 ? (
+        <p className="text-xs text-muted-foreground/40 italic">No absences recorded — keep it up!</p>
+      ) : (
+        <div className="space-y-1.5">
+          {absentByDate.map(({ date, label, parts }) => (
+            <div key={date} className="flex items-start gap-2 font-mono text-xs">
+              <span className="w-10 shrink-0 text-[10px] text-muted-foreground">{label}</span>
+              <span className="shrink-0 text-[#fb7185]/40">→</span>
+              <span className="min-w-0 flex-1 break-words text-[#fb7185]/80">
+                {parts.join(", ")}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
