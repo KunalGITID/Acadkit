@@ -5,7 +5,7 @@ import {
   ChevronRight,
   Plus,
 } from "lucide-react";
-import { useMemo, useRef, useState, useCallback } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useSwipeTabs } from "@/hooks/useSwipeTabs";
 import { DeadlineSheet } from "@/components/deadlines/DeadlineSheet";
 import { Button } from "@/components/ui/button";
