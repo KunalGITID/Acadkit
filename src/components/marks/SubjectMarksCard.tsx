@@ -312,39 +312,31 @@ export function SubjectMarksCard({
           </section>
 
           <section>
-            <h4 className="mb-2 font-syne text-sm font-medium">
-              External / End Sem
-            </h4>
+            <h4 className="mb-2 font-syne text-sm font-medium">External / End Sem</h4>
             {detail.externalRecord ? (
               <div className="rounded-md border border-[#1e1e2e] bg-[#0a0a0f] p-3">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-syne text-sm text-foreground">
-                      {detail.externalRecord.label}
-                    </p>
-                    <p className="font-mono text-xs text-muted-foreground">
-                      Added {formatAddedAt(detail.externalRecord.added_at)}
-                    </p>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <p className="font-syne text-sm text-foreground">{detail.externalRecord.label}</p>
+                    <GradeBadge grade={completeGrade?.grade ?? null} size="sm" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      deleteMark.mutate(detail.externalRecord!.id, {
-                        onSuccess: () => toast("Mark removed"),
-                      })
-                    }
-                    disabled={deleteMark.isPending}
-                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-[#1e1e2e] hover:text-[#fb7185]"
-                    aria-label="Delete End Sem mark"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-foreground">
+                      {detail.externalRecord.marks_obtained}/{detail.externalRecord.max_marks}
+                      {totalMark !== null && <span className="text-muted-foreground"> · {totalMark.toFixed(1)}/100</span>}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => deleteMark.mutate(detail.externalRecord!.id, { onSuccess: () => toast("Mark removed") })}
+                      disabled={deleteMark.isPending}
+                      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-[#1e1e2e] hover:text-[#fb7185]"
+                      aria-label="Delete End Sem mark"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-                <MarksProgress
-                  obtained={externalMark}
-                  max={40}
-                  color="#22d3ee"
-                />
+                <MarksProgress obtained={externalMark} max={40} color="#22d3ee" />
               </div>
             ) : !showExternalForm ? (
               <div className="rounded-md border border-dashed border-[#1e1e2e] p-4 text-center text-sm text-muted-foreground">
@@ -375,44 +367,6 @@ export function SubjectMarksCard({
                 {formError}
               </p>
             )}
-          </section>
-
-          <section className="rounded-md bg-[#0a0a0f] p-3">
-            <h4 className="mb-3 font-syne text-sm font-medium">
-              Grade Summary
-            </h4>
-            <div className="grid grid-cols-2 gap-3 font-mono text-xs sm:grid-cols-4">
-              <SummaryCell
-                label="Internal scaled"
-                value={`${internalScaled.toFixed(1)} / 60`}
-              />
-              <SummaryCell
-                label="Internal raw"
-                value={
-                  rawInternalMax > 0
-                    ? `${formatMarkValue(rawInternalObtained)} / ${formatMarkValue(
-                        rawInternalMax
-                      )}`
-                    : "-"
-                }
-              />
-              <SummaryCell
-                label="External"
-                value={
-                  detail.externalRecord ? `${externalMark.toFixed(1)} / 40` : "-"
-                }
-              />
-              <SummaryCell
-                label="Total"
-                value={
-                  totalMark !== null ? `${totalMark.toFixed(1)} / 100` : "-"
-                }
-              />
-              <div>
-                <p className="mb-1 text-muted-foreground">Grade</p>
-                <GradeBadge grade={completeGrade?.grade ?? null} size="md" />
-              </div>
-            </div>
           </section>
         </div>
       </Collapsible>
@@ -623,15 +577,6 @@ function ExternalForm({
           Cancel
         </Button>
       </div>
-    </div>
-  );
-}
-
-function SummaryCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-muted-foreground">{label}</p>
-      <p className="mt-1 text-foreground">{value}</p>
     </div>
   );
 }

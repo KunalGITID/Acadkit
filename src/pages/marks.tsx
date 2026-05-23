@@ -26,6 +26,8 @@ import { useSettings } from "@/hooks/useSettings";
 import { useSubjects } from "@/hooks/useSubjects";
 import {
   GRADE_OPTIONS,
+  computeSGPA,
+  getGrade,
   predictRequiredExternal,
   scaleInternalTo60,
   type SubjectSGPAResult,
@@ -210,6 +212,12 @@ function SGPATab({
   const [predictSubjectId, setPredictSubjectId] = useState(subjects[0]?.id ?? "");
   const [targetGrade, setTargetGrade] = useState<string>("A");
   const [targetSgpaInput, setTargetSgpaInput] = useState(9.8);
+  const [predictMode, setPredictMode] = useState<"ext-needed" | "int-needed">("ext-needed");
+  const [predictExternalInput, setPredictExternalInput] = useState("35");
+  const [assumedExternals, setAssumedExternals] = useState<Record<string, string>>({});
+  const [cgpaRows, setCgpaRows] = useState<{ sgpa: string; credits: string }[]>(
+    Array.from({ length: 8 }, () => ({ sgpa: "", credits: "" }))
+  );
 
   useEffect(() => {
     if (!predictSubjectId && subjects[0]) {
@@ -238,17 +246,62 @@ function SGPATab({
     [progressBySubject, results, subjects]
   );
 
+  const incompleteSubjects = results.filter((r) => !r.isComplete);
+
+  const projectedSgpa = useMemo(() => {
+    const projected = results.map((result) => {
+      if (result.isComplete) return result;
+      const raw = assumedExternals[result.subjectId];
+      if (!raw || raw === "") return result;
+      const val = Number(raw);
+      if (isNaN(val) || val < 0 || val > 40) return result;
+      const progress = progressBySubject[result.subjectId];
+      const internalScaled = progress?.internalScaled ?? 0;
+      const total = Math.round((internalScaled + val) * 100) / 100;
+      const { grade, points } = getGrade(total);
+      return {
+        ...result,
+        gradeResult: {
+          grade,
+          gradePoints: points,
+          totalMark: total,
+          internalScaled,
+          externalMark: val,
+          percentage: total,
+        },
+        isComplete: true,
+      };
+    });
+    return computeSGPA(projected);
+  }, [results, assumedExternals, progressBySubject]);
+
   const selectedSubject = subjects.find((subject) => subject.id === predictSubjectId);
   const predictDetail = useSubjectMarksDetail(predictSubjectId);
-  const requiredExternal = predictRequiredExternal(
-    targetGrade,
-    predictDetail.internalScaled
-  );
+  const requiredExternal = predictRequiredExternal(targetGrade, predictDetail.internalScaled);
   const targetGradeMin = getGradeThreshold(targetGrade);
   const alreadyAchieved =
     predictDetail.externalRecord !== null &&
     predictDetail.gradeResult !== null &&
     predictDetail.gradeResult.totalMark >= targetGradeMin;
+
+  const predictExternalValue = Math.max(0, Math.min(40, Number(predictExternalInput) || 0));
+
+  const cgpaResult = useMemo(() => {
+    let totalPoints = 0;
+    let totalCredits = 0;
+    let semCount = 0;
+    for (const row of cgpaRows) {
+      const s = Number(row.sgpa);
+      const c = Number(row.credits);
+      if (row.sgpa !== "" && row.credits !== "" && !isNaN(s) && !isNaN(c) && c > 0 && s >= 0 && s <= 10) {
+        totalPoints += s * c;
+        totalCredits += c;
+        semCount++;
+      }
+    }
+    if (totalCredits === 0) return null;
+    return { cgpa: Math.round((totalPoints / totalCredits) * 100) / 100, semCount, totalCredits };
+  }, [cgpaRows]);
 
   const targetSgpaAnalysis = useMemo(
     () =>
@@ -274,7 +327,15 @@ function SGPATab({
           Based on {completedCount} completed subject
           {completedCount === 1 ? "" : "s"}
         </p>
-        <p className="mt-1 font-mono text-xs text-muted-foreground">
+        {projectedSgpa !== null && (
+          <div className="mt-3 border-t border-[#1e1e2e] pt-3">
+            <p className="text-xs text-muted-foreground">Projected (with assumed externals)</p>
+            <p className="font-syne text-2xl font-bold text-[#22d3ee]">
+              {projectedSgpa.toFixed(2)}
+            </p>
+          </div>
+        )}
+        <p className="mt-3 font-mono text-xs text-muted-foreground">
           Target: {targetSgpaInput.toFixed(2)}
         </p>
         {targetSgpa !== null && targetSgpa !== targetSgpaInput && (
@@ -296,6 +357,65 @@ function SGPATab({
         </p>
       </section>
 
+      {incompleteSubjects.length > 0 && (
+        <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-4">
+          <h3 className="font-syne font-semibold">Projected SGPA</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Set expected external marks for subjects with no End Sem yet
+          </p>
+          <div className="mt-3 space-y-2">
+            {incompleteSubjects.map((result) => {
+              const progress = progressBySubject[result.subjectId];
+              const raw = assumedExternals[result.subjectId] ?? "";
+              const val = Number(raw);
+              const hasValid = raw !== "" && !isNaN(val) && val >= 0 && val <= 40;
+              const projTotal = hasValid
+                ? Math.round(((progress?.internalScaled ?? 0) + val) * 100) / 100
+                : null;
+              const projGradeInfo = projTotal !== null ? getGrade(projTotal) : null;
+              return (
+                <div key={result.subjectId} className="flex items-center gap-2">
+                  <p className="min-w-0 flex-1 truncate text-sm text-foreground">
+                    {result.subjectName}
+                  </p>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Input
+                      type="number"
+                      min={0}
+                      max={40}
+                      step={0.5}
+                      value={raw}
+                      onChange={(e) =>
+                        setAssumedExternals((prev) => ({
+                          ...prev,
+                          [result.subjectId]: e.target.value,
+                        }))
+                      }
+                      placeholder="—"
+                      className="w-16 text-center font-mono text-xs"
+                    />
+                    <span className="shrink-0 text-xs text-muted-foreground">/40</span>
+                  </div>
+                  {projGradeInfo ? (
+                    <GradeBadge grade={projGradeInfo.grade} size="sm" />
+                  ) : (
+                    <div className="w-10 shrink-0" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {projectedSgpa !== null && (
+            <div className="mt-3 rounded-md bg-[#0a0a0f] p-3 text-center">
+              <p className="text-xs text-muted-foreground">Projected SGPA</p>
+              <p className="font-syne text-3xl font-bold text-[#22d3ee]">
+                {projectedSgpa.toFixed(2)}
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+
       <SubjectBreakdown
         results={results}
         subjects={subjects}
@@ -306,10 +426,34 @@ function SGPATab({
       <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-4">
         <h3 className="font-syne font-semibold">What do I need?</h3>
 
+        <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-[#0a0a0f] p-1">
+          <button
+            type="button"
+            onClick={() => setPredictMode("ext-needed")}
+            className={cn(
+              "rounded-md px-2 py-2 text-xs font-medium transition-colors",
+              predictMode === "ext-needed"
+                ? "bg-[#7c6af7]/20 text-[#c4b5fd]"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Internals → External needed
+          </button>
+          <button
+            type="button"
+            onClick={() => setPredictMode("int-needed")}
+            className={cn(
+              "rounded-md px-2 py-2 text-xs font-medium transition-colors",
+              predictMode === "int-needed"
+                ? "bg-[#22d3ee]/20 text-[#67e8f9]"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Set external → Internal needed
+          </button>
+        </div>
+
         <div className="mt-4 space-y-3 border-b border-[#1e1e2e] pb-4">
-          <p className="text-xs text-muted-foreground">
-            To reach a target grade in a subject
-          </p>
           <select
             value={predictSubjectId}
             onChange={(event) => setPredictSubjectId(event.target.value)}
@@ -322,59 +466,122 @@ function SGPATab({
             ))}
           </select>
 
-          <div className="grid grid-cols-6 gap-1">
-            {GRADE_OPTIONS.map((grade) => (
-              <button
-                key={grade}
-                type="button"
-                onClick={() => setTargetGrade(grade)}
-                className={cn(
-                  "min-h-[34px] rounded-md border font-mono text-xs transition-colors",
-                  targetGrade === grade
-                    ? "border-[#7c6af7] bg-[#7c6af7]/20 text-[#c4b5fd]"
-                    : "border-[#1e1e2e] bg-[#0a0a0f] text-muted-foreground"
+          {predictMode === "ext-needed" ? (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Pick a target grade — how much End Sem do you need?
+              </p>
+              <div className="grid grid-cols-6 gap-1">
+                {GRADE_OPTIONS.map((grade) => (
+                  <button
+                    key={grade}
+                    type="button"
+                    onClick={() => setTargetGrade(grade)}
+                    className={cn(
+                      "min-h-[34px] rounded-md border font-mono text-xs transition-colors",
+                      targetGrade === grade
+                        ? "border-[#7c6af7] bg-[#7c6af7]/20 text-[#c4b5fd]"
+                        : "border-[#1e1e2e] bg-[#0a0a0f] text-muted-foreground"
+                    )}
+                  >
+                    {grade}
+                  </button>
+                ))}
+              </div>
+              <div className="rounded-md bg-[#0a0a0f] p-3 font-mono text-xs">
+                <p className="text-muted-foreground">
+                  Internal scaled: {predictDetail.internalScaled.toFixed(1)}/60
+                </p>
+                {!selectedSubject ? (
+                  <p className="mt-2 text-muted-foreground">Add a subject first.</p>
+                ) : alreadyAchieved ? (
+                  <p className="mt-2 text-[#4ade80]">
+                    Already achieved {targetGrade}. Total:{" "}
+                    {predictDetail.gradeResult?.totalMark.toFixed(1)}/100
+                  </p>
+                ) : predictDetail.externalRecord ? (
+                  <p className="mt-2 text-foreground">
+                    Current grade: {predictDetail.gradeResult?.grade ?? "?"}. Total:{" "}
+                    {predictDetail.gradeResult?.totalMark.toFixed(1)}/100
+                  </p>
+                ) : requiredExternal > 40 ? (
+                  <p className="mt-2 text-[#fb7185]">
+                    {targetGrade} not reachable — would need {requiredExternal.toFixed(1)}/40.
+                  </p>
+                ) : (
+                  <p className="mt-2 text-foreground">
+                    Need {requiredExternal.toFixed(1)}/40 in End Sem to get {targetGrade}
+                  </p>
                 )}
-              >
-                {grade}
-              </button>
-            ))}
-          </div>
-
-          <div className="rounded-md bg-[#0a0a0f] p-3 font-mono text-xs">
-            <p className="text-muted-foreground">
-              Current internal scaled: {predictDetail.internalScaled.toFixed(1)}
-              /60
-            </p>
-            {!selectedSubject ? (
-              <p className="mt-2 text-muted-foreground">Add a subject first.</p>
-            ) : alreadyAchieved ? (
-              <p className="mt-2 text-[#4ade80]">
-                Already achieved {targetGrade}. Total:{" "}
-                {predictDetail.gradeResult?.totalMark.toFixed(1)}/100
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Set your expected external — see what internal total you need per grade
               </p>
-            ) : predictDetail.externalRecord ? (
-              <p className="mt-2 text-foreground">
-                Your current grade is {predictDetail.gradeResult?.grade ?? "?"}.
-                Total: {predictDetail.gradeResult?.totalMark.toFixed(1)}/100
-              </p>
-            ) : requiredExternal > 40 ? (
-              <p className="mt-2 text-[#fb7185]">
-                {targetGrade} is not reachable from current internals. You would
-                need {requiredExternal.toFixed(1)}/40 in End Sem.
-              </p>
-            ) : (
-              <p className="mt-2 text-foreground">
-                You need {requiredExternal.toFixed(1)}/40 in End Sem to get{" "}
-                {targetGrade}
-              </p>
-            )}
-          </div>
+              <div className="flex items-center gap-2">
+                <Label className="shrink-0 text-xs text-muted-foreground">Expected external</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={40}
+                  step={0.5}
+                  value={predictExternalInput}
+                  onChange={(e) => setPredictExternalInput(e.target.value)}
+                  className="w-20 font-mono text-xs"
+                />
+                <span className="text-xs text-muted-foreground">/40</span>
+              </div>
+              <div className="rounded-md bg-[#0a0a0f] p-3 font-mono text-xs">
+                <p className="mb-2 text-muted-foreground">
+                  Internal scaled: {predictDetail.internalScaled.toFixed(1)}/60
+                </p>
+                {(GRADE_OPTIONS as readonly string[]).map((grade) => {
+                  const minTotal = getGradeThreshold(grade);
+                  const neededInternal = Math.max(0, minTotal - predictExternalValue);
+                  const achievable = neededInternal <= 60;
+                  const alreadyMet = achievable && predictDetail.internalScaled >= neededInternal;
+                  return (
+                    <div key={grade} className="flex items-center justify-between gap-2 py-0.5">
+                      <span
+                        className={cn(
+                          "w-7 rounded px-1 py-0.5 text-center font-medium",
+                          alreadyMet
+                            ? "bg-[#4ade80]/20 text-[#4ade80]"
+                            : achievable
+                              ? "bg-[#7c6af7]/10 text-[#c4b5fd]"
+                              : "bg-[#fb7185]/10 text-[#fb7185]"
+                        )}
+                      >
+                        {grade}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-right",
+                          alreadyMet
+                            ? "text-[#4ade80]"
+                            : achievable
+                              ? "text-foreground"
+                              : "text-[#fb7185]"
+                        )}
+                      >
+                        {alreadyMet
+                          ? "✓ already there"
+                          : achievable
+                            ? `need ${neededInternal.toFixed(1)}/60 internal`
+                            : "not reachable"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="mt-4 space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Target SGPA calculator
-          </p>
+          <p className="text-xs text-muted-foreground">Target SGPA calculator</p>
           <div>
             <Label>Target SGPA</Label>
             <Input
@@ -422,6 +629,68 @@ function SGPATab({
       </section>
 
       {chartData.length > 0 && <MarksChart data={chartData} />}
+
+      <section className="rounded-lg border border-[#1e1e2e] bg-[#111118] p-4">
+        <h3 className="font-syne font-semibold">CGPA Calculator</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Enter SGPA and credits for each semester
+        </p>
+        <div className="mt-3 space-y-2">
+          <div className="grid grid-cols-[36px_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground">
+            <span>Sem</span>
+            <span>SGPA</span>
+            <span>Credits</span>
+          </div>
+          {cgpaRows.map((row, i) => (
+            <div key={i} className="grid grid-cols-[36px_1fr_1fr] items-center gap-2">
+              <span className="font-mono text-xs text-muted-foreground">{i + 1}</span>
+              <Input
+                type="number"
+                min={0}
+                max={10}
+                step={0.01}
+                value={row.sgpa}
+                onChange={(e) =>
+                  setCgpaRows((prev) =>
+                    prev.map((r, idx) => (idx === i ? { ...r, sgpa: e.target.value } : r))
+                  )
+                }
+                placeholder="—"
+                className="font-mono text-xs"
+              />
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={row.credits}
+                onChange={(e) =>
+                  setCgpaRows((prev) =>
+                    prev.map((r, idx) => (idx === i ? { ...r, credits: e.target.value } : r))
+                  )
+                }
+                placeholder="—"
+                className="font-mono text-xs"
+              />
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 rounded-md bg-[#0a0a0f] p-3 text-center">
+          {cgpaResult ? (
+            <>
+              <p className="text-xs text-muted-foreground">
+                CGPA · {cgpaResult.semCount} sem{cgpaResult.semCount === 1 ? "" : "s"} · {cgpaResult.totalCredits} credits
+              </p>
+              <p className="font-syne text-3xl font-bold text-[#7c6af7]">
+                {cgpaResult.cgpa.toFixed(2)}
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Enter SGPA and credits above to calculate CGPA
+            </p>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
