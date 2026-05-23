@@ -450,9 +450,19 @@ function TodaySchedule({
               style={{ backgroundColor: slot.subject.color_hex }}
             />
             <div className="min-w-0">
-              <p className="truncate text-sm text-foreground">
-                {slot.subject.name}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-sm text-foreground">
+                  {slot.subject.name}
+                </p>
+                <span className={cn(
+                  "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                  slot.slot_type === "lab"
+                    ? "bg-cyan-500/20 text-cyan-300"
+                    : "bg-[#7c6af7]/20 text-[#7c6af7]"
+                )}>
+                  {slot.slot_type === "lab" ? "Lab" : "T"}
+                </span>
+              </div>
               {slot.room && (
                 <p className="text-[11px] text-muted-foreground">{slot.room}</p>
               )}

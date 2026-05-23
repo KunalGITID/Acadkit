@@ -18,6 +18,7 @@ export interface TimetableSlot {
   start_time: string;
   end_time: string;
   room?: string;
+  slot_type: "theory" | "lab";
   created_at: string;
 }
 

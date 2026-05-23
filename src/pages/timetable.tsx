@@ -503,6 +503,14 @@ function SlotCard({
           <span className="rounded bg-[#1e1e2e] px-2 py-0.5 font-mono text-xs text-muted-foreground">
             {formatDuration(slot.start_time, slot.end_time)}
           </span>
+          <span className={cn(
+            "rounded px-2 py-0.5 text-xs font-medium",
+            slot.slot_type === "lab"
+              ? "bg-cyan-500/20 text-cyan-300"
+              : "bg-[#7c6af7]/20 text-[#7c6af7]"
+          )}>
+            {slot.slot_type === "lab" ? "Lab" : "Theory"}
+          </span>
         </div>
         <p className="mt-1 font-syne text-base font-semibold text-foreground">
           {subject?.name ?? "Unknown subject"}
@@ -595,6 +603,7 @@ function AddSlotSheet({
 
   const [dayOrder, setDayOrder] = useState(defaultDayOrder);
   const [subjectId, setSubjectId] = useState("");
+  const [slotType, setSlotType] = useState<"theory" | "lab">("theory");
   const [startTime, setStartTime] = useState("08:00");
   const [endTime, setEndTime] = useState("08:50");
   const [room, setRoom] = useState("");
@@ -648,6 +657,7 @@ function AddSlotSheet({
         start_time: start,
         end_time: end,
         room: room.trim() || undefined,
+        slot_type: slotType,
       });
       onSuccess(`Class added to Day ${dayOrder}`);
       onClose();
@@ -701,6 +711,29 @@ function AddSlotSheet({
               ))}
             </select>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <Label>Class Type</Label>
+          <div className="flex gap-2">
+            {(["theory", "lab"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setSlotType(t)}
+                className={cn(
+                  "flex-1 rounded-md border py-2 text-sm capitalize transition-colors",
+                  slotType === t
+                    ? t === "theory"
+                      ? "border-[#7c6af7] bg-[#7c6af7]/20 text-[#7c6af7]"
+                      : "border-cyan-500 bg-cyan-500/20 text-cyan-300"
+                    : "border-[#1e1e2e] bg-[#0a0a0f] text-muted-foreground"
+                )}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
