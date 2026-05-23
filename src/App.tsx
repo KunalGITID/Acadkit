@@ -42,13 +42,15 @@ function AppDataProvider({ children }: { children: React.ReactNode }) {
   useDayOrderSync();
   useBroadcastSync();
 
-  useEffect(() => {
-    const id = setTimeout(() => setTimedOut(true), 10_000);
-    return () => clearTimeout(id);
-  }, []);
-
   const isLoading = subjectsQuery.isLoading || settingsQuery.isLoading;
-  const isError = subjectsQuery.isError || settingsQuery.isError || timedOut;
+
+  useEffect(() => {
+    if (!isLoading) return;
+    const id = setTimeout(() => setTimedOut(true), 20_000);
+    return () => clearTimeout(id);
+  }, [isLoading]);
+
+  const isError = subjectsQuery.isError || settingsQuery.isError || (timedOut && isLoading);
 
   if (isLoading && !isError) return <Splash />;
   if (isError) return <ErrorScreen />;
