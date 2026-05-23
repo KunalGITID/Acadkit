@@ -60,8 +60,8 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
     } else if (existingSubjects.some((s) => s.code === trimmedCode)) {
       newErrors.code = "A subject with this code already exists";
     }
-    if (credits < 1 || credits > 5) {
-      newErrors.credits = "Credits must be between 1 and 5";
+    if (credits < 0 || credits > 5) {
+      newErrors.credits = "Credits must be between 0 and 5";
     }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -136,7 +136,7 @@ export function SubjectSheet({ open, onClose }: SubjectSheetProps) {
           <Input
             id="credits"
             type="number"
-            min={1}
+            min={0}
             max={5}
             value={credits}
             onChange={(e) => {
