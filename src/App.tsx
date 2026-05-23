@@ -1,4 +1,4 @@
-import { Component, lazy, Suspense, useEffect, useState } from "react";
+import { Component, lazy, Suspense } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 
@@ -60,28 +60,6 @@ function Splash() {
   );
 }
 
-function ErrorScreen() {
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#0a0a0f] px-6 text-center">
-      <img
-        src="/icons/icon-192.png"
-        style={{ width: 60, height: 60, borderRadius: 16, opacity: 0.5 }}
-        alt="AcadKit"
-      />
-      <p className="font-syne text-lg text-foreground">Could not connect</p>
-      <p className="text-sm text-muted-foreground">
-        Check your internet connection and try again.
-      </p>
-      <button
-        type="button"
-        onClick={() => window.location.reload()}
-        className="mt-2 rounded-lg bg-[#7c6af7] px-5 py-2.5 text-sm font-medium text-white"
-      >
-        Retry
-      </button>
-    </div>
-  );
-}
 
 function PageRoutes() {
   const location = useLocation();
