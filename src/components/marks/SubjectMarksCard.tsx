@@ -2,7 +2,6 @@ import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Collapsible } from "@/components/ui/collapsible";
-import { GradeBadge } from "@/components/ui/grade-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MarksProgress } from "@/components/ui/marks-progress";
@@ -62,21 +61,15 @@ export function SubjectMarksCard({
   const { toast } = useToast();
 
   const [showInternalForm, setShowInternalForm] = useState(false);
-  const [showExternalForm, setShowExternalForm] = useState(false);
   const [compType, setCompType] =
     useState<Exclude<MarkComponentType, "External">>("CT");
   const [label, setLabel] = useState("CT1");
   const [obtained, setObtained] = useState("");
   const [maxMarks, setMaxMarks] = useState("25");
-  const [externalLabel, setExternalLabel] = useState("End Sem");
-  const [externalObtained, setExternalObtained] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const completeGrade = detail.externalRecord ? detail.gradeResult : null;
   const internalScaled = detail.internalScaled;
-  const externalMark = detail.gradeResult?.externalMark ?? 0;
-  const totalMark = completeGrade?.totalMark ?? null;
   const rawInternalObtained = detail.internalRecords.reduce(
     (sum, mark) => sum + mark.marks_obtained,
     0
@@ -135,34 +128,9 @@ export function SubjectMarksCard({
     }
   };
 
-  const handleAddExternal = async () => {
-    const obtainedValue = Number(externalObtained);
-    if (!externalLabel.trim() || Number.isNaN(obtainedValue)) return;
-
-    try {
-      setFormError(null);
-      await addMark.mutateAsync({
-        subject_id: subject.id,
-        component_type: "External",
-        label: externalLabel.trim(),
-        marks_obtained: Math.max(0, Math.min(40, obtainedValue)),
-        max_marks: 40,
-        is_external: true,
-      });
-      toast(`${externalLabel.trim()} added for ${subject.name}`);
-      setShowExternalForm(false);
-      setExternalLabel("End Sem");
-      setExternalObtained("");
-    } catch (error) {
-      setFormError(
-        getMutationErrorMessage(error, "Could not save End Sem mark")
-      );
-    }
-  };
-
   const collapsedTrigger = useMemo(
     () => (
-      <div className="grid gap-3 py-1 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+      <div className="grid gap-3 py-1 sm:grid-cols-[1fr_auto] sm:items-center">
         <div className="min-w-0">
           <p className="truncate font-syne font-semibold text-foreground">
             {subject.name}
@@ -172,52 +140,17 @@ export function SubjectMarksCard({
           </p>
         </div>
 
-        <div className="grid gap-2 sm:w-56">
+        <div className="sm:w-56">
           <MarksProgress
             obtained={internalScaled}
             max={60}
             color="#7c6af7"
             label="Internal (scaled)"
           />
-          {detail.externalRecord ? (
-            <MarksProgress
-              obtained={externalMark}
-              max={40}
-              color="#22d3ee"
-              label="External"
-            />
-          ) : (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">External</p>
-              <div className="flex items-center gap-2">
-                <div className="h-2 flex-1 rounded-full bg-[#1e1e2e]" />
-                <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                  -
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-3 sm:block sm:text-right">
-          <GradeBadge grade={completeGrade?.grade ?? null} size="md" />
-          <p className="font-mono text-xs text-muted-foreground sm:mt-1">
-            {totalMark !== null ? `${totalMark.toFixed(1)} / 100` : "- / 100"}
-          </p>
         </div>
       </div>
     ),
-    [
-      completeGrade?.grade,
-      detail.externalRecord,
-      externalMark,
-      internalScaled,
-      rawInternalMax,
-      rawInternalObtained,
-      subject.code,
-      subject.name,
-      totalMark,
-    ]
+    [internalScaled, subject.code, subject.name]
   );
 
   return (
@@ -311,63 +244,6 @@ export function SubjectMarksCard({
             )}
           </section>
 
-          <section>
-            <h4 className="mb-2 font-syne text-sm font-medium">External / End Sem</h4>
-            {detail.externalRecord ? (
-              <div className="rounded-md border border-[#1e1e2e] bg-[#0a0a0f] p-3">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <p className="font-syne text-sm text-foreground">{detail.externalRecord.label}</p>
-                    <GradeBadge grade={completeGrade?.grade ?? null} size="sm" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-foreground">
-                      {detail.externalRecord.marks_obtained}/{detail.externalRecord.max_marks}
-                      {totalMark !== null && <span className="text-muted-foreground"> · {totalMark.toFixed(1)}/100</span>}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => deleteMark.mutate(detail.externalRecord!.id, { onSuccess: () => toast("Mark removed") })}
-                      disabled={deleteMark.isPending}
-                      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-[#1e1e2e] hover:text-[#fb7185]"
-                      aria-label="Delete End Sem mark"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-                <MarksProgress obtained={externalMark} max={40} color="#22d3ee" />
-              </div>
-            ) : !showExternalForm ? (
-              <div className="rounded-md border border-dashed border-[#1e1e2e] p-4 text-center text-sm text-muted-foreground">
-                <p>End Sem not added</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 border-[#7c6af7]/40 text-[#c4b5fd] hover:bg-[#7c6af7]/10"
-                  onClick={() => setShowExternalForm(true)}
-                >
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  Add End Sem
-                </Button>
-              </div>
-            ) : (
-              <ExternalForm
-                label={externalLabel}
-                setLabel={setExternalLabel}
-                obtained={externalObtained}
-                setObtained={setExternalObtained}
-                onSubmit={handleAddExternal}
-                onCancel={() => setShowExternalForm(false)}
-                pending={addMark.isPending}
-              />
-            )}
-            {formError && !showInternalForm && (
-              <p className="mt-2 rounded-md border border-[#fb7185]/30 bg-[#fb7185]/10 px-3 py-2 text-xs text-[#fecdd3]">
-                {formError}
-              </p>
-            )}
-          </section>
         </div>
       </Collapsible>
     </div>
@@ -525,58 +401,3 @@ function InternalForm({
   );
 }
 
-function ExternalForm({
-  label,
-  setLabel,
-  obtained,
-  setObtained,
-  onSubmit,
-  onCancel,
-  pending,
-}: {
-  label: string;
-  setLabel: (value: string) => void;
-  obtained: string;
-  setObtained: (value: string) => void;
-  onSubmit: () => void;
-  onCancel: () => void;
-  pending: boolean;
-}) {
-  return (
-    <div className="space-y-3 rounded-md border border-[#1e1e2e] bg-[#0a0a0f] p-3">
-      <div>
-        <Label>Label</Label>
-        <Input value={label} onChange={(e) => setLabel(e.target.value)} />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label>Marks Obtained</Label>
-          <Input
-            type="number"
-            min={0}
-            max={40}
-            value={obtained}
-            onChange={(e) => setObtained(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label>Max Marks</Label>
-          <Input value={40} readOnly className="opacity-60" />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <Button
-          size="sm"
-          className="bg-[#7c6af7] text-white hover:bg-[#6b5be0]"
-          onClick={onSubmit}
-          disabled={pending}
-        >
-          Add
-        </Button>
-        <Button size="sm" variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
-    </div>
-  );
-}
