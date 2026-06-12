@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
+  ArrowRight,
   CalendarX2,
   Check,
+  ClipboardList,
   Copy,
   Download,
   ExternalLink,
@@ -452,6 +455,21 @@ export default function Settings() {
 
       <div className="space-y-3">
         <SectionTitle>Academics</SectionTitle>
+        <Link
+          to="/log"
+          className="card flex items-center justify-between p-5 transition-transform active:scale-[0.99]"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-bad/10 text-bad-deep">
+              <ClipboardList className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="font-bold">Absent log</p>
+              <p className="text-xs text-muted">Every period you've missed, day by day</p>
+            </div>
+          </div>
+          <ArrowRight className="h-4 w-4 text-muted" />
+        </Link>
         <SubjectsCard />
       </div>
 
