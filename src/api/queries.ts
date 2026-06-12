@@ -16,11 +16,45 @@ function throwIf(error: { message: string } | null): void {
 }
 
 /**
- * Columns added by migration 008 (`slot_type`, `internal_only`). If
- * the migration hasn't been run yet, writes retry without these
- * fields so the core flow keeps working, and we hint once per session.
+ * Columns added by migrations 007/008 (`name`, `slot_type`,
+ * `internal_only`). If a migration hasn't been run yet, writes retry
+ * without these fields so the core flow keeps working, and we hint
+ * once per session.
  */
 let migrationHintShown = false;
+
+/** Everything pending, as one paste for the Supabase SQL editor. */
+export const PENDING_MIGRATIONS_SQL = `-- AcadKit setup: greeting name, lab tags, internal-only subjects
+alter table settings add column if not exists name text;
+alter table timetable_slots
+  add column if not exists slot_type text not null default 'theory'
+  check (slot_type in ('theory', 'lab'));
+alter table subjects
+  add column if not exists internal_only boolean not null default false;`;
+
+const OPTIONAL_COLUMNS: Array<{ table: string; column: string; enables: string }> = [
+  { table: "settings", column: "name", enables: "greeting name that follows your PIN" },
+  { table: "timetable_slots", column: "slot_type", enables: "theory/lab class tags" },
+  { table: "subjects", column: "internal_only", enables: "internal-only subjects" },
+];
+
+/** Which optional features are blocked because their column is missing. */
+export async function missingMigrations(): Promise<string[]> {
+  const missing: string[] = [];
+  await Promise.all(
+    OPTIONAL_COLUMNS.map(async ({ table, column, enables }) => {
+      const { error } = await supabase.from(table).select(column).limit(1);
+      if (error) missing.push(enables);
+    })
+  );
+  return missing;
+}
+
+/** https://supabase.com/dashboard/project/<ref>/sql/new for this project. */
+export function sqlEditorUrl(): string {
+  const ref = new URL(import.meta.env.VITE_SUPABASE_URL as string).hostname.split(".")[0];
+  return `https://supabase.com/dashboard/project/${ref}/sql/new`;
+}
 
 async function withColumnFallback<T extends Record<string, unknown>>(
   payload: T,
@@ -37,10 +71,9 @@ async function withColumnFallback<T extends Record<string, unknown>>(
   throwIf(retry.error);
   if (!migrationHintShown) {
     migrationHintShown = true;
-    toast.info("Saved, minus the new fields", {
-      description:
-        "Run supabase/migrations/008_slot_type_internal_only.sql in the Supabase SQL editor to enable lab tags and internal-only subjects.",
-      duration: 9000,
+    toast.info("Saved — one field needs a quick setup step", {
+      description: "Settings → Finish setup: copy one SQL snippet, paste, done.",
+      duration: 8000,
     });
   }
 }
