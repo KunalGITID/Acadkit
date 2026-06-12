@@ -1,5 +1,12 @@
 import path from "path";
+import { webcrypto } from "node:crypto";
 import { defineConfig } from "vite";
+
+// Node 18 lacks the global webcrypto that workbox's minifier expects
+if (!globalThis.crypto) {
+  (globalThis as Record<string, unknown>).crypto = webcrypto;
+}
+
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -12,9 +19,9 @@ export default defineConfig({
       manifest: {
         name: "AcadKit",
         short_name: "AcadKit",
-        description: "Personal Academic OS for SRM",
-        theme_color: "#0a0a0f",
-        background_color: "#0a0a0f",
+        description: "Your academic companion for SRM KTR",
+        theme_color: "#0a0b10",
+        background_color: "#0a0b10",
         display: "standalone",
         orientation: "portrait",
         scope: "/",
@@ -40,21 +47,41 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Node 18 workers lack global webcrypto, which workbox's terser
+        // step needs; ship the SW unminified there (it's cached anyway).
+        mode: Number(process.versions.node.split(".")[0]) >= 20 ? "production" : "development",
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/shkfgxqvzixvbigesxlo\.supabase\.co\/.*/i,
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: "NetworkFirst",
             options: {
               cacheName: "supabase-cache",
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 },
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
               networkTimeoutSeconds: 5,
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: "StaleWhileRevalidate",
+            options: { cacheName: "google-fonts-css" },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts-files",
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
             },
           },
         ],
       },
     }),
   ],
+  server: {
+    port: Number(process.env.PORT) || 5173,
+    strictPort: false,
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

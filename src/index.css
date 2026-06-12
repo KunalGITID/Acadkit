@@ -2,64 +2,108 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    color-scheme: dark;
-    --background: 240 10% 4%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 6%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 6%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 248 90% 70%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 6% 14%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 6% 14%;
-    --muted-foreground: 240 5% 72%;
-    --accent: 240 6% 14%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 240 6% 18%;
-    --input: 240 6% 18%;
-    --ring: 248 90% 70%;
-    --radius: 0.5rem;
-    --chart-1: 248 90% 70%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-  }
+:root {
+  /* Light — warm paper */
+  --bg: 240 20% 97%;
+  --surface: 0 0% 100%;
+  --surface-2: 240 14% 94%;
+  --line: 234 18% 12%;
+  --ink: 234 30% 12%;
+  --muted: 233 12% 47%;
+  --accent: 247 84% 62%;
+  --accent-2: 187 86% 47%;
+  --good-deep: 142 72% 29%;
+  --warn-deep: 35 92% 33%;
+  --bad-deep: 347 77% 40%;
+  --shadow-card: 0 1px 2px rgb(10 12 24 / 0.04), 0 8px 24px -12px rgb(10 12 24 / 0.14);
+  --line-alpha: 0.08;
+}
+
+.dark {
+  /* Dark — deep ink */
+  --bg: 228 23% 5%;
+  --surface: 227 19% 9%;
+  --surface-2: 228 16% 14%;
+  --line: 0 0% 100%;
+  --ink: 228 30% 96%;
+  --muted: 230 12% 62%;
+  --accent: 247 90% 70%;
+  --accent-2: 187 86% 53%;
+  --good-deep: 142 69% 58%;
+  --warn-deep: 45 93% 58%;
+  --bad-deep: 350 89% 72%;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -16px rgb(0 0 0 / 0.6);
+  --line-alpha: 0.08;
 }
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--line) / var(--line-alpha));
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
   }
   body {
-    @apply bg-background text-foreground antialiased;
-    background-color: #0a0a0f;
-    touch-action: pan-x pan-y;
-    -ms-touch-action: pan-x pan-y;
-  }
-  .font-syne {
-    font-family: "Syne", sans-serif;
-  }
-  .font-mono {
-    font-family: "Space Mono", monospace;
-  }
-
-  /* Keyboard focus rings for accessibility */
-  :focus-visible {
-    outline: 2px solid #7c6af7;
-    outline-offset: 2px;
-    border-radius: 4px;
-  }
-
-  /* Smooth scrolling for the whole app */
-  html {
-    scroll-behavior: smooth;
+    @apply bg-bg text-ink font-sans antialiased;
+    overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent;
+    font-feature-settings: "cv11";
+  }
+  #root {
+    min-height: 100dvh;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--accent));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-3xl border bg-surface shadow-card;
+  }
+  .glass {
+    background: hsl(var(--surface) / 0.78);
+    backdrop-filter: blur(20px) saturate(1.6);
+    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .accent-gradient-text {
+    background: linear-gradient(120deg, hsl(var(--accent)), hsl(var(--accent-2)));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* vaul drawer needs this for exit animations */
+[data-vaul-drawer] {
+  touch-action: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

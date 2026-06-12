@@ -15,53 +15,53 @@ There are no automated tests in this project.
 
 To regenerate PWA icons after changing the logo: `node scripts/generate-icons.mjs`
 
-## Architecture
+## Architecture (v2 rebuild)
 
-AcadKit is a single-user academic PWA (React + Vite + TypeScript) for SRM KTR. There is no authentication — all data is scoped by a `device_id` (a 4-digit PIN stored in `localStorage`, generated on first launch via `src/lib/device.ts`). This PIN doubles as a sync code: entering the same PIN on another device shares all data.
+AcadKit is a single-user academic PWA (React + Vite + TypeScript + Tailwind + framer-motion) for SRM KTR. There is no authentication — all data is scoped by a 4-digit PIN stored in `localStorage` (`src/lib/pin.ts`) and used as the `device_id` column on every Supabase row. Entering the same PIN on another device loads the same data; that's the entire sync model. New PINs are seeded (settings row + starter subjects) by `seedAccount` in `src/api/queries.ts`.
 
 ### Data flow
 
 ```
-Supabase (PostgreSQL) ← src/lib/queries.ts ← React Query hooks ← pages/components
-                                                      ↕
-                                              Zustand (useAppStore)
+Supabase ← src/api/queries.ts ← src/hooks/useData.ts (React Query) ← pages
+                                        ↑
+                  src/store/app.ts (Zustand: pin + theme only)
 ```
 
-- **`src/lib/supabase.ts`** — single Supabase client; always import from here. Credentials come from `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` env vars.
-- **`src/lib/queries.ts`** — all raw Supabase fetches. Every query is device-scoped (`.eq("device_id", deviceId)`).
-- **`src/store/useAppStore.ts`** — Zustand store holding `deviceId`, `subjects`, `settings`, and `todayDayOrder`. Subjects and settings are loaded once at app startup by `AppDataProvider` in `App.tsx` and pushed into this store.
-- **`src/hooks/`** — React Query wrappers that combine data from the store + Supabase. Mutations use optimistic updates (`onMutate`/`onError`/`onSettled`).
-
-### Multi-tab sync
-
-`useBroadcastSync` (mounted in `AppDataProvider`) uses the browser's `BroadcastChannel` API: any successful mutation in one tab broadcasts an invalidate signal to all other tabs of the same origin, which then refetch.
+- **`src/lib/supabase.ts`** — single Supabase client; credentials from `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (`.env.local`).
+- **`src/api/queries.ts`** — every raw Supabase call, all `.eq("device_id", pin)`-scoped.
+- **`src/hooks/useData.ts`** — React Query hooks. All mutations go through a generic `useOptimistic` helper: cache updated immediately, rolled back on error, invalidated + broadcast on settle. Query keys are `[root, pin]` where root ∈ settings/subjects/timetable/attendance/marks/deadlines.
+- **`src/hooks/useSync.ts`** — cross-tab sync via BroadcastChannel (`src/lib/broadcast.ts`) + cross-device live sync via Supabase realtime `postgres_changes` filtered by device_id.
+- If the PIN is absent, `App.tsx` renders `src/pages/Onboarding.tsx` instead of the router.
 
 ### Day order system
 
-SRM uses a 5-day rotating schedule (Day 1–5) instead of day-of-week. The mapping of calendar dates to day orders is hardcoded in `src/lib/academicCalendar.ts` (`ACADEMIC_CALENDAR`). `useDayOrderSync` reads today's date, consults this map (accounting for weekends, official holidays, declared holidays), and writes the result to `useAppStore.todayDayOrder`. Pages derive today's timetable slots from this value.
+SRM uses a 5-day rotating schedule (Day 1–5), not weekdays. The canonical semester data (window, official holidays, date → day-order map) lives in **`src/data/semester.ts`** — edit that file each new semester. **`src/lib/calendar.ts`** resolves any date to a `DayInfo` (working/weekend/holiday/pre-/post-semester). User-declared holidays live in `settings.declared_holidays` (jsonb) and are auto-shifted: `buildEffectiveMap` removes declared dates and reassigns the day-order sequence onto the remaining working days. `useToday` (`src/hooks/useToday.ts`) derives today's day order + class slots.
 
-### Pages & routing
+### Marks & SGPA (SRM-specific) — `src/lib/grades.ts`
 
-Six pages under `src/pages/`, all lazy-loaded. Bottom nav (`src/components/ui/bottom-nav.tsx`) handles navigation. The `log` page is for viewing/managing past attendance. Route: `/` → Dashboard, `/marks`, `/attendance`, `/timetable`, `/calendar`, `/settings`.
+- Internal components scale to /60 (`Σobtained/Σmax × 60`), the single external mark scales to /40; total /100.
+- Grade thresholds: O≥91, A+≥81, A≥71, B+≥61, B≥56, C≥50, F<50; points O=10…C=5, F=0.
+- SGPA = Σ(points × credits)/Σcredits over credit-bearing subjects with ≥1 mark; 0-credit (audit) subjects are excluded.
 
-### Marks & SGPA (SRM-specific)
+### Attendance — `src/lib/attendance.ts`
 
-- Internal marks scale to 60; external marks scale to 40; total out of 100.
-- Grade thresholds in `src/lib/sgpa.ts`: O≥91, A+≥81, A≥71, B+≥61, B≥56, C≥50, F<50.
-- Grade points: O=10, A+=9, A=8, B+=7, B=6, C=5, F=0.
-- SGPA = Σ(grade_points × credits) / Σcredits.
+75% minimum. Computes per-subject `canBunk` / `needToAttend`. Color signal: ≥75% `#4ade80`, 65–74% `#facc15`, <65% `#fb7185`. The DB status value `"holiday"` means "cancelled/no class" in the UI and is excluded from totals. Attendance upsert key: `(device_id, subject_id, date, start_time)`.
 
-### Attendance thresholds
+### Pages & layout
 
-Hardcoded at 75% minimum. `src/lib/attendance.ts` computes per-subject stats including `canBunk` (classes you can skip and stay ≥75%) and `needToAttend` (classes needed to recover to 75%).
+Six lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/timetable`, `/calendar`, `/settings`) plus `Onboarding`. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
 
-### Supabase tables
+### Design system
 
-`subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`. Migrations are in `supabase/migrations/`. RLS policies are device_id-based (see `003_rls_policies.sql`). Attendance upsert key: `(device_id, subject_id, date, start_time)`.
+Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.dark` class strategy — applied pre-paint by an inline script in `index.html`), mapped in `tailwind.config.js` (`bg`, `surface`, `ink`, `muted`, `accent`, `good/warn/bad`…). Fonts: Plus Jakarta Sans + JetBrains Mono.
+
+### Supabase
+
+Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`. Migrations in `supabase/migrations/`; RLS allows the anon role full access (device_id scoping is client-side). The v2 app runs on the v1 schema unchanged — no new migrations were needed.
 
 ### PWA
 
-Configured in `vite.config.ts` via `vite-plugin-pwa`. Supabase API calls are cached with a `NetworkFirst` strategy (5s timeout, 24h max age). Targets iOS home screen install (`apple-touch-icon`, `apple-mobile-web-app-capable` meta tags in `index.html`).
+`vite.config.ts` via `vite-plugin-pwa`: Supabase calls cached NetworkFirst (5s timeout), Google Fonts CacheFirst. On Node 18 the service worker is intentionally built unminified (workbox `mode` switch) because workbox's terser worker needs global webcrypto.
 
 ### Path alias
 

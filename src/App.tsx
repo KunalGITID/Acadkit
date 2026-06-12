@@ -1,101 +1,60 @@
-import { Component, lazy, Suspense } from "react";
-import type { ReactNode, ErrorInfo } from "react";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { lazy } from "react";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MotionConfig } from "framer-motion";
+import { Toaster } from "sonner";
+import { AppShell } from "@/components/layout/app-shell";
+import Onboarding from "@/pages/Onboarding";
+import { useAppStore } from "@/store/app";
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
-  state = { error: null };
-  static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error, info: ErrorInfo) { console.error("App crash:", error, info); }
-  render() {
-    if (this.state.error) {
-      const msg = (this.state.error as Error).message;
-      return (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#0a0a0f] px-6 text-center">
-          <p className="font-syne text-lg text-foreground">Something went wrong</p>
-          <p className="max-w-xs break-all text-xs text-muted-foreground">{msg}</p>
-          <button type="button" onClick={() => window.location.reload()} className="mt-2 rounded-lg bg-[#7c6af7] px-5 py-2.5 text-sm font-medium text-white">Reload</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-import { BottomNav } from "@/components/ui/bottom-nav";
-import { OfflineIndicator } from "@/components/ui/offline-indicator";
-import { PwaBanner } from "@/components/ui/pwa-banner";
-import { useBroadcastSync } from "@/hooks/useBroadcastSync";
-import { useDayOrderSync } from "@/hooks/useDayOrderSync";
-import { useSettings } from "@/hooks/useSettings";
-import { useSubjects } from "@/hooks/useSubjects";
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Attendance = lazy(() => import("@/pages/Attendance"));
+const Marks = lazy(() => import("@/pages/Marks"));
+const Timetable = lazy(() => import("@/pages/Timetable"));
+const Calendar = lazy(() => import("@/pages/Calendar"));
+const Settings = lazy(() => import("@/pages/Settings"));
 
-const DashboardPage = lazy(() => import("@/pages/dashboard"));
-const MarksPage = lazy(() => import("@/pages/marks"));
-const AttendancePage = lazy(() => import("@/pages/attendance"));
-const TimetablePage = lazy(() => import("@/pages/timetable"));
-const CalendarPage = lazy(() => import("@/pages/calendar"));
-const SettingsPage = lazy(() => import("@/pages/settings"));
-
-function AppDataProvider({ children }: { children: React.ReactNode }) {
-  const subjectsQuery = useSubjects();
-  const settingsQuery = useSettings();
-  useDayOrderSync();
-  useBroadcastSync();
-
-  const isLoading = subjectsQuery.isLoading || settingsQuery.isLoading;
-
-  if (isLoading) return <Splash />;
-
-  return <>{children}</>;
-}
-
-function Splash() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0a0a0f] transition-opacity duration-500">
-      <img
-        src="/icons/icon-192.png"
-        style={{ width: 80, height: 80, borderRadius: 20 }}
-        alt="AcadKit"
-      />
-    </div>
-  );
-}
-
-
-function PageRoutes() {
-  const location = useLocation();
-
-  return (
-    <div
-      key={location.pathname}
-      className="animate-in fade-in slide-in-from-bottom-2 duration-150"
-    >
-      <Suspense fallback={<div className="min-h-screen bg-background" />}>
-        <Routes location={location}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/marks" element={<MarksPage />} />
-          <Route path="/attendance" element={<AttendancePage />} />
-          <Route path="/timetable" element={<TimetablePage />} />
-          <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Routes>
-      </Suspense>
-    </div>
-  );
-}
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 1000 * 60 * 60 * 24,
+      retry: 1,
+      refetchOnWindowFocus: true,
+    },
+  },
+});
 
 export default function App() {
+  const pin = useAppStore((s) => s.pin);
+
   return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <AppDataProvider>
-          <div className="min-h-screen bg-background pb-20">
-            <OfflineIndicator />
-            <PageRoutes />
-            <BottomNav />
-            <PwaBanner />
-          </div>
-        </AppDataProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <MotionConfig reducedMotion="user">
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            className: "!rounded-2xl !border !bg-surface !text-ink !shadow-card",
+          }}
+        />
+        {!pin ? (
+          <Onboarding />
+        ) : (
+          <BrowserRouter>
+            <Routes>
+              <Route element={<AppShell />}>
+                <Route index element={<Dashboard />} />
+                <Route path="/attendance" element={<Attendance />} />
+                <Route path="/marks" element={<Marks />} />
+                <Route path="/timetable" element={<Timetable />} />
+                <Route path="/calendar" element={<Calendar />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        )}
+      </MotionConfig>
+    </QueryClientProvider>
   );
 }

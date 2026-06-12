@@ -1,24 +1,49 @@
-import * as React from "react";
+import { forwardRef, type InputHTMLAttributes, type SelectHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
-export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {}
-
-const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
-    return (
-      <input
-        type={type}
-        className={cn(
-          "flex h-10 w-full rounded-md border border-input bg-[#111118] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
-          className
-        )}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  ({ className, ...props }, ref) => (
+    <input
+      ref={ref}
+      className={cn(
+        "h-12 w-full rounded-2xl border bg-surface-2/60 px-4 text-[15px] text-ink placeholder:text-muted/60",
+        "focus:border-accent/50 focus:bg-surface transition-colors",
+        className
+      )}
+      {...props}
+    />
+  )
 );
 Input.displayName = "Input";
 
-export { Input };
+export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
+  ({ className, ...props }, ref) => (
+    <select
+      ref={ref}
+      className={cn(
+        "h-12 w-full appearance-none rounded-2xl border bg-surface-2/60 px-4 text-[15px] text-ink",
+        "focus:border-accent/50 focus:bg-surface transition-colors",
+        className
+      )}
+      {...props}
+    />
+  )
+);
+Select.displayName = "Select";
+
+export function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <label className={cn("block space-y-1.5", className)}>
+      <span className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</span>
+      {children}
+    </label>
+  );
+}

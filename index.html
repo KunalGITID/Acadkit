@@ -1,43 +1,54 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icons/icon-192.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
-      name="apple-mobile-web-app-status-bar-style"
-      content="black-translucent"
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AcadKit" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" content="#0a0a0f" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f5f9" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0b10" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Mono&family=Syne:wght@600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap"
       rel="stylesheet"
     />
     <title>AcadKit</title>
+    <script>
+      // Apply theme before first paint to avoid a flash of the wrong mode
+      (function () {
+        try {
+          var pref = localStorage.getItem("acadkit:theme") || "system";
+          var dark =
+            pref === "dark" ||
+            (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      document.addEventListener('gesturestart', function(e) { e.preventDefault(); }, { passive: false });
-      document.addEventListener('gesturechange', function(e) { e.preventDefault(); }, { passive: false });
-      document.addEventListener('gestureend', function(e) { e.preventDefault(); }, { passive: false });
-      document.addEventListener('touchmove', function(e) {
-        if (e.touches.length > 1) e.preventDefault();
-      }, { passive: false });
+      // Suppress iOS double-tap zoom for an app-like feel
       var lastTouchEnd = 0;
-      document.addEventListener('touchend', function(e) {
-        var now = Date.now();
-        if (now - lastTouchEnd < 300) e.preventDefault();
-        lastTouchEnd = now;
-      }, { passive: false });
+      document.addEventListener(
+        "touchend",
+        function (e) {
+          var now = Date.now();
+          if (now - lastTouchEnd < 300) e.preventDefault();
+          lastTouchEnd = now;
+        },
+        { passive: false }
+      );
     </script>
   </body>
 </html>

@@ -1,90 +1,84 @@
-export interface AttendanceStats {
-  subjectId: string;
-  subjectName: string;
-  colorHex: string;
-  total: number;
-  present: number;
-  absent: number;
-  percentage: number;
-  status: "safe" | "warning" | "danger";
+import type { AttendanceRecord, Subject } from "@/types";
+
+export const MIN_ATTENDANCE = 75;
+
+export interface SubjectAttendance {
+  subject: Subject;
+  attended: number;
+  total: number; // present + absent (cancelled classes don't count)
+  percentage: number | null;
+  /** Classes you can skip and stay ≥ 75%. */
   canBunk: number;
+  /** Consecutive classes needed to climb back to 75%. */
   needToAttend: number;
 }
 
-export function computeAttendanceStats(
-  subjectId: string,
-  subjectName: string,
-  colorHex: string,
-  records: { status: string }[]
-): AttendanceStats {
-  const total = records.filter((r) => r.status !== "holiday").length;
-  const present = records.filter((r) => r.status === "present").length;
-  const absent = records.filter((r) => r.status === "absent").length;
-  const percentage = total === 0 ? 100 : Math.round((present / total) * 100);
-
-  const status: AttendanceStats["status"] =
-    percentage >= 75 ? "safe" : percentage >= 65 ? "warning" : "danger";
-
-  const canBunk =
-    percentage >= 75 ? Math.max(0, Math.floor(present / 0.75 - total)) : 0;
-
-  const needToAttend =
-    percentage < 75
-      ? Math.max(0, Math.ceil((0.75 * total - present) / 0.25))
-      : 0;
-
-  return {
-    subjectId,
-    subjectName,
-    colorHex,
-    total,
-    present,
-    absent,
-    percentage,
-    status,
-    canBunk,
-    needToAttend,
-  };
-}
-
-export function getAttendanceColor(percentage: number): string {
-  if (percentage >= 75) return "#4ade80";
-  if (percentage >= 65) return "#facc15";
+export function attendanceColor(pct: number | null): string {
+  if (pct === null) return "hsl(var(--muted))";
+  if (pct >= 75) return "#4ade80";
+  if (pct >= 65) return "#facc15";
   return "#fb7185";
 }
 
-export function groupByDate(
-  records: { date: string; status: string }[]
-): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const r of records) {
-    if (!map[r.date] || r.status === "present") {
-      map[r.date] = r.status;
+export function attendanceTextClass(pct: number | null): string {
+  if (pct === null) return "text-muted";
+  if (pct >= 75) return "text-good-deep";
+  if (pct >= 65) return "text-warn-deep";
+  return "text-bad-deep";
+}
+
+export function computeSubjectAttendance(
+  subject: Subject,
+  records: AttendanceRecord[]
+): SubjectAttendance {
+  const counted = records.filter((r) => r.status === "present" || r.status === "absent");
+  const attended = counted.filter((r) => r.status === "present").length;
+  const total = counted.length;
+  const percentage = total > 0 ? (attended / total) * 100 : null;
+
+  const threshold = MIN_ATTENDANCE / 100;
+  let canBunk = 0;
+  let needToAttend = 0;
+  if (total > 0) {
+    if (attended / total >= threshold) {
+      // attended / (total + b) >= t  →  b <= attended/t − total
+      canBunk = Math.max(0, Math.floor(attended / threshold - total));
+    } else {
+      // (attended + n) / (total + n) >= t  →  n >= (t·total − attended)/(1 − t)
+      needToAttend = Math.max(0, Math.ceil((threshold * total - attended) / (1 - threshold)));
     }
   }
-  return map;
+  return { subject, attended, total, percentage, canBunk, needToAttend };
 }
 
-export function getLocalDateString(date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+export interface OverallAttendance {
+  attended: number;
+  total: number;
+  percentage: number | null;
+  subjects: SubjectAttendance[];
+  below75: SubjectAttendance[];
 }
 
-export function computeOverallAttendance(stats: AttendanceStats[]): {
-  percentage: number;
-  totalPresent: number;
-  totalClasses: number;
-  belowThreshold: number;
-} {
-  const totalPresent = stats.reduce((s, x) => s + x.present, 0);
-  const totalClasses = stats.reduce((s, x) => s + x.total, 0);
-  const percentage =
-    totalClasses === 0
-      ? 100
-      : Math.round((totalPresent / totalClasses) * 100);
-  const belowThreshold = stats.filter((s) => s.percentage < 75).length;
-
-  return { percentage, totalPresent, totalClasses, belowThreshold };
+export function computeOverallAttendance(
+  subjects: Subject[],
+  records: AttendanceRecord[]
+): OverallAttendance {
+  const bySubject = new Map<string, AttendanceRecord[]>();
+  for (const r of records) {
+    const list = bySubject.get(r.subject_id) ?? [];
+    list.push(r);
+    bySubject.set(r.subject_id, list);
+  }
+  const subjectStats = subjects.map((s) =>
+    computeSubjectAttendance(s, bySubject.get(s.id) ?? [])
+  );
+  const attended = subjectStats.reduce((sum, s) => sum + s.attended, 0);
+  const total = subjectStats.reduce((sum, s) => sum + s.total, 0);
+  return {
+    attended,
+    total,
+    percentage: total > 0 ? (attended / total) * 100 : null,
+    subjects: subjectStats,
+    below75: subjectStats.filter((s) => s.percentage !== null && s.percentage < MIN_ATTENDANCE),
+  };
 }
