@@ -17,6 +17,7 @@ import { AnimatedNumber } from "@/components/viz/animated-number";
 import { GradeBadge } from "@/components/viz/grade-badge";
 import { SlotMarkRow } from "@/components/sheets/slot-mark-row";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
+import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
 import {
   useAttendance,
   useDeadlines,
@@ -45,26 +46,36 @@ const stagger = {
 
 function TodayCard() {
   const { date, info, slots } = useToday();
+  const [markOpen, setMarkOpen] = useState(false);
 
   return (
     <section className="card overflow-hidden">
-      <div className="flex items-center justify-between border-b px-5 py-4">
-        <div>
+      <div className="flex items-center justify-between gap-3 border-b px-5 py-4">
+        <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-widest text-muted">Today</p>
-          <h2 className="mt-0.5 text-lg font-extrabold">{formatDateLong(date)}</h2>
+          <h2 className="mt-0.5 truncate text-lg font-extrabold">{formatDateLong(date)}</h2>
         </div>
-        {info.dayOrder !== null && (
-          <motion.div
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring", stiffness: 300, damping: 18 }}
-            className="flex h-14 w-14 flex-col items-center justify-center rounded-2xl bg-accent text-white shadow-pop"
-          >
-            <span className="text-[9px] font-bold uppercase leading-none opacity-80">Day</span>
-            <span className="text-2xl font-extrabold leading-tight">{info.dayOrder}</span>
-          </motion.div>
-        )}
+        <div className="flex shrink-0 items-center gap-2.5">
+          {info.dayOrder !== null && slots.length > 0 && (
+            <Button size="sm" variant="secondary" onClick={() => setMarkOpen(true)}>
+              <CalendarCheck2 className="h-4 w-4" /> Mark today
+            </Button>
+          )}
+          {info.dayOrder !== null && (
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 300, damping: 18 }}
+              className="flex h-14 w-14 flex-col items-center justify-center rounded-2xl bg-accent text-white shadow-pop"
+            >
+              <span className="text-[9px] font-bold uppercase leading-none opacity-80">Day</span>
+              <span className="text-2xl font-extrabold leading-tight">{info.dayOrder}</span>
+            </motion.div>
+          )}
+        </div>
       </div>
+
+      <MarkDaySheet date={markOpen ? date : null} onClose={() => setMarkOpen(false)} />
 
       <div className="p-4">
         {info.kind === "pre-semester" ? (
