@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { SEED_SUBJECTS, SEMESTER_START, SEMESTER_END } from "@/data/semester";
 import type {
@@ -12,6 +13,36 @@ import type {
 
 function throwIf(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Columns added by migration 008 (`slot_type`, `internal_only`). If
+ * the migration hasn't been run yet, writes retry without these
+ * fields so the core flow keeps working, and we hint once per session.
+ */
+let migrationHintShown = false;
+
+async function withColumnFallback<T extends Record<string, unknown>>(
+  payload: T,
+  optionalColumns: string[],
+  run: (payload: Record<string, unknown>) => PromiseLike<{ error: { message: string } | null }>
+): Promise<void> {
+  const { error } = await run(payload);
+  if (!error) return;
+  const missing = optionalColumns.find((col) => error.message.includes(`'${col}'`));
+  if (!missing) throw new Error(error.message);
+  const stripped = { ...payload };
+  delete stripped[missing];
+  const retry = await run(stripped);
+  throwIf(retry.error);
+  if (!migrationHintShown) {
+    migrationHintShown = true;
+    toast.info("Saved, minus the new fields", {
+      description:
+        "Run supabase/migrations/008_slot_type_internal_only.sql in the Supabase SQL editor to enable lab tags and internal-only subjects.",
+      duration: 9000,
+    });
+  }
 }
 
 // ---------- settings / account ----------
@@ -91,13 +122,15 @@ export async function insertSubject(
   pin: string,
   subject: Omit<Subject, "id" | "device_id" | "created_at">
 ): Promise<void> {
-  const { error } = await supabase.from("subjects").insert({ ...subject, device_id: pin });
-  throwIf(error);
+  await withColumnFallback({ ...subject, device_id: pin }, ["internal_only"], (payload) =>
+    supabase.from("subjects").insert(payload)
+  );
 }
 
 export async function updateSubject(id: string, patch: Partial<Subject>): Promise<void> {
-  const { error } = await supabase.from("subjects").update(patch).eq("id", id);
-  throwIf(error);
+  await withColumnFallback({ ...patch }, ["internal_only"], (payload) =>
+    supabase.from("subjects").update(payload).eq("id", id)
+  );
 }
 
 export async function deleteSubject(id: string): Promise<void> {
@@ -122,15 +155,15 @@ export async function insertSlot(
   pin: string,
   slot: Omit<TimetableSlot, "id" | "device_id" | "created_at">
 ): Promise<void> {
-  const { error } = await supabase
-    .from("timetable_slots")
-    .insert({ ...slot, device_id: pin });
-  throwIf(error);
+  await withColumnFallback({ ...slot, device_id: pin }, ["slot_type"], (payload) =>
+    supabase.from("timetable_slots").insert(payload)
+  );
 }
 
 export async function updateSlot(id: string, patch: Partial<TimetableSlot>): Promise<void> {
-  const { error } = await supabase.from("timetable_slots").update(patch).eq("id", id);
-  throwIf(error);
+  await withColumnFallback({ ...patch }, ["slot_type"], (payload) =>
+    supabase.from("timetable_slots").update(payload).eq("id", id)
+  );
 }
 
 export async function deleteSlot(id: string): Promise<void> {

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { useAddSlot, useDeleteSlot, useSubjects, useUpdateSlot } from "@/hooks/useData";
-import type { TimetableSlot } from "@/types";
+import type { SubjectType, TimetableSlot } from "@/types";
 
 interface SlotSheetProps {
   open: boolean;
@@ -25,6 +25,7 @@ export function SlotSheet({ open, onClose, slot, defaultDayOrder }: SlotSheetPro
 
   const [subjectId, setSubjectId] = useState("");
   const [dayOrder, setDayOrder] = useState(defaultDayOrder);
+  const [slotType, setSlotType] = useState<SubjectType>("theory");
   const [start, setStart] = useState("08:00");
   const [end, setEnd] = useState("08:50");
   const [room, setRoom] = useState("");
@@ -34,12 +35,14 @@ export function SlotSheet({ open, onClose, slot, defaultDayOrder }: SlotSheetPro
     if (slot) {
       setSubjectId(slot.subject_id);
       setDayOrder(slot.day_order);
+      setSlotType(slot.slot_type ?? "theory");
       setStart(slot.start_time.slice(0, 5));
       setEnd(slot.end_time.slice(0, 5));
       setRoom(slot.room ?? "");
     } else {
       setSubjectId(subjects?.[0]?.id ?? "");
       setDayOrder(defaultDayOrder);
+      setSlotType("theory");
       setStart("08:00");
       setEnd("08:50");
       setRoom("");
@@ -58,6 +61,7 @@ export function SlotSheet({ open, onClose, slot, defaultDayOrder }: SlotSheetPro
     const payload = {
       subject_id: subjectId,
       day_order: dayOrder,
+      slot_type: slotType,
       start_time: start,
       end_time: end,
       room: room.trim() || null,
@@ -83,6 +87,18 @@ export function SlotSheet({ open, onClose, slot, defaultDayOrder }: SlotSheetPro
               </option>
             ))}
           </Select>
+        </Field>
+
+        <Field label="Class type">
+          <Segmented
+            layoutId="slot-kind"
+            options={[
+              { value: "theory", label: "Theory" },
+              { value: "lab", label: "Lab" },
+            ]}
+            value={slotType}
+            onChange={(v) => setSlotType(v as SubjectType)}
+          />
         </Field>
 
         <Field label="Day order">

@@ -61,6 +61,7 @@ export function SlotMarkRow({ slot, subject, date }: SlotMarkRowProps) {
         <div className="min-w-0">
           <p className="truncate text-sm font-bold">{subject?.name ?? "Unknown subject"}</p>
           <p className="text-xs font-medium text-muted">
+            {slot.slot_type === "lab" ? "Lab · " : ""}
             {formatTimeRange(slot.start_time, slot.end_time)}
             {slot.room ? ` · ${slot.room}` : ""}
           </p>

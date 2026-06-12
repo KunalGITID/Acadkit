@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { useAddSubject, useDeleteSubject, useUpdateSubject } from "@/hooks/useData";
 import { cn } from "@/lib/utils";
 import type { Subject } from "@/types";
@@ -29,6 +30,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
   const [code, setCode] = useState("");
   const [credits, setCredits] = useState("3");
   const [color, setColor] = useState(PALETTE[0]);
+  const [internalOnly, setInternalOnly] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -36,6 +38,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
     setCode(subject?.code ?? "");
     setCredits(String(subject?.credits ?? 3));
     setColor(subject?.color_hex ?? PALETTE[0]);
+    setInternalOnly(subject?.internal_only ?? false);
   }, [open, subject]);
 
   function save() {
@@ -50,6 +53,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
       type: "theory" as const,
       faculty: subject?.faculty ?? null,
       color_hex: color,
+      internal_only: internalOnly,
     };
     if (subject) update.mutate({ id: subject.id, patch: payload });
     else add.mutate(payload);
@@ -82,6 +86,18 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
             />
           </Field>
         </div>
+        <Field label="Marks structure">
+          <Segmented
+            layoutId="subject-marks-structure"
+            options={[
+              { value: "split", label: "Internal 60 + End sem 40" },
+              { value: "internal", label: "Internals only (/100)" },
+            ]}
+            value={internalOnly ? "internal" : "split"}
+            onChange={(v) => setInternalOnly(v === "internal")}
+          />
+        </Field>
+
         <Field label="Color">
           <div className="flex flex-wrap gap-2.5 pt-1">
             {PALETTE.map((c) => (

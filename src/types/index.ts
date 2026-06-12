@@ -9,6 +9,8 @@ export interface Subject {
   type: SubjectType;
   faculty: string | null;
   color_hex: string;
+  /** No end-sem exam — internals make the full /100 (migration 008). */
+  internal_only?: boolean | null;
   created_at?: string;
 }
 
@@ -20,6 +22,8 @@ export interface TimetableSlot {
   start_time: string; // "HH:MM:SS"
   end_time: string;
   room: string | null;
+  /** Theory vs lab session of the subject (migration 008). */
+  slot_type?: SubjectType | null;
   created_at?: string;
 }
 

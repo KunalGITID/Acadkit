@@ -16,12 +16,15 @@ vite-plugin-pwa.
 ### 1. Backend (Supabase)
 
 Create a project at [supabase.com](https://supabase.com) (free tier is plenty), then run the
-SQL files in `supabase/migrations/` in order (001 → 006) in the SQL editor. That creates the
+SQL files in `supabase/migrations/` in order (001 → 008) in the SQL editor. That creates the
 six tables (`subjects`, `timetable_slots`, `attendance`, `marks`, `deadlines`, `settings`)
 and the RLS policies.
 
-> Already have the AcadKit v1 Supabase project? Nothing to do — v2 runs on the same schema,
-> and your existing PIN's data loads as-is.
+> Already have the AcadKit v1 Supabase project? Just run the two new one-liners —
+> `007_settings_name.sql` (greeting name follows your PIN) and
+> `008_slot_type_internal_only.sql` (lab/theory slot tags + internal-only subjects) — in the
+> SQL editor. Everything else runs on the same schema and your existing PIN's data loads
+> as-is. The app works without them too; it just can't save those particular fields.
 
 For **live cross-device sync** (optional but nice): in the Supabase dashboard go to
 *Database → Replication* and enable the `supabase_realtime` publication for the six tables.

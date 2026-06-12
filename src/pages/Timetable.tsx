@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CalendarPlus, Clock3, Plus } from "lucide-react";
+import { CalendarPlus, Clock3, FlaskConical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
-import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
+import { Badge, Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { SlotSheet } from "@/components/sheets/slot-sheet";
 import { useSubjects, useTimetable } from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
@@ -96,6 +96,7 @@ export default function Timetable() {
             <div aria-hidden className="absolute bottom-6 left-[21px] top-6 w-px bg-line/10" />
             {slots.map((slot, i) => {
               const subject = subjects?.find((s) => s.id === slot.subject_id);
+              const isLab = slot.slot_type === "lab";
               return (
                 <motion.button
                   key={slot.id}
@@ -114,7 +115,17 @@ export default function Timetable() {
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
                     style={{ backgroundColor: `${subject?.color_hex ?? "#888"}22` }}
                   >
-                    <Clock3 className="h-5 w-5" style={{ color: subject?.color_hex ?? "#888" }} />
+                    {isLab ? (
+                      <FlaskConical
+                        className="h-5 w-5"
+                        style={{ color: subject?.color_hex ?? "#888" }}
+                      />
+                    ) : (
+                      <Clock3
+                        className="h-5 w-5"
+                        style={{ color: subject?.color_hex ?? "#888" }}
+                      />
+                    )}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 truncate font-bold">
@@ -126,7 +137,13 @@ export default function Timetable() {
                       {slot.room ? ` · ${slot.room}` : ""}
                     </p>
                   </div>
-                  <span className="text-xs font-semibold text-muted">edit</span>
+                  <Badge
+                    className={
+                      isLab ? "bg-accent-2/15 text-accent-2" : "bg-surface-2 text-muted"
+                    }
+                  >
+                    {isLab ? "lab" : "theory"}
+                  </Badge>
                 </motion.button>
               );
             })}

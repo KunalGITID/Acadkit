@@ -7,6 +7,7 @@ import { SgpaDial } from "@/components/viz/sgpa-dial";
 import { GradeBadge } from "@/components/viz/grade-badge";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { MarkSheet } from "@/components/sheets/mark-sheet";
+import { MarksCalculators } from "@/components/marks/calculators";
 import { useMarks, useSubjects } from "@/hooks/useData";
 import { computeSgpa, groupMarksBySubject, type SubjectMarks } from "@/lib/grades";
 import type { Mark, Subject } from "@/types";
@@ -56,6 +57,7 @@ function SubjectMarksCard({
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted">
             {subject.code} · {audit ? "audit (no SGPA)" : `${subject.credits} credits`}
+            {subject.internal_only ? " · internals = /100" : ""}
           </p>
         </div>
         {marks.hasAnyMarks ? (
@@ -177,6 +179,8 @@ export default function Marks() {
           />
         ))}
       </div>
+
+      <MarksCalculators rows={result.rows} />
 
       <MarkSheet
         open={sheetOpen}

@@ -2,7 +2,8 @@ import type { Mark, Subject } from "@/types";
 
 export type Grade = "O" | "A+" | "A" | "B+" | "B" | "C" | "F";
 
-const GRADE_TABLE: Array<{ grade: Grade; min: number; points: number }> = [
+/** Descending by threshold: O first, F last. */
+export const GRADE_TABLE: Array<{ grade: Grade; min: number; points: number }> = [
   { grade: "O", min: 91, points: 10 },
   { grade: "A+", min: 81, points: 9 },
   { grade: "A", min: 71, points: 8 },
@@ -93,6 +94,12 @@ export function computeSgpa(subjects: Subject[], marksBySubject: Map<string, Mar
     totalObtained: rows.reduce((s, r) => s + r.marks.internalObtained, 0),
     totalMax: rows.reduce((s, r) => s + r.marks.internalMax, 0),
   };
+}
+
+/** Lowest grade whose points reach `points`, or null if even O can't. */
+export function minGradeForPoints(points: number) {
+  const candidates = [...GRADE_TABLE].reverse().filter((g) => g.grade !== "F");
+  return candidates.find((g) => g.points >= points) ?? null;
 }
 
 /** Group marks by subject id (shared by Marks page and Dashboard). */
