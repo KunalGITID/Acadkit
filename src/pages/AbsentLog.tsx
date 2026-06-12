@@ -1,16 +1,20 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { PartyPopper } from "lucide-react";
+import { ChevronDown, ChevronUp, PartyPopper } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
 import { useAttendance, useSubjects } from "@/hooks/useData";
 import { formatTime, parseISODate } from "@/lib/dates";
 import type { AttendanceRecord } from "@/types";
 
+const INITIAL_DAYS = 6;
+
 export default function AbsentLog() {
   const { data: attendance, isLoading: aLoading } = useAttendance();
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const [markDate, setMarkDate] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
   const days = useMemo(() => {
     const absents = (attendance ?? [])
@@ -36,6 +40,8 @@ export default function AbsentLog() {
   }
 
   const totalMissed = days.reduce((s, [, list]) => s + list.length, 0);
+  const visibleDays = showAll ? days : days.slice(0, INITIAL_DAYS);
+  const hiddenCount = days.length - visibleDays.length;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -58,7 +64,7 @@ export default function AbsentLog() {
           />
         </section>
       ) : (
-        days.map(([date, list], i) => (
+        visibleDays.map(([date, list], i) => (
           <motion.button
             key={date}
             initial={{ opacity: 0, y: 12 }}
@@ -96,6 +102,25 @@ export default function AbsentLog() {
             </div>
           </motion.button>
         ))
+      )}
+
+      {hiddenCount > 0 && (
+        <Button variant="secondary" className="w-full" onClick={() => setShowAll(true)}>
+          <ChevronDown className="h-4 w-4" /> Show {hiddenCount} older day
+          {hiddenCount === 1 ? "" : "s"}
+        </Button>
+      )}
+      {showAll && days.length > INITIAL_DAYS && (
+        <Button
+          variant="ghost"
+          className="w-full"
+          onClick={() => {
+            setShowAll(false);
+            window.scrollTo({ top: 0 });
+          }}
+        >
+          <ChevronUp className="h-4 w-4" /> Show less
+        </Button>
       )}
 
       <MarkDaySheet date={markDate} onClose={() => setMarkDate(null)} />

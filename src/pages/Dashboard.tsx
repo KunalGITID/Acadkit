@@ -15,9 +15,9 @@ import { Badge, Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { GradeBadge } from "@/components/viz/grade-badge";
-import { SlotMarkRow } from "@/components/sheets/slot-mark-row";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
+import { SlotMarkRow } from "@/components/sheets/slot-mark-row";
 import {
   useAttendance,
   useDeadlines,
@@ -115,12 +115,9 @@ function TodayCard() {
             }
           />
         ) : (
-          <div className="space-y-2.5">
-            <p className="px-1 text-xs font-semibold text-muted">
-              Tap to mark today's attendance — tap again to clear
-            </p>
+          <div className="space-y-2">
             {slots.map(({ slot, subject }) => (
-              <SlotMarkRow key={slot.id} slot={slot} subject={subject} date={date} />
+              <SlotMarkRow key={slot.id} slot={slot} subject={subject} date={date} collapsible />
             ))}
           </div>
         )}
