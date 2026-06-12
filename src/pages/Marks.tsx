@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Pencil, Plus, Target, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Dot, Skeleton } from "@/components/ui/misc";
@@ -9,6 +9,7 @@ import { AnimatedNumber } from "@/components/viz/animated-number";
 import { MarkSheet } from "@/components/sheets/mark-sheet";
 import { MarksCalculators } from "@/components/marks/calculators";
 import { useMarks, useSubjects } from "@/hooks/useData";
+import { Segmented } from "@/components/ui/segmented";
 import { computeSgpa, groupMarksBySubject, type SubjectMarks } from "@/lib/grades";
 import type { Mark, Subject } from "@/types";
 
@@ -120,6 +121,7 @@ export default function Marks() {
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { data: marks, isLoading: mLoading } = useMarks();
 
+  const [view, setView] = useState<"marks" | "calculator">("marks");
   const [sheetSubject, setSheetSubject] = useState<Subject | null>(null);
   const [sheetMark, setSheetMark] = useState<Mark | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -141,46 +143,79 @@ export default function Marks() {
 
   return (
     <div className="space-y-4">
-      <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">Marks</h1>
-
-      <section className="card flex flex-col items-center gap-2 p-6 lg:flex-row lg:justify-between lg:px-10">
-        <SgpaDial sgpa={result.sgpa} />
-        <div className="flex flex-col items-center gap-1 lg:items-end">
-          <p className="flex items-center gap-2 text-sm font-semibold text-muted">
-            <Target className="h-4 w-4" />
-            {result.countedSubjects === 0
-              ? "Add internal marks to see your predicted SGPA"
-              : `Predicted from ${result.countedSubjects} subject${result.countedSubjects > 1 ? "s" : ""} · ${result.totalCredits} credits`}
-          </p>
-          <p className="max-w-xs text-center text-xs text-muted lg:text-right">
-            Grades projected from your internal performance so far — O ≥ 91 · A+ ≥ 81 · A ≥ 71 ·
-            B+ ≥ 61 · B ≥ 56 · C ≥ 50
-          </p>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {result.rows.map(({ subject, marks: m }, i) => (
-          <SubjectMarksCard
-            key={subject.id}
-            subject={subject}
-            marks={m}
-            index={i}
-            onAdd={(s) => {
-              setSheetSubject(s);
-              setSheetMark(null);
-              setSheetOpen(true);
-            }}
-            onEdit={(s, mark) => {
-              setSheetSubject(s);
-              setSheetMark(mark);
-              setSheetOpen(true);
-            }}
-          />
-        ))}
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Marks</h1>
+        <Segmented
+          layoutId="marks-view"
+          options={[
+            { value: "marks", label: "Marks" },
+            { value: "calculator", label: "Calculator" },
+          ]}
+          value={view}
+          onChange={setView}
+          className="w-56"
+        />
       </div>
 
-      <MarksCalculators rows={result.rows} />
+      <AnimatePresence mode="wait" initial={false}>
+        {view === "marks" ? (
+          <motion.div
+            key="marks-view"
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -16 }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            className="space-y-4"
+          >
+            <section className="card flex flex-col items-center gap-2 p-6 lg:flex-row lg:justify-between lg:px-10">
+              <SgpaDial sgpa={result.sgpa} />
+              <div className="flex flex-col items-center gap-1 lg:items-end">
+                <p className="flex items-center gap-2 text-sm font-semibold text-muted">
+                  <Target className="h-4 w-4" />
+                  {result.countedSubjects === 0
+                    ? "Add internal marks to see your predicted SGPA"
+                    : `Predicted from ${result.countedSubjects} subject${result.countedSubjects > 1 ? "s" : ""} · ${result.totalCredits} credits`}
+                </p>
+                <p className="max-w-xs text-center text-xs text-muted lg:text-right">
+                  Grades projected from your internal performance so far — O ≥ 91 · A+ ≥ 81 ·
+                  A ≥ 71 · B+ ≥ 61 · B ≥ 56 · C ≥ 50
+                </p>
+              </div>
+            </section>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {result.rows.map(({ subject, marks: m }, i) => (
+                <SubjectMarksCard
+                  key={subject.id}
+                  subject={subject}
+                  marks={m}
+                  index={i}
+                  onAdd={(s) => {
+                    setSheetSubject(s);
+                    setSheetMark(null);
+                    setSheetOpen(true);
+                  }}
+                  onEdit={(s, mark) => {
+                    setSheetSubject(s);
+                    setSheetMark(mark);
+                    setSheetOpen(true);
+                  }}
+                />
+              ))}
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="calculator-view"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 16 }}
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+          >
+            <MarksCalculators rows={result.rows} />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <MarkSheet
         open={sheetOpen}

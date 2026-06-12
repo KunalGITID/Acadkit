@@ -383,14 +383,11 @@ export function MarksCalculators({ rows }: { rows: Row[] }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 26 }}
-      className="space-y-3"
+      className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3"
     >
-      <p className="px-1 text-xs font-bold uppercase tracking-widest text-muted">Calculators</p>
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
-        <WhatDoINeedCard rows={rows} />
-        <TargetSgpaCard rows={rows} />
-        <CgpaCard />
-      </div>
+      <WhatDoINeedCard rows={rows} />
+      <TargetSgpaCard rows={rows} />
+      <CgpaCard />
     </motion.div>
   );
 }

@@ -31,7 +31,8 @@ export function AttendanceHeatmap({ records }: HeatmapProps) {
     }
 
     const today = todayISO();
-    const end = today > SEMESTER_START ? today : SEMESTER_START;
+    const lastMarked = [...byDate.keys()].sort().pop() ?? SEMESTER_START;
+    const end = [today, SEMESTER_START, lastMarked].sort().pop()!;
     // Walk back to the Monday of the start week
     let cursor = SEMESTER_START;
     while (parseISODate(cursor).getDay() !== 1) cursor = addDays(cursor, -1);
