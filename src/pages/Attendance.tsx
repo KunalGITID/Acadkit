@@ -1,6 +1,13 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarCheck2, ChevronDown, GraduationCap, ShieldCheck, Siren } from "lucide-react";
+import {
+  CalendarCheck2,
+  ChevronDown,
+  GraduationCap,
+  PartyPopper,
+  ShieldCheck,
+  Siren,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
@@ -14,8 +21,10 @@ import {
   computeOverallAttendance,
   type SubjectAttendance,
 } from "@/lib/attendance";
-import { todayISO } from "@/lib/dates";
+import { formatTime, todayISO } from "@/lib/dates";
+import { parseISODate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
+import type { AttendanceRecord, Subject } from "@/types";
 
 function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number }) {
   const [open, setOpen] = useState(false);
@@ -89,6 +98,84 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
         </motion.div>
       )}
     </motion.div>
+  );
+}
+
+function AbsentLog({
+  records,
+  subjects,
+  onPickDate,
+}: {
+  records: AttendanceRecord[];
+  subjects: Subject[];
+  onPickDate: (date: string) => void;
+}) {
+  const days = useMemo(() => {
+    const absents = records
+      .filter((r) => r.status === "absent")
+      .sort((a, b) => b.date.localeCompare(a.date) || a.start_time.localeCompare(b.start_time));
+    const byDate = new Map<string, AttendanceRecord[]>();
+    for (const r of absents) {
+      const list = byDate.get(r.date) ?? [];
+      list.push(r);
+      byDate.set(r.date, list);
+    }
+    return [...byDate.entries()];
+  }, [records]);
+
+  return (
+    <div className="space-y-3">
+      <p className="px-1 text-xs font-bold uppercase tracking-widest text-muted">Absent log</p>
+      {days.length === 0 ? (
+        <section className="card">
+          <EmptyState
+            icon={PartyPopper}
+            title="Clean sheet"
+            description="No absents on record. Every period you miss will show up here."
+            className="py-8"
+          />
+        </section>
+      ) : (
+        days.map(([date, list], i) => (
+          <motion.button
+            key={date}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 280, damping: 26, delay: i * 0.03 }}
+            onClick={() => onPickDate(date)}
+            className="card block w-full p-4 text-left transition-transform active:scale-[0.99]"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-extrabold">
+                {parseISODate(date).toLocaleDateString("en-IN", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                })}
+              </p>
+              <span className="rounded-full bg-bad/10 px-2.5 py-0.5 text-[11px] font-bold text-bad-deep">
+                {list.length} missed
+              </span>
+            </div>
+            <div className="mt-2 space-y-1.5">
+              {list.map((r) => {
+                const subject = subjects.find((s) => s.id === r.subject_id);
+                return (
+                  <p
+                    key={r.id}
+                    className="flex items-center gap-2 text-xs font-semibold text-muted"
+                  >
+                    <Dot color={subject?.color_hex ?? "#888"} className="h-1.5 w-1.5" />
+                    <span className="truncate text-ink">{subject?.name ?? "Unknown subject"}</span>
+                    <span className="ml-auto shrink-0 tabular">{formatTime(r.start_time)}</span>
+                  </p>
+                );
+              })}
+            </div>
+          </motion.button>
+        ))
+      )}
+    </div>
   );
 }
 
@@ -180,6 +267,12 @@ export default function Attendance() {
           <SubjectRow key={s.subject.id} stats={s} index={i} />
         ))}
       </div>
+
+      <AbsentLog
+        records={attendance ?? []}
+        subjects={subjects ?? []}
+        onPickDate={setMarkDate}
+      />
 
       <MarkDaySheet date={markDate} onClose={() => setMarkDate(null)} />
     </div>
