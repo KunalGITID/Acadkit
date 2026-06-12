@@ -4,6 +4,7 @@ import { getStoredPin, storePin, clearPin } from "@/lib/pin";
 export type ThemePref = "light" | "dark" | "system";
 
 const THEME_KEY = "acadkit:theme";
+const NAME_KEY = "acadkit:name";
 
 function applyTheme(pref: ThemePref) {
   const dark =
@@ -15,14 +16,18 @@ function applyTheme(pref: ThemePref) {
 interface AppState {
   pin: string | null;
   theme: ThemePref;
+  /** Local copy of the display name (settings.name wins when present). */
+  name: string;
   setPin: (pin: string) => void;
   resetPin: () => void;
   setTheme: (theme: ThemePref) => void;
+  setName: (name: string) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
   pin: getStoredPin(),
   theme: (localStorage.getItem(THEME_KEY) as ThemePref) || "system",
+  name: localStorage.getItem(NAME_KEY) ?? "",
   setPin: (pin) => {
     storePin(pin);
     set({ pin });
@@ -35,6 +40,10 @@ export const useAppStore = create<AppState>((set) => ({
     localStorage.setItem(THEME_KEY, theme);
     applyTheme(theme);
     set({ theme });
+  },
+  setName: (name) => {
+    localStorage.setItem(NAME_KEY, name);
+    set({ name });
   },
 }));
 

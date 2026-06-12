@@ -62,7 +62,9 @@ export function SgpaDial({ sgpa, size = 200 }: SgpaDialProps) {
         ) : (
           <>
             <AnimatedNumber value={sgpa} decimals={2} className="text-5xl font-extrabold accent-gradient-text" />
-            <span className="mt-1 text-xs font-bold uppercase tracking-widest text-muted">SGPA</span>
+            <span className="mt-1 text-xs font-bold uppercase tracking-widest text-muted">
+              predicted SGPA
+            </span>
           </>
         )}
       </div>

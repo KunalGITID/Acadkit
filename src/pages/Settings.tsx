@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
@@ -21,8 +21,15 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Dot } from "@/components/ui/misc";
 import { SubjectSheet } from "@/components/sheets/subject-sheet";
-import { accountExists, clearTimetable, deleteAllData, ensureSettings, exportAllData } from "@/api/queries";
-import { useSubjects } from "@/hooks/useData";
+import {
+  accountExists,
+  clearTimetable,
+  deleteAllData,
+  ensureSettings,
+  exportAllData,
+  updateSettings as apiUpdateSettings,
+} from "@/api/queries";
+import { useSettings, useSubjects } from "@/hooks/useData";
 import { isValidPin } from "@/lib/pin";
 import { useAppStore, type ThemePref } from "@/store/app";
 import type { Subject } from "@/types";
@@ -30,6 +37,54 @@ import type { Subject } from "@/types";
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <p className="px-1 text-xs font-bold uppercase tracking-widest text-muted">{children}</p>
+  );
+}
+
+function ProfileCard() {
+  const pin = useAppStore((s) => s.pin)!;
+  const localName = useAppStore((s) => s.name);
+  const setName = useAppStore((s) => s.setName);
+  const { data: settings } = useSettings();
+  const [input, setInput] = useState(settings?.name ?? localName);
+  const [saved, setSaved] = useState(false);
+
+  // Adopt the cloud name once it loads, unless the user already typed
+  useEffect(() => {
+    if (settings?.name && input === "") setInput(settings.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.name]);
+
+  function save() {
+    const name = input.trim();
+    setName(name);
+    // Best-effort cloud copy so the name follows the PIN (needs migration 007)
+    void apiUpdateSettings(pin, { name }).catch(() => {});
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+    toast.success(name ? `Hi, ${name}!` : "Name cleared");
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div>
+        <p className="font-bold">Your name</p>
+        <p className="mt-0.5 text-xs text-muted">
+          Used for the dashboard greeting — "Good morning, {input.trim() || "you"}".
+        </p>
+      </div>
+      <div className="flex gap-2.5">
+        <Input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="e.g. Kunal"
+          maxLength={30}
+        />
+        <Button onClick={save} className="h-12 shrink-0">
+          {saved ? <Check className="h-4 w-4" /> : null}
+          {saved ? "Saved" : "Save"}
+        </Button>
+      </div>
+    </section>
   );
 }
 
@@ -278,6 +333,11 @@ export default function Settings() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">Settings</h1>
+
+      <div className="space-y-3">
+        <SectionTitle>Profile</SectionTitle>
+        <ProfileCard />
+      </div>
 
       <div className="space-y-3">
         <SectionTitle>Cross-device sync</SectionTitle>

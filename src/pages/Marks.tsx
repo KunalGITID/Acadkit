@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Pencil, Plus, Target } from "lucide-react";
+import { Pencil, Plus, Target, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Dot, Skeleton } from "@/components/ui/misc";
 import { SgpaDial } from "@/components/viz/sgpa-dial";
@@ -8,8 +8,7 @@ import { GradeBadge } from "@/components/viz/grade-badge";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { MarkSheet } from "@/components/sheets/mark-sheet";
 import { useMarks, useSubjects } from "@/hooks/useData";
-import { computeSgpa, type SubjectMarks } from "@/lib/grades";
-import { cn } from "@/lib/utils";
+import { computeSgpa, groupMarksBySubject, type SubjectMarks } from "@/lib/grades";
 import type { Mark, Subject } from "@/types";
 
 function Bar({ value, max, color }: { value: number; max: number; color: string }) {
@@ -36,7 +35,7 @@ function SubjectMarksCard({
   subject: Subject;
   marks: SubjectMarks;
   index: number;
-  onAdd: (subject: Subject, external: boolean) => void;
+  onAdd: (subject: Subject) => void;
   onEdit: (subject: Subject, mark: Mark) => void;
 }) {
   const audit = subject.credits === 0;
@@ -66,28 +65,16 @@ function SubjectMarksCard({
         )}
       </div>
 
-      {/* Internal /60 and external /40 bars */}
-      <div className="mt-4 space-y-3">
-        <div>
-          <div className="mb-1.5 flex items-baseline justify-between text-xs font-semibold">
-            <span className="text-muted">Internal · scaled to 60</span>
-            <span className="tabular">
-              <AnimatedNumber value={marks.internal60} decimals={1} />
-              <span className="text-muted"> / 60</span>
-            </span>
-          </div>
-          <Bar value={marks.internal60} max={60} color={subject.color_hex} />
+      {/* Internals so far (raw) */}
+      <div className="mt-4">
+        <div className="mb-1.5 flex items-baseline justify-between text-xs font-semibold">
+          <span className="text-muted">Internals so far</span>
+          <span className="tabular">
+            <AnimatedNumber value={marks.internalObtained} decimals={0} />
+            <span className="text-muted"> / {marks.internalMax}</span>
+          </span>
         </div>
-        <div>
-          <div className="mb-1.5 flex items-baseline justify-between text-xs font-semibold">
-            <span className="text-muted">External · scaled to 40</span>
-            <span className="tabular">
-              <AnimatedNumber value={marks.external40} decimals={1} />
-              <span className="text-muted"> / 40</span>
-            </span>
-          </div>
-          <Bar value={marks.external40} max={40} color="hsl(var(--accent-2))" />
-        </div>
+        <Bar value={marks.internalObtained} max={marks.internalMax} color={subject.color_hex} />
       </div>
 
       {/* Components */}
@@ -106,39 +93,22 @@ function SubjectMarksCard({
               <Pencil className="h-3 w-3 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
             </button>
           ))}
-          {marks.external && (
-            <button
-              onClick={() => onEdit(subject, marks.external!)}
-              className="group flex items-center gap-1.5 rounded-xl border border-accent/30 bg-accent/10 px-2.5 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent/15"
-            >
-              {marks.external.label}
-              <span className="tabular">
-                {marks.external.marks_obtained}/{marks.external.max_marks}
-              </span>
-              <Pencil className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
-            </button>
-          )}
         </div>
       )}
 
       <div className="mt-4 flex items-center justify-between border-t pt-4">
-        <p className="text-sm font-bold tabular">
-          Total{" "}
-          <span className={cn(marks.hasAnyMarks ? "text-ink" : "text-muted")}>
-            <AnimatedNumber value={marks.total} decimals={1} />
-          </span>
-          <span className="text-muted"> / 100</span>
-        </p>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={() => onAdd(subject, false)}>
-            <Plus className="h-3.5 w-3.5" /> Internal
-          </Button>
-          {!marks.external && (
-            <Button variant="outline" size="sm" onClick={() => onAdd(subject, true)}>
-              <Plus className="h-3.5 w-3.5" /> External
-            </Button>
-          )}
-        </div>
+        {marks.hasAnyMarks ? (
+          <p className="flex items-center gap-1.5 text-sm font-bold tabular">
+            <TrendingUp className="h-4 w-4 text-accent" />
+            On pace for <AnimatedNumber value={marks.predictedTotal} decimals={0} />
+            <span className="text-muted">/ 100</span>
+          </p>
+        ) : (
+          <p className="text-sm font-semibold text-muted">No internals yet</p>
+        )}
+        <Button variant="secondary" size="sm" onClick={() => onAdd(subject)}>
+          <Plus className="h-3.5 w-3.5" /> Add marks
+        </Button>
       </div>
     </motion.section>
   );
@@ -150,18 +120,12 @@ export default function Marks() {
 
   const [sheetSubject, setSheetSubject] = useState<Subject | null>(null);
   const [sheetMark, setSheetMark] = useState<Mark | null>(null);
-  const [sheetExternal, setSheetExternal] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const result = useMemo(() => {
-    const bySubject = new Map<string, Mark[]>();
-    for (const m of marks ?? []) {
-      const list = bySubject.get(m.subject_id) ?? [];
-      list.push(m);
-      bySubject.set(m.subject_id, list);
-    }
-    return computeSgpa(subjects ?? [], bySubject);
-  }, [subjects, marks]);
+  const result = useMemo(
+    () => computeSgpa(subjects ?? [], groupMarksBySubject(marks ?? [])),
+    [subjects, marks]
+  );
 
   if (sLoading || mLoading) {
     return (
@@ -183,11 +147,12 @@ export default function Marks() {
           <p className="flex items-center gap-2 text-sm font-semibold text-muted">
             <Target className="h-4 w-4" />
             {result.countedSubjects === 0
-              ? "Add marks to see your predicted SGPA"
+              ? "Add internal marks to see your predicted SGPA"
               : `Predicted from ${result.countedSubjects} subject${result.countedSubjects > 1 ? "s" : ""} · ${result.totalCredits} credits`}
           </p>
           <p className="max-w-xs text-center text-xs text-muted lg:text-right">
-            O ≥ 91 · A+ ≥ 81 · A ≥ 71 · B+ ≥ 61 · B ≥ 56 · C ≥ 50
+            Grades projected from your internal performance so far — O ≥ 91 · A+ ≥ 81 · A ≥ 71 ·
+            B+ ≥ 61 · B ≥ 56 · C ≥ 50
           </p>
         </div>
       </section>
@@ -199,10 +164,9 @@ export default function Marks() {
             subject={subject}
             marks={m}
             index={i}
-            onAdd={(s, external) => {
+            onAdd={(s) => {
               setSheetSubject(s);
               setSheetMark(null);
-              setSheetExternal(external);
               setSheetOpen(true);
             }}
             onEdit={(s, mark) => {
@@ -219,7 +183,7 @@ export default function Marks() {
         onClose={() => setSheetOpen(false)}
         subject={sheetSubject}
         mark={sheetMark}
-        defaultExternal={sheetExternal}
+        existing={(marks ?? []).filter((m) => m.subject_id === sheetSubject?.id)}
       />
     </div>
   );

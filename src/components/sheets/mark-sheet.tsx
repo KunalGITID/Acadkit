@@ -8,43 +8,57 @@ import { Segmented } from "@/components/ui/segmented";
 import { useAddMark, useDeleteMark, useUpdateMark } from "@/hooks/useData";
 import type { Mark, MarkComponentType, Subject } from "@/types";
 
+const INTERNAL_TYPES = ["CT", "Lab", "Assignment", "Project"] as const;
+
+/** "CT-1", "Assignment-2", … */
+const AUTO_LABEL = /^(CT|Lab|Assignment|Project)-\d+$/;
+
 interface MarkSheetProps {
   open: boolean;
   onClose: () => void;
   subject: Subject | null;
   /** Editing an existing component, or null to add. */
   mark: Mark | null;
-  /** When adding: start on the external tab. */
-  defaultExternal?: boolean;
+  /** The subject's existing internal components (for auto-numbering labels). */
+  existing: Mark[];
 }
 
-export function MarkSheet({ open, onClose, subject, mark, defaultExternal }: MarkSheetProps) {
+export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetProps) {
   const add = useAddMark();
   const update = useUpdateMark();
   const remove = useDeleteMark();
 
-  const [isExternal, setIsExternal] = useState(false);
   const [label, setLabel] = useState("");
   const [componentType, setComponentType] = useState<MarkComponentType>("CT");
   const [obtained, setObtained] = useState("");
   const [max, setMax] = useState("");
 
+  function nextLabel(type: MarkComponentType): string {
+    const count = existing.filter((m) => !m.is_external && m.component_type === type).length;
+    return `${type}-${count + 1}`;
+  }
+
   useEffect(() => {
     if (!open) return;
     if (mark) {
-      setIsExternal(mark.is_external);
       setLabel(mark.label);
       setComponentType(mark.component_type);
       setObtained(String(mark.marks_obtained));
       setMax(String(mark.max_marks));
     } else {
-      setIsExternal(defaultExternal ?? false);
-      setLabel(defaultExternal ? "End Semester" : "");
-      setComponentType(defaultExternal ? "External" : "CT");
+      setComponentType("CT");
+      setLabel(nextLabel("CT"));
       setObtained("");
-      setMax(defaultExternal ? "75" : "");
+      setMax("");
     }
-  }, [open, mark, defaultExternal]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, mark]);
+
+  function pickType(type: MarkComponentType) {
+    setComponentType(type);
+    // Keep hand-typed labels; only regenerate ones we generated
+    if (!mark && (label === "" || AUTO_LABEL.test(label))) setLabel(nextLabel(type));
+  }
 
   function save() {
     if (!subject) return;
@@ -60,11 +74,11 @@ export function MarkSheet({ open, onClose, subject, mark, defaultExternal }: Mar
     }
     const payload = {
       subject_id: subject.id,
-      component_type: isExternal ? ("External" as const) : componentType,
+      component_type: componentType,
       label: label.trim(),
       marks_obtained: obt,
       max_marks: mx,
-      is_external: isExternal,
+      is_external: false,
     };
     if (mark) update.mutate({ id: mark.id, patch: payload });
     else add.mutate(payload);
@@ -76,52 +90,25 @@ export function MarkSheet({ open, onClose, subject, mark, defaultExternal }: Mar
       open={open}
       onOpenChange={(o) => !o && onClose()}
       title={mark ? "Edit marks" : "Add marks"}
-      description={subject ? `${subject.name} — internals scale to 60, external to 40` : undefined}
+      description={subject ? subject.name : undefined}
     >
       <div className="space-y-4">
-        {!mark && (
+        <Field label="Component type">
           <Segmented
-            layoutId="mark-kind"
-            options={[
-              { value: "internal", label: "Internal" },
-              { value: "external", label: "External" },
-            ]}
-            value={isExternal ? "external" : "internal"}
-            onChange={(v) => {
-              const ext = v === "external";
-              setIsExternal(ext);
-              if (ext) {
-                setLabel("End Semester");
-                setMax("75");
-              } else {
-                setLabel("");
-                setMax("");
-              }
-            }}
+            layoutId="mark-component-type"
+            options={INTERNAL_TYPES.map((t) => ({ value: t, label: t }))}
+            value={componentType}
+            onChange={(v) => pickType(v as MarkComponentType)}
           />
-        )}
+        </Field>
 
         <Field label="Label">
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder={isExternal ? "End Semester" : "e.g. CLA-1"}
+            placeholder="e.g. CT-1"
           />
         </Field>
-
-        {!isExternal && (
-          <Field label="Component type">
-            <Segmented
-              layoutId="mark-component-type"
-              options={(["CT", "Lab", "Assignment", "Project"] as const).map((t) => ({
-                value: t,
-                label: t,
-              }))}
-              value={componentType}
-              onChange={(v) => setComponentType(v as MarkComponentType)}
-            />
-          </Field>
-        )}
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Obtained">
@@ -142,7 +129,7 @@ export function MarkSheet({ open, onClose, subject, mark, defaultExternal }: Mar
               min={1}
               value={max}
               onChange={(e) => setMax(e.target.value)}
-              placeholder={isExternal ? "75" : "20"}
+              placeholder="15"
             />
           </Field>
         </div>

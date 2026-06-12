@@ -29,45 +29,36 @@ export const GRADE_COLORS: Record<Grade, string> = {
 
 export interface SubjectMarks {
   internalComponents: Mark[];
-  external: Mark | null;
-  /** Internal performance scaled to /60 (projection from components entered so far). */
-  internal60: number;
-  /** External performance scaled to /40. */
-  external40: number;
-  /** Raw sums for "so far" display. */
+  /** Raw sums of the internal components entered so far. */
   internalObtained: number;
   internalMax: number;
-  total: number; // /100
+  /**
+   * Predicted total /100: the performance ratio so far projected onto
+   * the whole course (assumes you keep scoring at the same level on
+   * remaining internals and the external). 12/15 → 80 → A+ pace.
+   */
+  predictedTotal: number;
   grade: Grade;
   points: number;
   hasAnyMarks: boolean;
 }
 
+/** Externals are intentionally ignored — they arrive once, after the semester. */
 export function computeSubjectMarks(marks: Mark[]): SubjectMarks {
   const internalComponents = marks.filter((m) => !m.is_external);
-  const external = marks.find((m) => m.is_external) ?? null;
-
   const internalObtained = internalComponents.reduce((s, m) => s + m.marks_obtained, 0);
   const internalMax = internalComponents.reduce((s, m) => s + m.max_marks, 0);
-  const internal60 = internalMax > 0 ? Math.min(60, (internalObtained / internalMax) * 60) : 0;
-  const external40 =
-    external && external.max_marks > 0
-      ? Math.min(40, (external.marks_obtained / external.max_marks) * 40)
-      : 0;
-
-  const total = internal60 + external40;
-  const { grade, points } = gradeForTotal(total);
+  const predictedTotal =
+    internalMax > 0 ? Math.min(100, (internalObtained / internalMax) * 100) : 0;
+  const { grade, points } = gradeForTotal(predictedTotal);
   return {
     internalComponents,
-    external,
-    internal60,
-    external40,
     internalObtained,
     internalMax,
-    total,
+    predictedTotal,
     grade,
     points,
-    hasAnyMarks: marks.length > 0,
+    hasAnyMarks: internalComponents.length > 0,
   };
 }
 
@@ -76,12 +67,15 @@ export interface SgpaResult {
   totalCredits: number;
   countedSubjects: number;
   rows: Array<{ subject: Subject; marks: SubjectMarks }>;
+  /** Raw internal sums across all subjects, e.g. 22/30. */
+  totalObtained: number;
+  totalMax: number;
 }
 
 /**
- * SGPA = Σ(grade_points × credits) / Σ(credits), over credit-bearing
- * subjects that have at least one mark entered. 0-credit (audit)
- * subjects never count.
+ * Predicted SGPA = Σ(predicted grade_points × credits) / Σ(credits),
+ * over credit-bearing subjects that have at least one internal mark.
+ * 0-credit (audit) subjects never count.
  */
 export function computeSgpa(subjects: Subject[], marksBySubject: Map<string, Mark[]>): SgpaResult {
   const rows = subjects.map((subject) => ({
@@ -96,5 +90,18 @@ export function computeSgpa(subjects: Subject[], marksBySubject: Map<string, Mar
     totalCredits,
     countedSubjects: counted.length,
     rows,
+    totalObtained: rows.reduce((s, r) => s + r.marks.internalObtained, 0),
+    totalMax: rows.reduce((s, r) => s + r.marks.internalMax, 0),
   };
+}
+
+/** Group marks by subject id (shared by Marks page and Dashboard). */
+export function groupMarksBySubject(marks: Mark[]): Map<string, Mark[]> {
+  const map = new Map<string, Mark[]>();
+  for (const m of marks) {
+    const list = map.get(m.subject_id) ?? [];
+    list.push(m);
+    map.set(m.subject_id, list);
+  }
+  return map;
 }

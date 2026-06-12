@@ -14,14 +14,24 @@ import { Button } from "@/components/ui/button";
 import { Badge, Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
+import { GradeBadge } from "@/components/viz/grade-badge";
 import { SlotMarkRow } from "@/components/sheets/slot-mark-row";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
-import { useAttendance, useDeadlines, useSubjects, useUpdateDeadline } from "@/hooks/useData";
+import {
+  useAttendance,
+  useDeadlines,
+  useMarks,
+  useSettings,
+  useSubjects,
+  useUpdateDeadline,
+} from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
 import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
 import { daysUntilSemesterStart } from "@/lib/calendar";
 import { formatDateLong } from "@/lib/dates";
+import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
+import { useAppStore } from "@/store/app";
 import type { Deadline } from "@/types";
 
 const stagger = {
@@ -176,6 +186,58 @@ function AttendanceHealthCard() {
   );
 }
 
+function MarksSummaryCard() {
+  const { data: subjects, isLoading: sLoading } = useSubjects();
+  const { data: marks, isLoading: mLoading } = useMarks();
+
+  const result = useMemo(
+    () => computeSgpa(subjects ?? [], groupMarksBySubject(marks ?? [])),
+    [subjects, marks]
+  );
+
+  if (sLoading || mLoading) return <Skeleton className="h-28 w-full" />;
+
+  const hasMarks = result.totalMax > 0;
+  const pace = hasMarks ? (result.totalObtained / result.totalMax) * 100 : 0;
+
+  return (
+    <Link to="/marks" className="card block p-5 transition-transform active:scale-[0.99]">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted">Marks</p>
+        <ArrowRight className="h-4 w-4 text-muted" />
+      </div>
+      {!hasMarks ? (
+        <p className="mt-2 text-sm font-semibold text-muted">
+          No internals yet — add your first CT to see totals here.
+        </p>
+      ) : (
+        <div className="mt-2 flex items-end justify-between gap-3">
+          <div>
+            <p className="text-3xl font-extrabold tabular leading-none">
+              <AnimatedNumber value={result.totalObtained} decimals={0} />
+              <span className="text-base font-bold text-muted"> / {result.totalMax}</span>
+            </p>
+            <p className="mt-1.5 text-xs font-semibold text-muted">internals so far</p>
+          </div>
+          <div className="flex items-center gap-2.5">
+            {result.sgpa !== null && (
+              <div className="text-right">
+                <p className="text-lg font-extrabold tabular leading-none accent-gradient-text">
+                  <AnimatedNumber value={result.sgpa} decimals={2} />
+                </p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted">
+                  pred. SGPA
+                </p>
+              </div>
+            )}
+            <GradeBadge grade={gradeForTotal(pace).grade} />
+          </div>
+        </div>
+      )}
+    </Link>
+  );
+}
+
 function DeadlinesCard() {
   const { data: deadlines, isLoading } = useDeadlines();
   const { data: subjects } = useSubjects();
@@ -278,8 +340,19 @@ function DeadlinesCard() {
 }
 
 export default function Dashboard() {
+  const { data: settings } = useSettings();
+  const localName = useAppStore((s) => s.name);
+  const name = (settings?.name || localName || "").trim();
+
   const hour = new Date().getHours();
-  const greeting = hour < 5 ? "Burning the midnight oil" : hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const greeting =
+    hour < 5
+      ? "Burning the midnight oil"
+      : hour < 12
+        ? "Good morning"
+        : hour < 17
+          ? "Good afternoon"
+          : "Good evening";
 
   return (
     <div className="space-y-4">
@@ -288,7 +361,8 @@ export default function Dashboard() {
         animate={{ opacity: 1, y: 0 }}
         className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl"
       >
-        {greeting} <span className="align-middle">👋</span>
+        {greeting}
+        {name ? `, ${name}` : ""}
       </motion.h1>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
@@ -297,6 +371,7 @@ export default function Dashboard() {
         </div>
         <div className="space-y-4 lg:col-span-2">
           <AttendanceHealthCard />
+          <MarksSummaryCard />
           <DeadlinesCard />
         </div>
       </div>

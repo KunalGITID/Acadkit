@@ -77,6 +77,8 @@ export interface DeclaredHoliday {
 export interface Settings {
   id: string;
   device_id: string;
+  /** Display name for greetings; column added by migration 007 (optional). */
+  name?: string | null;
   semester: number;
   target_sgpa: number;
   min_attendance: number;
