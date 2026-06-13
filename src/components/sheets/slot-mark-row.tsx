@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Ban, Check, ChevronDown, X } from "lucide-react";
 import { useAttendance, useMarkAttendance, useUnmarkAttendance } from "@/hooks/useData";
@@ -54,6 +54,17 @@ export function SlotMarkRow({ slot, subject, date, collapsible = false }: SlotMa
   const mark = useMarkAttendance();
   const unmark = useUnmarkAttendance();
   const [open, setOpen] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // Collapse the option row again if you tap away without choosing.
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (!rowRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
 
   const record = attendance?.find(
     (r) =>
@@ -102,12 +113,18 @@ export function SlotMarkRow({ slot, subject, date, collapsible = false }: SlotMa
 
   return (
     <motion.div
+      ref={rowRef}
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex items-center justify-between gap-3 rounded-2xl border bg-surface-2/40 p-3"
     >
-      <div className="flex min-w-0 items-center gap-3">
+      <button
+        type="button"
+        onClick={() => collapsible && open && setOpen(false)}
+        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        aria-label={open ? "Collapse options" : undefined}
+      >
         <Dot color={subject?.color_hex ?? "#888"} />
         <div className="min-w-0">
           <p className="truncate text-sm font-bold">{subject?.name ?? "Unknown subject"}</p>
@@ -117,7 +134,7 @@ export function SlotMarkRow({ slot, subject, date, collapsible = false }: SlotMa
             {slot.room ? ` · ${slot.room}` : ""}
           </p>
         </div>
-      </div>
+      </button>
 
       {!collapsible ? (
         optionButtons
