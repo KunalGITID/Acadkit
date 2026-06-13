@@ -12,6 +12,7 @@ import type {
   AttendanceRecord,
   Deadline,
   Mark,
+  SemesterArchive,
   Settings,
   Subject,
   TimetableSlot,
@@ -272,6 +273,26 @@ export function useDeadlines() {
   return useQuery({
     queryKey: ["deadlines", pin],
     queryFn: () => api.fetchDeadlines(pin),
+  });
+}
+
+// ---------- semester archives ----------
+
+export function useArchives() {
+  const pin = usePin();
+  return useQuery({
+    queryKey: ["archives", pin],
+    queryFn: () => api.fetchArchives(pin),
+  });
+}
+
+export function useDeleteArchive() {
+  const pin = usePin();
+  return useOptimistic<string, SemesterArchive[]>({
+    pin,
+    root: "archives",
+    mutationFn: (id) => api.deleteArchive(id),
+    updater: (old, id) => old?.filter((a) => a.id !== id),
   });
 }
 

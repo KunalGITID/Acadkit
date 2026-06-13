@@ -19,6 +19,7 @@ const Calendar = lazy(() => import("@/pages/Calendar"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const AbsentLog = lazy(() => import("@/pages/AbsentLog"));
 const Insights = lazy(() => import("@/pages/Insights"));
+const History = lazy(() => import("@/pages/History"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +76,7 @@ export default function App() {
                   <Route path="/calendar" element={<Calendar />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/log" element={<AbsentLog />} />
+                <Route path="/history" element={<History />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>

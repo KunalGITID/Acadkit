@@ -6,6 +6,7 @@ import type {
   Deadline,
   DeclaredHoliday,
   Mark,
+  SemesterArchive,
   Settings,
   Subject,
   TimetableSlot,
@@ -24,18 +25,35 @@ function throwIf(error: { message: string } | null): void {
 let migrationHintShown = false;
 
 /** Everything pending, as one paste for the Supabase SQL editor. */
-export const PENDING_MIGRATIONS_SQL = `-- AcadKit setup: greeting name, lab tags, internal-only subjects
+export const PENDING_MIGRATIONS_SQL = `-- AcadKit setup: greeting name, lab tags, internal-only subjects, history
 alter table settings add column if not exists name text;
 alter table timetable_slots
   add column if not exists slot_type text not null default 'theory'
   check (slot_type in ('theory', 'lab'));
 alter table subjects
-  add column if not exists internal_only boolean not null default false;`;
+  add column if not exists internal_only boolean not null default false;
+
+create table if not exists semester_archives (
+  id uuid primary key default gen_random_uuid(),
+  device_id text not null,
+  label text not null,
+  sgpa numeric,
+  credits numeric,
+  summary jsonb not null default '[]'::jsonb,
+  sem_start date,
+  sem_end date,
+  archived_at timestamptz default now()
+);
+alter table semester_archives enable row level security;
+drop policy if exists "anon_all_semester_archives" on semester_archives;
+create policy "anon_all_semester_archives" on semester_archives
+  for all to anon using (true) with check (true);`;
 
 const OPTIONAL_COLUMNS: Array<{ table: string; column: string; enables: string }> = [
   { table: "settings", column: "name", enables: "greeting name that follows your PIN" },
   { table: "timetable_slots", column: "slot_type", enables: "theory/lab class tags" },
   { table: "subjects", column: "internal_only", enables: "internal-only subjects" },
+  { table: "semester_archives", column: "id", enables: "semester history & CGPA" },
 ];
 
 /** Which optional features are blocked because their column is missing. */
@@ -308,14 +326,60 @@ export async function deleteDeadline(id: string): Promise<void> {
   throwIf(error);
 }
 
+// ---------- semester archives ----------
+
+export async function fetchArchives(pin: string): Promise<SemesterArchive[]> {
+  const { data, error } = await supabase
+    .from("semester_archives")
+    .select("*")
+    .eq("device_id", pin)
+    .order("archived_at", { ascending: false });
+  // Table may not exist yet (migration 010) — degrade to empty.
+  if (error) return [];
+  return (data as SemesterArchive[]) ?? [];
+}
+
+export async function insertArchive(
+  pin: string,
+  archive: Omit<SemesterArchive, "id" | "device_id" | "archived_at">
+): Promise<void> {
+  const { error } = await supabase
+    .from("semester_archives")
+    .insert({ ...archive, device_id: pin });
+  throwIf(error);
+}
+
+export async function deleteArchive(id: string): Promise<void> {
+  const { error } = await supabase.from("semester_archives").delete().eq("id", id);
+  throwIf(error);
+}
+
+/** Wipe the active semester's academic data (keeps settings + archives). */
+export async function clearAcademicData(pin: string): Promise<void> {
+  // subjects cascade to timetable_slots, attendance, marks
+  for (const table of ["deadlines", "subjects", "timetable_slots", "attendance", "marks"]) {
+    const { error } = await supabase.from(table).delete().eq("device_id", pin);
+    throwIf(error);
+  }
+}
+
 // ---------- data management ----------
 
 export async function deleteAllData(pin: string): Promise<void> {
   // subjects cascade to timetable_slots, attendance, marks
-  for (const table of ["deadlines", "subjects", "timetable_slots", "attendance", "marks", "settings"]) {
+  for (const table of [
+    "deadlines",
+    "subjects",
+    "timetable_slots",
+    "attendance",
+    "marks",
+    "settings",
+  ]) {
     const { error } = await supabase.from(table).delete().eq("device_id", pin);
     throwIf(error);
   }
+  // archives table may not exist; ignore failure
+  await supabase.from("semester_archives").delete().eq("device_id", pin);
 }
 
 export async function exportAllData(pin: string) {

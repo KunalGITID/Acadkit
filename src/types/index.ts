@@ -78,6 +78,29 @@ export interface DeclaredHoliday {
   name: string;
 }
 
+export interface SubjectArchiveRow {
+  code: string;
+  name: string;
+  credits: number;
+  grade: string;
+  points: number;
+  total: number; // /100 at archive time
+  attendancePct: number | null;
+  color_hex: string;
+}
+
+export interface SemesterArchive {
+  id: string;
+  device_id: string;
+  label: string;
+  sgpa: number | null;
+  credits: number | null;
+  summary: SubjectArchiveRow[];
+  sem_start: string | null;
+  sem_end: string | null;
+  archived_at?: string;
+}
+
 export interface Settings {
   id: string;
   device_id: string;
