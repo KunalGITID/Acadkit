@@ -9,9 +9,14 @@ npm run dev        # Start Vite dev server
 npm run build      # Type-check + production build (tsc -b && vite build)
 npm run lint       # ESLint
 npm run preview    # Preview production build locally
+npm run test       # Vitest (unit tests for the domain math)
 ```
 
-There are no automated tests in this project.
+Unit tests (Vitest, `src/lib/*.test.ts`) cover the pure domain logic:
+grades/SGPA, attendance (canBunk/needToAttend), the day-order calendar +
+declared-holiday shifting, and the projection engine. UI/data-layer code
+is verified manually via the preview. `vitest.config.ts` runs them in a
+node environment with the `@/` alias.
 
 To regenerate PWA icons after changing the logo: `node scripts/generate-icons.mjs`
 
