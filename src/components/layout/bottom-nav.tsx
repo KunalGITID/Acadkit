@@ -11,7 +11,7 @@ export function BottomNav() {
       className="glass fixed inset-x-0 bottom-0 z-30 border-t pb-safe-b lg:hidden"
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-2">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => item.to !== "/insights").map((item) => {
           const active = pathname === item.to;
           return (
             <NavLink

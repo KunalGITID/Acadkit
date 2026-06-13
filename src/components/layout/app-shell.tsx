@@ -1,12 +1,12 @@
 import { Suspense } from "react";
-import { Link, useLocation, useOutlet } from "react-router-dom";
+import { Link, NavLink, useLocation, useOutlet } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Settings, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Sidebar } from "@/components/layout/sidebar";
-import { DayOrderChip } from "@/components/layout/day-order-chip";
 import { Skeleton } from "@/components/ui/misc";
 import { useSync } from "@/hooks/useSync";
+import { cn, haptic } from "@/lib/utils";
 
 function PageFallback() {
   return (
@@ -39,7 +39,21 @@ export function AppShell() {
               <span className="text-[17px] font-extrabold tracking-tight">AcadKit</span>
             </Link>
             <div className="flex items-center gap-2">
-              <DayOrderChip />
+              <NavLink
+                to="/insights"
+                onClick={() => haptic()}
+                className={({ isActive }) =>
+                  cn(
+                    "flex h-10 items-center gap-1.5 rounded-2xl border px-3.5 text-sm font-bold transition-colors",
+                    isActive
+                      ? "border-accent/40 bg-accent/12 text-accent"
+                      : "bg-surface text-ink hover:bg-surface-2"
+                  )
+                }
+              >
+                <Sparkles className="h-4 w-4 text-accent" />
+                Insights
+              </NavLink>
               <Link
                 to="/settings"
                 aria-label="Settings"
