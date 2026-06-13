@@ -328,6 +328,7 @@ export async function exportAllData(pin: string) {
     fetchDeadlines(pin),
   ]);
   return {
+    acadkit_export: 1,
     exported_at: new Date().toISOString(),
     pin,
     settings,
@@ -337,4 +338,129 @@ export async function exportAllData(pin: string) {
     marks,
     deadlines,
   };
+}
+
+export interface AcadkitExport {
+  acadkit_export?: number;
+  subjects?: Subject[];
+  timetable?: TimetableSlot[];
+  deadlines?: Deadline[];
+  settings?: Partial<Settings> | null;
+}
+
+export interface ImportOptions {
+  subjects: boolean; // subjects + timetable
+  deadlines: boolean;
+  holidays: boolean; // declared holidays + sem dates
+}
+
+async function insertWithRowFallback(
+  table: string,
+  rows: Record<string, unknown>[],
+  optionalColumns: string[]
+): Promise<void> {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from(table).insert(rows);
+  if (!error) return;
+  const missing = optionalColumns.find((c) => error.message.includes(`'${c}'`));
+  if (!missing) throw new Error(error.message);
+  const stripped = rows.map((r) => {
+    const copy = { ...r };
+    delete copy[missing];
+    return copy;
+  });
+  const retry = await supabase.from(table).insert(stripped);
+  throwIf(retry.error);
+}
+
+/**
+ * Import a previously-exported file. Subjects are matched to the
+ * current account by **code** so existing attendance/marks stay linked;
+ * missing subjects are created. Timetable and deadlines are replaced
+ * for the chosen categories (attendance/marks are never touched).
+ */
+export async function importData(
+  pin: string,
+  data: AcadkitExport,
+  opts: ImportOptions
+): Promise<{ subjects: number; slots: number; deadlines: number }> {
+  const current = await fetchSubjects(pin);
+  const codeToId = new Map<string, string>();
+  for (const s of current) codeToId.set(s.code, s.id);
+  const importedIdToCode = new Map<string, string>();
+  for (const s of data.subjects ?? []) importedIdToCode.set(s.id, s.code);
+
+  let createdSubjects = 0;
+  let createdSlots = 0;
+  let createdDeadlines = 0;
+
+  if (opts.subjects) {
+    const missing = (data.subjects ?? []).filter((s) => !codeToId.has(s.code));
+    const rows = missing.map((s) => {
+      const id = crypto.randomUUID();
+      codeToId.set(s.code, id);
+      return {
+        id,
+        device_id: pin,
+        code: s.code,
+        name: s.name,
+        credits: s.credits ?? 0,
+        type: s.type ?? "theory",
+        faculty: s.faculty ?? null,
+        color_hex: s.color_hex ?? "#7c6af7",
+        internal_only: s.internal_only ?? false,
+      };
+    });
+    await insertWithRowFallback("subjects", rows, ["internal_only"]);
+    createdSubjects = rows.length;
+
+    await clearTimetable(pin);
+    const slots = (data.timetable ?? [])
+      .map((sl) => {
+        const code = importedIdToCode.get(sl.subject_id);
+        const sid = code ? codeToId.get(code) : undefined;
+        if (!sid) return null;
+        return {
+          device_id: pin,
+          subject_id: sid,
+          day_order: sl.day_order,
+          start_time: sl.start_time,
+          end_time: sl.end_time,
+          room: sl.room ?? null,
+          slot_type: sl.slot_type ?? "theory",
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    await insertWithRowFallback("timetable_slots", slots, ["slot_type"]);
+    createdSlots = slots.length;
+  }
+
+  if (opts.deadlines) {
+    const { error } = await supabase.from("deadlines").delete().eq("device_id", pin);
+    throwIf(error);
+    const ds = (data.deadlines ?? []).map((d) => {
+      const code = d.subject_id ? importedIdToCode.get(d.subject_id) : undefined;
+      return {
+        device_id: pin,
+        subject_id: code ? codeToId.get(code) ?? null : null,
+        title: d.title,
+        type: d.type,
+        due_date: d.due_date,
+        status: d.status ?? "pending",
+        priority: d.priority ?? "medium",
+      };
+    });
+    await insertWithRowFallback("deadlines", ds, []);
+    createdDeadlines = ds.length;
+  }
+
+  if (opts.holidays && data.settings) {
+    await updateSettings(pin, {
+      declared_holidays: data.settings.declared_holidays ?? [],
+      ...(data.settings.sem_start ? { sem_start: data.settings.sem_start } : {}),
+      ...(data.settings.sem_end ? { sem_end: data.settings.sem_end } : {}),
+    });
+  }
+
+  return { subjects: createdSubjects, slots: createdSlots, deadlines: createdDeadlines };
 }

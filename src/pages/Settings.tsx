@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -19,6 +19,7 @@ import {
   Sparkles,
   Sun,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Dot } from "@/components/ui/misc";
 import { SubjectSheet } from "@/components/sheets/subject-sheet";
+import { ImportSheet } from "@/components/sheets/import-sheet";
 import {
   accountExists,
   clearTimetable,
@@ -36,6 +38,7 @@ import {
   sqlEditorUrl,
   updateSettings as apiUpdateSettings,
   PENDING_MIGRATIONS_SQL,
+  type AcadkitExport,
 } from "@/api/queries";
 import { useSettings, useSubjects } from "@/hooks/useData";
 import { isValidPin } from "@/lib/pin";
@@ -328,6 +331,8 @@ function DataCard() {
   const resetPin = useAppStore((s) => s.resetPin);
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<AcadkitExport | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   async function run(name: string, fn: () => Promise<void>) {
     setBusy(name);
@@ -339,6 +344,18 @@ function DataCard() {
       });
     } finally {
       setBusy(null);
+    }
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text()) as AcadkitExport;
+      setPendingImport(parsed);
+    } catch {
+      toast.error("Couldn't read that file — is it valid JSON?");
     }
   }
 
@@ -367,6 +384,25 @@ function DataCard() {
         {busy === "export" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
         Export everything as JSON
       </Button>
+
+      <input
+        ref={fileInput}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={onFile}
+      />
+      <Button
+        variant="secondary"
+        className="w-full justify-start"
+        disabled={busy !== null}
+        onClick={() => fileInput.current?.click()}
+      >
+        <Upload className="h-4 w-4" />
+        Import from a file
+      </Button>
+
+      <ImportSheet data={pendingImport} onClose={() => setPendingImport(null)} />
 
       <Button
         variant="secondary"
