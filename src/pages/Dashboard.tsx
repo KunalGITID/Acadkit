@@ -1,14 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowRight,
+  Ban,
   CalendarCheck2,
+  Check,
   Clock3,
   PartyPopper,
   Plus,
   Sunrise,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Dot, EmptyState, Skeleton } from "@/components/ui/misc";
@@ -17,7 +20,7 @@ import { AnimatedNumber } from "@/components/viz/animated-number";
 import { GradeBadge } from "@/components/viz/grade-badge";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
-import { SlotMarkRow } from "@/components/sheets/slot-mark-row";
+import { DayOrderChip } from "@/components/layout/day-order-chip";
 import {
   useAttendance,
   useDeadlines,
@@ -29,7 +32,7 @@ import {
 import { useToday } from "@/hooks/useToday";
 import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
 import { daysUntilSemesterStart } from "@/lib/calendar";
-import { formatDateLong } from "@/lib/dates";
+import { formatDateLong, formatTimeRange } from "@/lib/dates";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
@@ -44,9 +47,27 @@ const stagger = {
   }),
 };
 
+const toMin = (t: string) => {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+
 function TodayCard() {
   const { date, info, slots } = useToday();
+  const { data: attendance } = useAttendance();
   const [markOpen, setMarkOpen] = useState(false);
+
+  // Live clock for now/next/past styling
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const statusOf = (start: string, end: string) =>
+    nowMin > toMin(end) ? "past" : nowMin >= toMin(start) ? "now" : "upcoming";
+  const nextId = slots.find(({ slot }) => statusOf(slot.start_time, slot.end_time) === "upcoming")
+    ?.slot.id;
 
   return (
     <section className="card overflow-hidden">
@@ -55,24 +76,11 @@ function TodayCard() {
           <p className="text-xs font-bold uppercase tracking-widest text-muted">Today</p>
           <h2 className="mt-0.5 truncate text-lg font-extrabold">{formatDateLong(date)}</h2>
         </div>
-        <div className="flex shrink-0 items-center gap-2.5">
-          {info.dayOrder !== null && slots.length > 0 && (
-            <Button size="sm" variant="secondary" onClick={() => setMarkOpen(true)}>
-              <CalendarCheck2 className="h-4 w-4" /> Mark today
-            </Button>
-          )}
-          {info.dayOrder !== null && (
-            <motion.div
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", stiffness: 300, damping: 18 }}
-              className="flex h-14 w-14 flex-col items-center justify-center rounded-2xl bg-accent text-white shadow-pop"
-            >
-              <span className="text-[9px] font-bold uppercase leading-none opacity-80">Day</span>
-              <span className="text-2xl font-extrabold leading-tight">{info.dayOrder}</span>
-            </motion.div>
-          )}
-        </div>
+        {info.dayOrder !== null && slots.length > 0 && (
+          <Button size="sm" onClick={() => setMarkOpen(true)}>
+            <CalendarCheck2 className="h-4 w-4" /> Mark today
+          </Button>
+        )}
       </div>
 
       <MarkDaySheet date={markOpen ? date : null} onClose={() => setMarkOpen(false)} />
@@ -116,9 +124,62 @@ function TodayCard() {
           />
         ) : (
           <div className="space-y-2">
-            {slots.map(({ slot, subject }) => (
-              <SlotMarkRow key={slot.id} slot={slot} subject={subject} date={date} collapsible />
-            ))}
+            {slots.map(({ slot, subject }) => {
+              const st = statusOf(slot.start_time, slot.end_time);
+              const isNow = st === "now";
+              const isNext = slot.id === nextId;
+              const record = attendance?.find(
+                (r) =>
+                  r.subject_id === slot.subject_id &&
+                  r.date === date &&
+                  r.start_time === slot.start_time
+              );
+              return (
+                <motion.div
+                  key={slot.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: st === "past" ? 0.5 : 1, y: 0 }}
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-2xl border bg-surface-2/40 p-3",
+                    isNow && "ring-2 ring-accent",
+                    isNext && "ring-1 ring-accent/30"
+                  )}
+                  style={isNow ? { boxShadow: "0 0 0 4px hsl(var(--accent) / 0.12)" } : undefined}
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Dot color={subject?.color_hex ?? "#888"} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold">
+                        {subject?.name ?? "Unknown subject"}
+                      </p>
+                      <p className="truncate text-xs font-medium text-muted">
+                        {slot.slot_type === "lab" ? "Lab · " : ""}
+                        {formatTimeRange(slot.start_time, slot.end_time)}
+                        {slot.room ? ` · ${slot.room}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  {record?.status === "present" ? (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-good/15 text-good-deep">
+                      <Check className="h-4 w-4" strokeWidth={2.6} />
+                    </span>
+                  ) : record?.status === "absent" ? (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-bad/15 text-bad-deep">
+                      <X className="h-4 w-4" strokeWidth={2.6} />
+                    </span>
+                  ) : record?.status === "holiday" ? (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-muted">
+                      <Ban className="h-4 w-4" />
+                    </span>
+                  ) : isNow ? (
+                    <Badge className="animate-pulse bg-accent text-white">now</Badge>
+                  ) : isNext ? (
+                    <Badge className="bg-accent/15 text-accent">next</Badge>
+                  ) : null}
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -364,14 +425,17 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4">
-      <motion.h1
+      <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl"
+        className="flex items-center justify-between gap-3 px-1"
       >
-        {greeting}
-        {name ? `, ${name}` : ""}
-      </motion.h1>
+        <h1 className="min-w-0 truncate text-2xl font-extrabold tracking-tight lg:text-3xl">
+          {greeting}
+          {name ? `, ${name}` : ""}
+        </h1>
+        <DayOrderChip />
+      </motion.div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="space-y-4 lg:col-span-3">
