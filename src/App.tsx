@@ -1,6 +1,8 @@
 import { lazy } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { MotionConfig } from "framer-motion";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
@@ -29,12 +31,28 @@ const queryClient = new QueryClient({
   },
 });
 
+// Persist the read cache to localStorage so data is viewable offline
+// across reloads. Mutations aren't persisted (they can't be replayed
+// without their fn); they pause in-session and flush on reconnect.
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
+  key: "acadkit:rq-cache",
+});
+
 export default function App() {
   const pin = useAppStore((s) => s.pin);
 
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister,
+          maxAge: 1000 * 60 * 60 * 24,
+          buster: "v2",
+          dehydrateOptions: { shouldDehydrateMutation: () => false },
+        }}
+      >
         <MotionConfig reducedMotion="user">
           <Toaster
             position="top-center"
@@ -63,7 +81,7 @@ export default function App() {
             </BrowserRouter>
           )}
         </MotionConfig>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </ErrorBoundary>
   );
 }

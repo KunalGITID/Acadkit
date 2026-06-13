@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Settings, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Sidebar } from "@/components/layout/sidebar";
+import { OfflineBanner } from "@/components/layout/offline-banner";
 import { Skeleton } from "@/components/ui/misc";
 import { useSync } from "@/hooks/useSync";
 import { cn, haptic } from "@/lib/utils";
@@ -62,6 +63,8 @@ export function AppShell() {
             </div>
           </div>
         </header>
+
+        <OfflineBanner />
 
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-32 pt-4 lg:px-10 lg:pb-16 lg:pt-8">
           <AnimatePresence mode="popLayout" initial={false}>

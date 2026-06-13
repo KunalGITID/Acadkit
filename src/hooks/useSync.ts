@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { onBroadcastInvalidate } from "@/lib/broadcast";
 import { usePin } from "@/hooks/useData";
@@ -43,10 +44,15 @@ export function useSync() {
     };
   }, [qc, pin]);
 
-  // Refetch on tab focus / coming back online
+  // On reconnect: flush edits made while offline, then refetch.
   useEffect(() => {
-    const refetchAll = () => void qc.invalidateQueries();
-    window.addEventListener("online", refetchAll);
-    return () => window.removeEventListener("online", refetchAll);
+    const onOnline = () => {
+      const paused = qc.getMutationCache().getAll().filter((m) => m.state.isPaused).length;
+      void qc.resumePausedMutations().then(() => qc.invalidateQueries());
+      if (paused > 0)
+        toast.success(`Back online — syncing ${paused} offline change${paused > 1 ? "s" : ""}`);
+    };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
   }, [qc]);
 }
