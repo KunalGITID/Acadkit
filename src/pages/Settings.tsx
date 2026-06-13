@@ -12,6 +12,8 @@ import {
   ExternalLink,
   GraduationCap,
   Loader2,
+  Bell,
+  BellOff,
   Monitor,
   Moon,
   Pencil,
@@ -29,6 +31,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Dot } from "@/components/ui/misc";
 import { SubjectSheet } from "@/components/sheets/subject-sheet";
 import { ImportSheet } from "@/components/sheets/import-sheet";
+import { usePush } from "@/hooks/usePush";
 import {
   accountExists,
   clearTimetable,
@@ -43,6 +46,7 @@ import {
 } from "@/api/queries";
 import { useSettings, useSubjects } from "@/hooks/useData";
 import { isValidPin } from "@/lib/pin";
+import { cn } from "@/lib/utils";
 import { useAppStore, type ThemePref } from "@/store/app";
 import type { Subject } from "@/types";
 
@@ -327,6 +331,60 @@ function SubjectsCard() {
   );
 }
 
+function NotificationsCard() {
+  const { supported, subscribed, busy, permission, enable, disable } = usePush();
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
+            subscribed ? "bg-accent/12 text-accent" : "bg-surface-2 text-muted"
+          )}
+        >
+          {subscribed ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold">Reminders</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Class starting soon, deadlines due, a nudge to mark attendance, and low-attendance
+            alerts.
+          </p>
+        </div>
+      </div>
+
+      {!supported ? (
+        <p className="rounded-2xl bg-surface-2/60 p-3 text-xs font-semibold text-muted">
+          This browser can't do push notifications. On iPhone, install AcadKit to your home
+          screen first (Share → Add to Home Screen), then enable it from there.
+        </p>
+      ) : permission === "denied" ? (
+        <p className="rounded-2xl bg-bad/10 p-3 text-xs font-semibold text-bad-deep">
+          Notifications are blocked in your browser settings — allow them for this site, then try
+          again.
+        </p>
+      ) : (
+        <Button
+          variant={subscribed ? "secondary" : "primary"}
+          className="w-full"
+          disabled={busy}
+          onClick={subscribed ? disable : enable}
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : subscribed ? (
+            <BellOff className="h-4 w-4" />
+          ) : (
+            <Bell className="h-4 w-4" />
+          )}
+          {subscribed ? "Turn off reminders" : "Turn on reminders"}
+        </Button>
+      )}
+    </section>
+  );
+}
+
 function DataCard() {
   const pin = useAppStore((s) => s.pin)!;
   const resetPin = useAppStore((s) => s.resetPin);
@@ -488,6 +546,11 @@ export default function Settings() {
             <span className="flex items-center gap-1"><Moon className="h-3.5 w-3.5" /> ink</span>
           </p>
         </section>
+      </div>
+
+      <div className="space-y-3">
+        <SectionTitle>Notifications</SectionTitle>
+        <NotificationsCard />
       </div>
 
       <div className="space-y-3">

@@ -51,6 +51,8 @@ export default defineConfig({
         // step needs; ship the SW unminified there (it's cached anyway).
         mode: Number(process.versions.node.split(".")[0]) >= 20 ? "production" : "development",
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+        // Custom Web Push handlers, loaded into the generated SW
+        importScripts: ["push-sw.js"],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
