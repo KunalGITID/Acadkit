@@ -10,7 +10,7 @@ export function BottomNav() {
       aria-label="Primary"
       className="glass fixed inset-x-0 bottom-0 z-30 border-t pb-safe-b lg:hidden"
     >
-      <div className="mx-auto flex max-w-lg items-stretch justify-around px-2 py-2">
+      <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-2">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.to;
           return (
@@ -18,7 +18,7 @@ export function BottomNav() {
               key={item.to}
               to={item.to}
               onClick={() => haptic()}
-              className="relative flex w-16 flex-col items-center gap-1 rounded-2xl py-1.5"
+              className="relative flex flex-1 basis-0 flex-col items-center gap-1 rounded-2xl py-1.5"
               aria-current={active ? "page" : undefined}
             >
               {active && (
@@ -37,7 +37,7 @@ export function BottomNav() {
               />
               <span
                 className={cn(
-                  "relative z-10 text-[10px] font-bold transition-colors",
+                  "relative z-10 text-[9.5px] font-bold transition-colors",
                   active ? "text-accent" : "text-muted"
                 )}
               >

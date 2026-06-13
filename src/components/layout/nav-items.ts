@@ -4,6 +4,7 @@ import {
   GraduationCap,
   House,
   Settings,
+  Sparkles,
   UserCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -18,6 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", icon: House },
   { to: "/attendance", label: "Attendance", icon: UserCheck },
   { to: "/marks", label: "Marks", icon: GraduationCap },
+  { to: "/insights", label: "Insights", icon: Sparkles },
   { to: "/timetable", label: "Timetable", icon: Clock3 },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
 ];

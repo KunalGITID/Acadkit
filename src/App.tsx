@@ -14,6 +14,7 @@ const Timetable = lazy(() => import("@/pages/Timetable"));
 const Calendar = lazy(() => import("@/pages/Calendar"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const AbsentLog = lazy(() => import("@/pages/AbsentLog"));
+const Insights = lazy(() => import("@/pages/Insights"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -47,6 +48,7 @@ export default function App() {
                 <Route index element={<Dashboard />} />
                 <Route path="/attendance" element={<Attendance />} />
                 <Route path="/marks" element={<Marks />} />
+                <Route path="/insights" element={<Insights />} />
                 <Route path="/timetable" element={<Timetable />} />
                 <Route path="/calendar" element={<Calendar />} />
                 <Route path="/settings" element={<Settings />} />
