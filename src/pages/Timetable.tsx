@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CalendarPlus, Clock3, FlaskConical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { SlotSheet } from "@/components/sheets/slot-sheet";
 import { useSubjects, useTimetable } from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
 import { formatTime } from "@/lib/dates";
+import { cn } from "@/lib/utils";
 import type { TimetableSlot } from "@/types";
 
 export default function Timetable() {
@@ -26,6 +27,26 @@ export default function Timetable() {
         .sort((a, b) => a.start_time.localeCompare(b.start_time)),
     [timetable, dayOrder]
   );
+
+  // Live clock for now/next highlighting (only when viewing today's order)
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const isToday = info.dayOrder === dayOrder;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const toMin = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const status = (slot: TimetableSlot): "past" | "now" | "upcoming" | "none" => {
+    if (!isToday) return "none";
+    if (nowMin > toMin(slot.end_time)) return "past";
+    if (nowMin >= toMin(slot.start_time)) return "now";
+    return "upcoming";
+  };
+  const nextId = isToday ? slots.find((s) => status(s) === "upcoming")?.id : undefined;
 
   if (tLoading || sLoading) {
     return (
@@ -97,19 +118,27 @@ export default function Timetable() {
             {slots.map((slot, i) => {
               const subject = subjects?.find((s) => s.id === slot.subject_id);
               const isLab = slot.slot_type === "lab";
+              const st = status(slot);
+              const isNow = st === "now";
+              const isNext = slot.id === nextId;
               return (
                 <motion.button
                   key={slot.id}
                   layout
                   initial={{ opacity: 0, x: -14 }}
-                  animate={{ opacity: 1, x: 0 }}
+                  animate={{ opacity: st === "past" ? 0.5 : 1, x: 0 }}
                   exit={{ opacity: 0, x: 14 }}
                   transition={{ type: "spring", stiffness: 300, damping: 28, delay: i * 0.04 }}
                   onClick={() => {
                     setEditing(slot);
                     setSheetOpen(true);
                   }}
-                  className="card relative flex w-full items-center gap-4 p-4 text-left transition-transform active:scale-[0.99]"
+                  className={cn(
+                    "card relative flex w-full items-center gap-4 p-4 text-left transition-transform active:scale-[0.99]",
+                    isNow && "ring-2 ring-accent",
+                    isNext && "ring-1 ring-accent/30"
+                  )}
+                  style={isNow ? { boxShadow: "0 0 0 4px hsl(var(--accent) / 0.12)" } : undefined}
                 >
                   <span
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
@@ -137,13 +166,19 @@ export default function Timetable() {
                       {slot.room ? ` · ${slot.room}` : ""}
                     </p>
                   </div>
-                  <Badge
-                    className={
-                      isLab ? "bg-accent-2/15 text-accent-2" : "bg-surface-2 text-muted"
-                    }
-                  >
-                    {isLab ? "lab" : "theory"}
-                  </Badge>
+                  {isNow ? (
+                    <Badge className="animate-pulse bg-accent text-white">now</Badge>
+                  ) : isNext ? (
+                    <Badge className="bg-accent/15 text-accent">next</Badge>
+                  ) : (
+                    <Badge
+                      className={
+                        isLab ? "bg-accent-2/15 text-accent-2" : "bg-surface-2 text-muted"
+                      }
+                    >
+                      {isLab ? "lab" : "theory"}
+                    </Badge>
+                  )}
                 </motion.button>
               );
             })}

@@ -42,17 +42,15 @@ export function AppShell() {
               <NavLink
                 to="/insights"
                 onClick={() => haptic()}
+                aria-label="Insights"
                 className={({ isActive }) =>
                   cn(
-                    "flex h-10 items-center gap-1.5 rounded-2xl border px-3.5 text-sm font-bold transition-colors",
-                    isActive
-                      ? "border-accent/40 bg-accent/12 text-accent"
-                      : "bg-surface text-ink hover:bg-surface-2"
+                    "flex h-10 w-10 items-center justify-center rounded-2xl border transition-colors",
+                    isActive ? "border-accent/40 bg-accent/15" : "bg-surface hover:bg-surface-2"
                   )
                 }
               >
-                <Sparkles className="h-4 w-4 text-accent" />
-                Insights
+                <Sparkles className="h-5 w-5 text-accent" />
               </NavLink>
               <Link
                 to="/settings"

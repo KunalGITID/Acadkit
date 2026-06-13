@@ -36,6 +36,7 @@ export default function Calendar() {
 
   const [year, setYear] = useState(initial.getFullYear());
   const [month, setMonth] = useState(initial.getMonth());
+  const [dir, setDir] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [markDate, setMarkDate] = useState<string | null>(null);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
@@ -72,6 +73,7 @@ export default function Calendar() {
 
   function shiftMonth(delta: number) {
     haptic();
+    setDir(delta);
     const next = new Date(year, month + delta, 1);
     setYear(next.getFullYear());
     setMonth(next.getMonth());
@@ -137,8 +139,33 @@ export default function Calendar() {
               {d}
             </span>
           ))}
-          {cells.map((date, i) => {
-            if (!date) return <span key={`pad-${i}`} />;
+        </div>
+
+        <div className="overflow-hidden">
+          <AnimatePresence mode="popLayout" custom={dir} initial={false}>
+            <motion.div
+              key={`${year}-${month}`}
+              custom={dir}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={0.15}
+              onDragEnd={(_, info) => {
+                if (info.offset.x < -60) shiftMonth(1);
+                else if (info.offset.x > 60) shiftMonth(-1);
+              }}
+              variants={{
+                enter: (d: number) => ({ x: d >= 0 ? 70 : -70, opacity: 0 }),
+                center: { x: 0, opacity: 1 },
+                exit: (d: number) => ({ x: d >= 0 ? -70 : 70, opacity: 0 }),
+              }}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ type: "spring", stiffness: 320, damping: 32 }}
+              className="grid touch-pan-y grid-cols-7 gap-1 text-center"
+            >
+              {cells.map((date, i) => {
+                if (!date) return <span key={`pad-${i}`} />;
             const info = getDayInfo(date, declared);
             const isToday = date === today;
             const dayDeadlines = deadlinesByDate.get(date) ?? [];
@@ -184,9 +211,11 @@ export default function Calendar() {
                     ))}
                   </span>
                 )}
-              </button>
-            );
-          })}
+                  </button>
+                );
+              })}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 border-t pt-3 text-[11px] font-medium text-muted">

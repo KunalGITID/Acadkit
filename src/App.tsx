@@ -4,6 +4,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MotionConfig } from "framer-motion";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { UpdatePrompt } from "@/components/update-prompt";
 import Onboarding from "@/pages/Onboarding";
 import { useAppStore } from "@/store/app";
 
@@ -31,34 +33,37 @@ export default function App() {
   const pin = useAppStore((s) => s.pin);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <MotionConfig reducedMotion="user">
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            className: "!rounded-2xl !border !bg-surface !text-ink !shadow-card",
-          }}
-        />
-        {!pin ? (
-          <Onboarding />
-        ) : (
-          <BrowserRouter>
-            <Routes>
-              <Route element={<AppShell />}>
-                <Route index element={<Dashboard />} />
-                <Route path="/attendance" element={<Attendance />} />
-                <Route path="/marks" element={<Marks />} />
-                <Route path="/insights" element={<Insights />} />
-                <Route path="/timetable" element={<Timetable />} />
-                <Route path="/calendar" element={<Calendar />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/log" element={<AbsentLog />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
-        )}
-      </MotionConfig>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <MotionConfig reducedMotion="user">
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              className: "!rounded-2xl !border !bg-surface !text-ink !shadow-card",
+            }}
+          />
+          <UpdatePrompt />
+          {!pin ? (
+            <Onboarding />
+          ) : (
+            <BrowserRouter>
+              <Routes>
+                <Route element={<AppShell />}>
+                  <Route index element={<Dashboard />} />
+                  <Route path="/attendance" element={<Attendance />} />
+                  <Route path="/marks" element={<Marks />} />
+                  <Route path="/insights" element={<Insights />} />
+                  <Route path="/timetable" element={<Timetable />} />
+                  <Route path="/calendar" element={<Calendar />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/log" element={<AbsentLog />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          )}
+        </MotionConfig>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
