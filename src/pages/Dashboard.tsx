@@ -71,16 +71,9 @@ function TodayCard() {
 
   return (
     <section className="card overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b px-5 py-4">
-        <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted">Today</p>
-          <h2 className="mt-0.5 truncate text-lg font-extrabold">{formatDateLong(date)}</h2>
-        </div>
-        {info.dayOrder !== null && slots.length > 0 && (
-          <Button size="sm" onClick={() => setMarkOpen(true)}>
-            <CalendarCheck2 className="h-4 w-4" /> Mark today
-          </Button>
-        )}
+      <div className="border-b px-5 py-4">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted">Today</p>
+        <h2 className="mt-0.5 text-lg font-extrabold">{formatDateLong(date)}</h2>
       </div>
 
       <MarkDaySheet date={markOpen ? date : null} onClose={() => setMarkOpen(false)} />
@@ -180,6 +173,9 @@ function TodayCard() {
                 </motion.div>
               );
             })}
+            <Button className="mt-1 w-full" onClick={() => setMarkOpen(true)}>
+              <CalendarCheck2 className="h-4 w-4" /> Mark today's attendance
+            </Button>
           </div>
         )}
       </div>
