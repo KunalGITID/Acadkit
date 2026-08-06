@@ -27,7 +27,7 @@ import {
 } from "@/lib/projections";
 import { GRADE_COLORS, GRADE_TABLE } from "@/lib/grades";
 import { formatDate, todayISO } from "@/lib/dates";
-import { SEMESTER_START, SEMESTER_END } from "@/lib/calendar";
+import { semesterWindow } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
 
 const RISK_STYLE = {
@@ -35,6 +35,19 @@ const RISK_STYLE = {
   watch: { text: "text-warn-deep", bg: "bg-warn/12", label: "Watch" },
   critical: { text: "text-bad-deep", bg: "bg-bad/12", label: "Critical" },
 } as const;
+
+function DateBadge({ iso, tone }: { iso: string; tone: "warn" | "good" }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[11px] font-bold",
+        tone === "warn" ? "bg-warn-deep/15 text-warn-deep" : "bg-good-deep/15 text-good-deep"
+      )}
+    >
+      {formatDate(iso)}
+    </span>
+  );
+}
 
 function ScenarioBar({ label, pct, color }: { label: string; pct: number; color: string }) {
   return (
@@ -92,16 +105,31 @@ function SubjectProjectionCard({ p, index }: { p: SubjectProjection; index: numb
             {Math.round(p.bestPct)}%.
           </p>
         ) : p.currentPct !== null && p.currentPct < 75 ? (
-          <p className="flex items-start gap-2 text-sm font-bold text-warn-deep">
-            <TrendingUp className="mt-0.5 h-4 w-4 shrink-0" />
-            Attend the next {p.mustAttendStreak} in a row to climb back to 75%.
-          </p>
+          <div className="text-sm font-bold text-warn-deep">
+            <p className="flex items-start gap-2">
+              <TrendingUp className="mt-0.5 h-4 w-4 shrink-0" />
+              Attend the next {p.mustAttendStreak} in a row to climb back to 75%
+            </p>
+            {p.recoveryDate && (
+              <p className="ml-6 mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted">
+                <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+                You'll cross it on <DateBadge iso={p.recoveryDate} tone="warn" />
+              </p>
+            )}
+          </div>
         ) : p.skipBudget > 0 ? (
-          <p className="flex items-start gap-2 text-sm font-bold text-good-deep">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-            You can skip {p.skipBudget} more of the remaining {p.remaining} and still finish ≥ 75%
-            {p.safeUntil ? ` — safe to skip everything up to ${formatDate(p.safeUntil)}.` : "."}
-          </p>
+          <div className="text-sm font-bold text-good-deep">
+            <p className="flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+              You can skip {p.skipBudget} more of the remaining {p.remaining} and still finish ≥ 75%
+            </p>
+            {p.safeUntil && (
+              <p className="ml-6 mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted">
+                <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+                Safe to skip everything up to <DateBadge iso={p.safeUntil} tone="good" />
+              </p>
+            )}
+          </div>
         ) : (
           <p className="flex items-start gap-2 text-sm font-bold text-warn-deep">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -134,6 +162,10 @@ export default function Insights() {
     () => settings?.declared_holidays ?? [],
     [settings?.declared_holidays]
   );
+  const semWindow = useMemo(
+    () => semesterWindow(settings),
+    [settings?.sem_start, settings?.sem_end]
+  );
   const report = useMemo(
     () =>
       buildProjection(
@@ -141,9 +173,11 @@ export default function Insights() {
         attendance ?? [],
         timetable ?? [],
         marks ?? [],
-        declared
+        declared,
+        todayISO(),
+        semWindow
       ),
-    [subjects, attendance, timetable, marks, declared]
+    [subjects, attendance, timetable, marks, declared, semWindow]
   );
 
   if (sL || aL || tL || mL) {
@@ -157,8 +191,8 @@ export default function Insights() {
   }
 
   const noTimetable = (timetable ?? []).length === 0;
-  const daysLeft = classDaysLeft(declared);
-  const preSem = todayISO() < SEMESTER_START;
+  const daysLeft = classDaysLeft(declared, todayISO(), semWindow);
+  const preSem = todayISO() < semWindow.start;
   const o = report.overall;
 
   return (
@@ -257,7 +291,7 @@ export default function Insights() {
           {/* Per subject */}
           <div className="space-y-3">
             <p className="px-1 text-xs font-bold uppercase tracking-widest text-muted">
-              Per subject — projected to {formatDate(SEMESTER_END)}
+              Per subject — projected to {formatDate(semWindow.end)}
             </p>
             {report.perSubject
               .filter((p) => p.held > 0 || p.remaining > 0)

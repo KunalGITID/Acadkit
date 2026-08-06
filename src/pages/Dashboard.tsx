@@ -31,8 +31,8 @@ import {
 } from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
 import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
-import { daysUntilSemesterStart } from "@/lib/calendar";
-import { formatDateLong, formatTimeRange } from "@/lib/dates";
+import { daysUntilSemesterStart, semesterWindow } from "@/lib/calendar";
+import { formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
@@ -47,14 +47,10 @@ const stagger = {
   }),
 };
 
-const toMin = (t: string) => {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-};
-
 function TodayCard() {
-  const { date, info, slots } = useToday();
+  const { date, info, slots, isNextDay } = useToday();
   const { data: attendance } = useAttendance();
+  const { data: settings } = useSettings();
   const [markOpen, setMarkOpen] = useState(false);
 
   // Live clock for now/next/past styling
@@ -64,15 +60,26 @@ function TodayCard() {
     return () => clearInterval(t);
   }, []);
   const nowMin = now.getHours() * 60 + now.getMinutes();
+  // Once we've rolled over to the next day's schedule, none of its slots
+  // have happened yet — minute-of-day comparisons against "now" no longer apply.
   const statusOf = (start: string, end: string) =>
-    nowMin > toMin(end) ? "past" : nowMin >= toMin(start) ? "now" : "upcoming";
-  const nextId = slots.find(({ slot }) => statusOf(slot.start_time, slot.end_time) === "upcoming")
-    ?.slot.id;
+    isNextDay
+      ? "upcoming"
+      : nowMin > timeToMinutes(end)
+        ? "past"
+        : nowMin >= timeToMinutes(start)
+          ? "now"
+          : "upcoming";
+  const nextId = isNextDay
+    ? undefined
+    : slots.find(({ slot }) => statusOf(slot.start_time, slot.end_time) === "upcoming")?.slot.id;
 
   return (
     <section className="card overflow-hidden">
       <div className="border-b px-5 py-4">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted">Today</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-muted">
+          {isNextDay ? "Up next" : "Today"}
+        </p>
         <h2 className="mt-0.5 text-lg font-extrabold">{formatDateLong(date)}</h2>
       </div>
 
@@ -82,7 +89,7 @@ function TodayCard() {
         {info.kind === "pre-semester" ? (
           <EmptyState
             icon={Sunrise}
-            title={`Semester starts in ${daysUntilSemesterStart(date)} days`}
+            title={`Semester starts in ${daysUntilSemesterStart(date, semesterWindow(settings))} days`}
             description="Set up your timetable now so day one is effortless."
             action={
               <Button variant="secondary" size="sm">
@@ -173,9 +180,11 @@ function TodayCard() {
                 </motion.div>
               );
             })}
-            <Button className="mt-1 w-full" onClick={() => setMarkOpen(true)}>
-              <CalendarCheck2 className="h-4 w-4" /> Mark today's attendance
-            </Button>
+            {!isNextDay && (
+              <Button className="mt-1 w-full" onClick={() => setMarkOpen(true)}>
+                <CalendarCheck2 className="h-4 w-4" /> Mark today's attendance
+              </Button>
+            )}
           </div>
         )}
       </div>

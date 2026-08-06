@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/misc";
 import { SlotMarkRow } from "@/components/sheets/slot-mark-row";
 import { useMarkAttendance, useSettings, useSubjects, useTimetable } from "@/hooks/useData";
-import { getDayInfo } from "@/lib/calendar";
+import { getDayInfo, semesterWindow } from "@/lib/calendar";
 import { formatDateLong } from "@/lib/dates";
 import { haptic } from "@/lib/utils";
 
@@ -20,7 +20,9 @@ export function MarkDaySheet({ date, onClose }: MarkDaySheetProps) {
   const { data: subjects } = useSubjects();
   const mark = useMarkAttendance();
 
-  const info = date ? getDayInfo(date, settings?.declared_holidays ?? []) : null;
+  const info = date
+    ? getDayInfo(date, settings?.declared_holidays ?? [], semesterWindow(settings))
+    : null;
   const slots =
     info?.dayOrder != null
       ? (timetable ?? [])

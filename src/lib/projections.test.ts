@@ -49,6 +49,7 @@ describe("projectSubject", () => {
     expect(p.skipBudget).toBe(0); // floor(2+2 - 0.75*5) = 0
     expect(p.reachable).toBe(true); // best 80 >= 75
     expect(p.mustAttendStreak).toBe(1); // currently 66.7% -> ceil((0.75*3-2)/0.25)=1
+    expect(p.recoveryDate).toBe("2026-08-11"); // 1st future class closes the gap
   });
 
   it("flags unreachable when even a perfect finish can't hit 75%", () => {
@@ -67,6 +68,7 @@ describe("projectSubject", () => {
     const p = projectSubject(subj({ id: "s1" }), recs, [slot], effMap, "2026-08-01");
     expect(p.reachable).toBe(false);
     expect(p.riskLevel).toBe("critical");
+    expect(p.recoveryDate).toBeNull(); // streak longer than remaining classes
   });
 });
 

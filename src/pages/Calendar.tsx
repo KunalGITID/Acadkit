@@ -15,7 +15,7 @@ import { Badge, Dot } from "@/components/ui/misc";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
 import { useDeadlines, useSettings, useSubjects, useUpdateSettings } from "@/hooks/useData";
-import { getDayInfo, SEMESTER_END, SEMESTER_START } from "@/lib/calendar";
+import { getDayInfo, semesterWindow } from "@/lib/calendar";
 import { formatDateLong, parseISODate, toISODate, todayISO } from "@/lib/dates";
 import { cn, haptic } from "@/lib/utils";
 import type { Deadline } from "@/types";
@@ -30,8 +30,14 @@ function monthLabel(year: number, month: number): string {
 }
 
 export default function Calendar() {
+  const { data: settings } = useSettings();
+  const semWindow = useMemo(
+    () => semesterWindow(settings),
+    [settings?.sem_start, settings?.sem_end]
+  );
+
   const today = todayISO();
-  const startOfSem = parseISODate(SEMESTER_START);
+  const startOfSem = parseISODate(semWindow.start);
   const initial = parseISODate(today) < startOfSem ? startOfSem : parseISODate(today);
 
   const [year, setYear] = useState(initial.getFullYear());
@@ -41,7 +47,6 @@ export default function Calendar() {
   const [markDate, setMarkDate] = useState<string | null>(null);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
 
-  const { data: settings } = useSettings();
   const { data: deadlines } = useDeadlines();
   const { data: subjects } = useSubjects();
   const updateSettings = useUpdateSettings();
@@ -79,14 +84,14 @@ export default function Calendar() {
     setMonth(next.getMonth());
   }
 
-  const selectedInfo = selected ? getDayInfo(selected, declared) : null;
+  const selectedInfo = selected ? getDayInfo(selected, declared, semWindow) : null;
   const selectedDeadlines = selected ? deadlinesByDate.get(selected) ?? [] : [];
   const isDeclared = selected ? declared.some((h) => h.date === selected) : false;
   const canDeclare =
     selectedInfo?.kind === "working" &&
     selected !== null &&
-    selected >= SEMESTER_START &&
-    selected <= SEMESTER_END;
+    selected >= semWindow.start &&
+    selected <= semWindow.end;
 
   function declareHoliday() {
     if (!selected) return;
@@ -166,7 +171,7 @@ export default function Calendar() {
             >
               {cells.map((date, i) => {
                 if (!date) return <span key={`pad-${i}`} />;
-            const info = getDayInfo(date, declared);
+            const info = getDayInfo(date, declared, semWindow);
             const isToday = date === today;
             const dayDeadlines = deadlinesByDate.get(date) ?? [];
             const isHoliday =

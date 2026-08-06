@@ -8,6 +8,7 @@ import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { UpdatePrompt } from "@/components/update-prompt";
+import { ThemeFx } from "@/components/layout/theme-fx";
 import Onboarding from "@/pages/Onboarding";
 import { useAppStore } from "@/store/app";
 
@@ -55,6 +56,7 @@ export default function App() {
         }}
       >
         <MotionConfig reducedMotion="user">
+          <ThemeFx />
           <Toaster
             position="top-center"
             toastOptions={{

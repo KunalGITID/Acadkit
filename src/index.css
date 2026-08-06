@@ -2,38 +2,120 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Light — warm paper */
-  --bg: 240 20% 97%;
-  --surface: 0 0% 100%;
-  --surface-2: 240 14% 94%;
-  --line: 234 18% 12%;
-  --ink: 234 30% 12%;
-  --muted: 233 12% 47%;
-  --accent: 247 84% 62%;
-  --accent-2: 187 86% 47%;
-  --good-deep: 142 72% 29%;
-  --warn-deep: 35 92% 33%;
-  --bad-deep: 347 77% 40%;
-  --shadow-card: 0 1px 2px rgb(10 12 24 / 0.04), 0 8px 24px -12px rgb(10 12 24 / 0.14);
+/*
+ * Three theme identities (Sakura / Terminal / Aurora), each with a light
+ * and dark mode. Selected via [data-theme] on <html>, mode via .dark
+ * (src/store/app.ts). Each theme also carries a few extra variables that
+ * only it uses (--grain-opacity, --scanline-opacity, --aurora-*) to drive
+ * its signature effect in the components/components layer below.
+ */
+
+/* ---------- Sakura — warm study-café paper ---------- */
+[data-theme="sakura"] {
+  --bg: 28 45% 96%;
+  --surface: 30 60% 99%;
+  --surface-2: 26 40% 92%;
+  --line: 20 30% 15%;
+  --ink: 20 35% 14%;
+  --muted: 24 14% 46%;
+  --accent: 340 78% 60%;
+  --accent-2: 32 88% 56%;
+  --good-deep: 142 60% 30%;
+  --warn-deep: 35 85% 34%;
+  --bad-deep: 350 72% 42%;
+  --shadow-card: 0 1px 2px rgb(60 20 30 / 0.05), 0 10px 26px -14px rgb(60 20 30 / 0.16);
   --line-alpha: 0.08;
+  --grain-opacity: 0.05;
+}
+[data-theme="sakura"].dark {
+  --bg: 336 30% 7%;
+  --surface: 332 24% 11%;
+  --surface-2: 330 20% 16%;
+  --line: 0 0% 100%;
+  --ink: 20 30% 95%;
+  --muted: 330 12% 66%;
+  --accent: 340 88% 68%;
+  --accent-2: 30 92% 62%;
+  --good-deep: 142 62% 54%;
+  --warn-deep: 40 90% 58%;
+  --bad-deep: 350 85% 68%;
+  --shadow-card: 0 1px 0 rgb(255 220 230 / 0.04) inset, 0 14px 34px -16px rgb(0 0 0 / 0.65);
+  --line-alpha: 0.09;
+  --grain-opacity: 0.06;
 }
 
-.dark {
-  /* Dark — deep ink */
-  --bg: 228 23% 5%;
-  --surface: 227 19% 9%;
-  --surface-2: 228 16% 14%;
+/* ---------- Terminal — phosphor CRT / hacker console ---------- */
+[data-theme="terminal"] {
+  --bg: 66 25% 95%;
+  --surface: 66 30% 98%;
+  --surface-2: 68 22% 90%;
+  --line: 150 65% 18%;
+  --ink: 152 60% 14%;
+  --muted: 145 16% 40%;
+  --accent: 150 72% 30%;
+  --accent-2: 190 72% 33%;
+  --good-deep: 142 65% 28%;
+  --warn-deep: 35 80% 34%;
+  --bad-deep: 350 68% 40%;
+  --shadow-card: 0 1px 2px rgb(10 40 20 / 0.05), 0 8px 22px -12px rgb(10 40 20 / 0.14);
+  --line-alpha: 0.12;
+  --scanline-opacity: 0.03;
+}
+[data-theme="terminal"].dark {
+  --bg: 160 35% 4%;
+  --surface: 158 28% 7%;
+  --surface-2: 156 24% 11%;
+  --line: 140 100% 60%;
+  --ink: 140 85% 90%;
+  --muted: 140 18% 55%;
+  --accent: 140 100% 52%;
+  --accent-2: 184 100% 52%;
+  --good-deep: 142 90% 52%;
+  --warn-deep: 46 100% 55%;
+  --bad-deep: 4 90% 58%;
+  --shadow-card: 0 0 0 1px hsl(140 100% 50% / 0.06) inset, 0 14px 34px -16px rgb(0 0 0 / 0.7);
+  --line-alpha: 0.16;
+  --scanline-opacity: 0.06;
+}
+
+/* ---------- Aurora — premium drifting gradient mesh ---------- */
+[data-theme="aurora"] {
+  --bg: 250 45% 98%;
+  --surface: 0 0% 100%;
+  --surface-2: 250 32% 94%;
+  --line: 250 30% 15%;
+  --ink: 250 35% 15%;
+  --muted: 250 12% 46%;
+  --accent: 262 78% 58%;
+  --accent-2: 186 80% 42%;
+  --good-deep: 150 62% 32%;
+  --warn-deep: 38 85% 38%;
+  --bad-deep: 345 72% 45%;
+  --shadow-card: 0 1px 2px rgb(40 20 70 / 0.05), 0 10px 26px -14px rgb(40 20 70 / 0.14);
+  --line-alpha: 0.07;
+  --aurora-1: 266 85% 78%;
+  --aurora-2: 186 80% 75%;
+  --aurora-3: 322 85% 80%;
+  --aurora-opacity: 0.4;
+}
+[data-theme="aurora"].dark {
+  --bg: 252 48% 6%;
+  --surface: 252 36% 10%;
+  --surface-2: 252 30% 15%;
   --line: 0 0% 100%;
-  --ink: 228 30% 96%;
-  --muted: 230 12% 62%;
-  --accent: 247 90% 70%;
-  --accent-2: 187 86% 53%;
-  --good-deep: 142 69% 58%;
-  --warn-deep: 45 93% 58%;
-  --bad-deep: 350 89% 72%;
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -16px rgb(0 0 0 / 0.6);
-  --line-alpha: 0.08;
+  --ink: 250 32% 96%;
+  --muted: 250 16% 68%;
+  --accent: 266 92% 68%;
+  --accent-2: 186 90% 55%;
+  --good-deep: 150 70% 55%;
+  --warn-deep: 45 90% 60%;
+  --bad-deep: 338 85% 66%;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 16px 40px -18px rgb(20 0 40 / 0.7);
+  --line-alpha: 0.1;
+  --aurora-1: 266 92% 62%;
+  --aurora-2: 186 90% 55%;
+  --aurora-3: 322 90% 62%;
+  --aurora-opacity: 0.35;
 }
 
 @layer base {
@@ -42,9 +124,13 @@
   }
   html {
     -webkit-text-size-adjust: 100%;
+    /* Paints before any negative z-index fx layer (fx-aurora), per spec —
+       keep this on html (the root element), not body, or the aurora
+       background layer will render underneath it and disappear. */
+    background-color: hsl(var(--bg));
   }
   body {
-    @apply bg-bg text-ink font-sans antialiased;
+    @apply text-ink font-sans antialiased;
     overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent;
     font-feature-settings: "cv11";
@@ -91,6 +177,85 @@
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Sakura x-factor: a warm blush wash across the top of every card, plus
+     the .fx-grain overlay (mounted by ThemeFx) for a soft paper texture. */
+  [data-theme="sakura"] .card {
+    background-image: radial-gradient(
+      120% 140% at 12% -10%,
+      hsl(var(--accent) / 0.07),
+      transparent 60%
+    );
+  }
+  .fx-grain {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    pointer-events: none;
+    opacity: var(--grain-opacity, 0.05);
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Terminal x-factor: neon glow on every tabular stat number (free, since
+     .tabular already marks every stat/SGPA/percentage in the app) plus a
+     drifting CRT scanline overlay (mounted by ThemeFx). */
+  [data-theme="terminal"] .tabular {
+    text-shadow: 0 0 12px hsl(var(--accent) / 0.5);
+  }
+  [data-theme="terminal"].dark .tabular {
+    text-shadow: 0 0 14px hsl(var(--accent) / 0.7);
+  }
+  .fx-scanline {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    mix-blend-mode: overlay;
+    background: repeating-linear-gradient(
+      to bottom,
+      hsl(var(--accent) / 0) 0px,
+      hsl(var(--accent) / var(--scanline-opacity, 0.04)) 1px,
+      hsl(var(--accent) / 0) 3px
+    );
+    animation: scanline-drift 9s linear infinite;
+  }
+  @keyframes scanline-drift {
+    from {
+      background-position: 0 0;
+    }
+    to {
+      background-position: 0 240px;
+    }
+  }
+
+  /* Aurora x-factor: a slow-drifting three-color gradient mesh, painted
+     behind all normal-flow content (negative z-index — see the `html`
+     background-color note above for why that's load-bearing). */
+  .fx-aurora {
+    position: fixed;
+    inset: -10%;
+    z-index: -1;
+    pointer-events: none;
+    filter: blur(70px);
+    opacity: var(--aurora-opacity, 0.4);
+    background:
+      radial-gradient(38% 30% at 22% 26%, hsl(var(--aurora-1)), transparent 70%),
+      radial-gradient(34% 28% at 78% 18%, hsl(var(--aurora-2)), transparent 70%),
+      radial-gradient(42% 36% at 52% 82%, hsl(var(--aurora-3)), transparent 70%);
+    animation: aurora-drift 24s ease-in-out infinite alternate;
+  }
+  @keyframes aurora-drift {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(-3%, 2%, 0) scale(1.08);
+    }
+    100% {
+      transform: translate3d(3%, -2%, 0) scale(1);
+    }
   }
 }
 

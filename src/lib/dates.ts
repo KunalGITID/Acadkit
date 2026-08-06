@@ -48,6 +48,11 @@ export function formatDateLong(iso: string): string {
   });
 }
 
+export function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
 /** "09:00:00" or "09:00" → "9:00 AM" */
 export function formatTime(time: string): string {
   const [h, m] = time.split(":").map(Number);

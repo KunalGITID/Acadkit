@@ -7,7 +7,7 @@
  * needs, end-of-term projections, risk and what-if scenarios from that.
  */
 import type { AttendanceRecord, DeclaredHoliday, Mark, Subject, TimetableSlot } from "@/types";
-import { buildEffectiveMap, SEMESTER_END } from "@/lib/calendar";
+import { buildEffectiveMap, semesterWindow, type SemesterWindow } from "@/lib/calendar";
 import { parseISODate, todayISO } from "@/lib/dates";
 import {
   computeSubjectMarks,
@@ -37,6 +37,7 @@ export interface SubjectProjection {
   // actionable
   skipBudget: number; // future classes you can still miss and end ≥ 75%
   mustAttendStreak: number; // if below: consecutive future classes to climb back
+  recoveryDate: string | null; // date of the class that closes mustAttendStreak, if below 75%
   reachable: boolean; // can you still end ≥ 75%?
   safeUntil: string | null; // last date you could skip everything until
   riskLevel: RiskLevel;
@@ -65,7 +66,8 @@ function futureOccurrences(
   timetable: TimetableSlot[],
   effMap: Record<string, number>,
   markedKeys: Set<string>,
-  from: string
+  from: string,
+  semEnd: string
 ): FutureOccurrence[] {
   const slotsByDayOrder = new Map<number, TimetableSlot[]>();
   for (const s of timetable) {
@@ -76,7 +78,7 @@ function futureOccurrences(
   }
   const out: FutureOccurrence[] = [];
   const dates = Object.keys(effMap)
-    .filter((d) => d >= from && d <= SEMESTER_END)
+    .filter((d) => d >= from && d <= semEnd)
     .sort();
   for (const date of dates) {
     const slots = slotsByDayOrder.get(effMap[date]) ?? [];
@@ -107,7 +109,8 @@ export function projectSubject(
   records: AttendanceRecord[],
   timetable: TimetableSlot[],
   effMap: Record<string, number>,
-  from: string
+  from: string,
+  semEnd: string = semesterWindow().end
 ): SubjectProjection {
   const counted = records.filter((r) => r.status === "present" || r.status === "absent");
   const attended = counted.filter((r) => r.status === "present").length;
@@ -115,7 +118,7 @@ export function projectSubject(
   const currentPct = held > 0 ? (attended / held) * 100 : null;
 
   const markedKeys = new Set(records.map((r) => `${r.subject_id}|${r.date}|${r.start_time}`));
-  const future = futureOccurrences(subject.id, timetable, effMap, markedKeys, from);
+  const future = futureOccurrences(subject.id, timetable, effMap, markedKeys, from, semEnd);
   const remaining = future.length;
   const finalTotal = held + remaining;
 
@@ -135,6 +138,11 @@ export function projectSubject(
   }
   const reachable = bestPct >= 75 - 1e-9;
 
+  // The date of the mustAttendStreak-th future class — attend every class up to and
+  // including this date and the subject crosses back over 75%.
+  const recoveryDate =
+    mustAttendStreak > 0 && future[mustAttendStreak - 1] ? future[mustAttendStreak - 1].date : null;
+
   // Last date you could skip everything from now and still end ≥75%
   let safeUntil: string | null = null;
   if (skipBudget > 0 && future[skipBudget - 1]) safeUntil = future[skipBudget - 1].date;
@@ -153,6 +161,7 @@ export function projectSubject(
     pacePct,
     skipBudget,
     mustAttendStreak,
+    recoveryDate,
     reachable,
     safeUntil,
     riskLevel: level,
@@ -344,10 +353,11 @@ export function buildProjection(
   timetable: TimetableSlot[],
   marks: Mark[],
   declared: DeclaredHoliday[],
-  fromDate: string = todayISO()
+  fromDate: string = todayISO(),
+  window: SemesterWindow = semesterWindow()
 ): ProjectionReport {
-  const effMap = buildEffectiveMap(declared);
-  const from = fromDate > SEMESTER_END ? SEMESTER_END : fromDate;
+  const effMap = buildEffectiveMap(declared, window);
+  const from = fromDate > window.end ? window.end : fromDate;
 
   const recordsBySubject = new Map<string, AttendanceRecord[]>();
   for (const r of attendance) {
@@ -357,7 +367,7 @@ export function buildProjection(
   }
 
   const perSubject = subjects.map((s) =>
-    projectSubject(s, recordsBySubject.get(s.id) ?? [], timetable, effMap, from)
+    projectSubject(s, recordsBySubject.get(s.id) ?? [], timetable, effMap, from, window.end)
   );
 
   const sum = (f: (p: SubjectProjection) => number) => perSubject.reduce((a, p) => a + f(p), 0);
@@ -415,9 +425,13 @@ export function buildProjection(
 }
 
 /** Count of working class-days left in the semester (for headline copy). */
-export function classDaysLeft(declared: DeclaredHoliday[], from: string = todayISO()): number {
-  const effMap = buildEffectiveMap(declared);
-  return Object.keys(effMap).filter((d) => d >= from && d <= SEMESTER_END).length;
+export function classDaysLeft(
+  declared: DeclaredHoliday[],
+  from: string = todayISO(),
+  window: SemesterWindow = semesterWindow()
+): number {
+  const effMap = buildEffectiveMap(declared, window);
+  return Object.keys(effMap).filter((d) => d >= from && d <= window.end).length;
 }
 
 export { parseISODate };

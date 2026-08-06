@@ -1,12 +1,14 @@
 import { motion } from "framer-motion";
 import { CalendarOff, PartyPopper, Sunrise } from "lucide-react";
 import { useToday } from "@/hooks/useToday";
-import { daysUntilSemesterStart } from "@/lib/calendar";
+import { daysUntilSemesterStart, semesterWindow } from "@/lib/calendar";
+import { useSettings } from "@/hooks/useData";
 import { cn } from "@/lib/utils";
 
 /** Compact "today" status: Day Order, holiday, weekend or countdown. */
 export function DayOrderChip({ expanded = false }: { expanded?: boolean }) {
   const { info } = useToday();
+  const { data: settings } = useSettings();
 
   let content: React.ReactNode;
   if (info.kind === "working" && info.dayOrder !== null) {
@@ -33,7 +35,7 @@ export function DayOrderChip({ expanded = false }: { expanded?: boolean }) {
       </>
     );
   } else if (info.kind === "pre-semester") {
-    const days = daysUntilSemesterStart(info.date);
+    const days = daysUntilSemesterStart(info.date, semesterWindow(settings));
     content = (
       <>
         <Sunrise className="h-4 w-4 text-warn-deep" />

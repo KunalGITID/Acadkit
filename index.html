@@ -11,8 +11,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="AcadKit" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f5f9" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0b10" />
+    <meta name="theme-color" id="theme-color-meta" content="#f9f4f0" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -22,14 +21,30 @@
     />
     <title>AcadKit</title>
     <script>
-      // Apply theme before first paint to avoid a flash of the wrong mode
+      // Apply theme before first paint to avoid a flash of the wrong theme/mode.
+      // The hex map here mirrors each theme's --bg in src/index.css — keep in sync.
       (function () {
         try {
-          var pref = localStorage.getItem("acadkit:theme") || "system";
+          var BG_HEX = {
+            "sakura-light": "#f9f4f0",
+            "sakura-dark": "#170c11",
+            "terminal-light": "#f5f5ef",
+            "terminal-dark": "#070e0b",
+            "aurora-light": "#f8f8fc",
+            "aurora-dark": "#0b0817",
+          };
+          var name = localStorage.getItem("acadkit:theme-name") || "sakura";
+          var mode =
+            localStorage.getItem("acadkit:theme-mode") ||
+            localStorage.getItem("acadkit:theme") || // legacy key
+            "system";
           var dark =
-            pref === "dark" ||
-            (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+            mode === "dark" ||
+            (mode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = name;
           if (dark) document.documentElement.classList.add("dark");
+          var meta = document.getElementById("theme-color-meta");
+          if (meta) meta.setAttribute("content", BG_HEX[name + "-" + (dark ? "dark" : "light")]);
         } catch (e) {}
       })();
     </script>

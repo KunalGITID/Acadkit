@@ -7,13 +7,14 @@ import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { AttendanceHeatmap } from "@/components/viz/heatmap";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
-import { useAttendance, useSubjects } from "@/hooks/useData";
+import { useAttendance, useSettings, useSubjects } from "@/hooks/useData";
 import {
   attendanceColor,
   attendanceTextClass,
   computeOverallAttendance,
   type SubjectAttendance,
 } from "@/lib/attendance";
+import { semesterWindow } from "@/lib/calendar";
 import { todayISO } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
@@ -95,11 +96,16 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
 export default function Attendance() {
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { data: attendance, isLoading: aLoading } = useAttendance();
+  const { data: settings } = useSettings();
   const [markDate, setMarkDate] = useState<string | null>(null);
 
   const overall = useMemo(
     () => computeOverallAttendance(subjects ?? [], attendance ?? []),
     [subjects, attendance]
+  );
+  const semWindow = useMemo(
+    () => semesterWindow(settings),
+    [settings?.sem_start, settings?.sem_end]
   );
 
   if (sLoading || aLoading) {
@@ -168,7 +174,7 @@ export default function Attendance() {
               className="py-6"
             />
           ) : (
-            <AttendanceHeatmap records={attendance ?? []} />
+            <AttendanceHeatmap records={attendance ?? []} semStart={semWindow.start} />
           )}
         </section>
       </div>

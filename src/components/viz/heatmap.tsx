@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { SEMESTER_START } from "@/lib/calendar";
 import { addDays, formatDate, parseISODate, todayISO } from "@/lib/dates";
 import type { AttendanceRecord } from "@/types";
 
 interface HeatmapProps {
   records: AttendanceRecord[];
+  /** Semester start date ("YYYY-MM-DD") — the heatmap's earliest possible column. */
+  semStart: string;
 }
 
 interface DayCell {
@@ -19,7 +20,7 @@ interface DayCell {
  * from semester start through today. Green = all present, amber =
  * mixed, red = all absent, neutral = nothing marked.
  */
-export function AttendanceHeatmap({ records }: HeatmapProps) {
+export function AttendanceHeatmap({ records, semStart }: HeatmapProps) {
   const weeks = useMemo(() => {
     const byDate = new Map<string, DayCell>();
     for (const r of records) {
@@ -31,10 +32,10 @@ export function AttendanceHeatmap({ records }: HeatmapProps) {
     }
 
     const today = todayISO();
-    const lastMarked = [...byDate.keys()].sort().pop() ?? SEMESTER_START;
-    const end = [today, SEMESTER_START, lastMarked].sort().pop()!;
+    const lastMarked = [...byDate.keys()].sort().pop() ?? semStart;
+    const end = [today, semStart, lastMarked].sort().pop()!;
     // Walk back to the Monday of the start week
-    let cursor = SEMESTER_START;
+    let cursor = semStart;
     while (parseISODate(cursor).getDay() !== 1) cursor = addDays(cursor, -1);
 
     const result: Array<Array<DayCell | null>> = [];
@@ -48,7 +49,7 @@ export function AttendanceHeatmap({ records }: HeatmapProps) {
       cursor = addDays(cursor, 7);
     }
     return result;
-  }, [records]);
+  }, [records, semStart]);
 
   function cellColor(cell: DayCell): string {
     const total = cell.present + cell.absent;

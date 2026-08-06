@@ -1,15 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
+  CalendarRange,
   CalendarX2,
   Check,
   ClipboardList,
   Copy,
   Download,
   ExternalLink,
+  Flower2,
   GraduationCap,
   Loader2,
   Bell,
@@ -20,13 +22,14 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  SquareTerminal,
   Sun,
   Trash2,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Field, Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Dot } from "@/components/ui/misc";
 import { SubjectSheet } from "@/components/sheets/subject-sheet";
@@ -44,10 +47,11 @@ import {
   PENDING_MIGRATIONS_SQL,
   type AcadkitExport,
 } from "@/api/queries";
-import { useSettings, useSubjects } from "@/hooks/useData";
+import { useSettings, useSubjects, useUpdateSettings } from "@/hooks/useData";
+import { semesterWindow } from "@/lib/calendar";
 import { isValidPin } from "@/lib/pin";
-import { cn } from "@/lib/utils";
-import { useAppStore, type ThemePref } from "@/store/app";
+import { cn, haptic } from "@/lib/utils";
+import { useAppStore, type ColorMode, type ThemeName } from "@/store/app";
 import type { Subject } from "@/types";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -177,6 +181,67 @@ function ProfileCard() {
           {saved ? "Saved" : "Save"}
         </Button>
       </div>
+    </section>
+  );
+}
+
+function SemesterDatesCard() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const defaults = useMemo(
+    () => semesterWindow(settings),
+    [settings?.sem_start, settings?.sem_end]
+  );
+  const [start, setStart] = useState(defaults.start);
+  const [end, setEnd] = useState(defaults.end);
+  const [saved, setSaved] = useState(false);
+
+  // Adopt the loaded/cloud values once, unless the user is mid-edit
+  useEffect(() => {
+    setStart(defaults.start);
+    setEnd(defaults.end);
+  }, [defaults.start, defaults.end]);
+
+  const dirty = start !== defaults.start || end !== defaults.end;
+  const invalid = !start || !end || start >= end;
+
+  function save() {
+    if (invalid) {
+      toast.error("Start date must be before the end date");
+      return;
+    }
+    updateSettings.mutate({ sem_start: start, sem_end: end });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+    toast.success("Semester dates updated — day orders recalculated everywhere");
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/12 text-accent">
+          <CalendarRange className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="font-bold">Semester dates</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Drives the Day Order rotation across the whole app. Update these whenever the
+            semester plan changes.
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Classes start">
+          <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+        </Field>
+        <Field label="Semester ends">
+          <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </Field>
+      </div>
+      <Button onClick={save} disabled={!dirty || invalid} className="w-full">
+        {saved ? <Check className="h-4 w-4" /> : null}
+        {saved ? "Saved" : "Save semester dates"}
+      </Button>
     </section>
   );
 }
@@ -506,9 +571,92 @@ function DataCard() {
   );
 }
 
+const THEME_META: Record<
+  ThemeName,
+  {
+    label: string;
+    tagline: string;
+    xFactor: string;
+    icon: typeof Sparkles;
+    swatch: { bg: string; accent: string; accent2: string };
+  }
+> = {
+  sakura: {
+    label: "Sakura",
+    tagline: "Warm study-café paper",
+    xFactor: "Soft grain texture + a blush wash on every card",
+    icon: Flower2,
+    swatch: { bg: "hsl(336 30% 10%)", accent: "hsl(340 88% 68%)", accent2: "hsl(30 92% 62%)" },
+  },
+  terminal: {
+    label: "Terminal",
+    tagline: "Phosphor-green hacker console",
+    xFactor: "Neon-glowing stats + a drifting CRT scanline",
+    icon: SquareTerminal,
+    swatch: { bg: "hsl(160 35% 5%)", accent: "hsl(140 100% 52%)", accent2: "hsl(184 100% 52%)" },
+  },
+  aurora: {
+    label: "Aurora",
+    tagline: "Deep-space glass",
+    xFactor: "A slow-drifting gradient sky behind everything",
+    icon: Sparkles,
+    swatch: { bg: "hsl(252 48% 7%)", accent: "hsl(266 92% 68%)", accent2: "hsl(186 90% 55%)" },
+  },
+};
+
+function ThemePicker() {
+  const themeName = useAppStore((s) => s.themeName);
+  const setThemeName = useAppStore((s) => s.setThemeName);
+
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {(Object.keys(THEME_META) as ThemeName[]).map((key) => {
+        const meta = THEME_META[key];
+        const active = themeName === key;
+        return (
+          <button
+            key={key}
+            onClick={() => {
+              haptic();
+              setThemeName(key);
+            }}
+            className={cn(
+              "flex flex-col gap-3 rounded-3xl border p-4 text-left transition-all",
+              active ? "border-accent bg-accent/[0.06] shadow-pop" : "hover:bg-surface-2/60"
+            )}
+          >
+            <div
+              className="flex h-16 items-center justify-center gap-2 rounded-2xl"
+              style={{ background: meta.swatch.bg }}
+            >
+              <span
+                className="h-3.5 w-3.5 rounded-full"
+                style={{ background: meta.swatch.accent }}
+              />
+              <span
+                className="h-3.5 w-3.5 rounded-full"
+                style={{ background: meta.swatch.accent2 }}
+              />
+            </div>
+            <div>
+              <p className="flex items-center gap-1.5 font-bold">
+                <meta.icon className="h-4 w-4 text-accent" />
+                {meta.label}
+                {active && <Check className="ml-auto h-4 w-4 text-accent" />}
+              </p>
+              <p className="mt-0.5 text-xs font-semibold text-muted">{meta.tagline}</p>
+              <p className="mt-1.5 text-[11px] leading-snug text-muted/80">{meta.xFactor}</p>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Settings() {
-  const theme = useAppStore((s) => s.theme);
-  const setTheme = useAppStore((s) => s.setTheme);
+  const themeMode = useAppStore((s) => s.themeMode);
+  const setThemeMode = useAppStore((s) => s.setThemeMode);
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -529,21 +677,22 @@ export default function Settings() {
 
       <div className="space-y-3">
         <SectionTitle>Appearance</SectionTitle>
+        <ThemePicker />
         <section className="card p-5">
-          <Segmented<ThemePref>
-            layoutId="theme"
+          <Segmented<ColorMode>
+            layoutId="theme-mode"
             options={[
               { value: "light", label: "Light" },
               { value: "system", label: "System" },
               { value: "dark", label: "Dark" },
             ]}
-            value={theme}
-            onChange={setTheme}
+            value={themeMode}
+            onChange={setThemeMode}
           />
           <p className="mt-3 flex items-center justify-center gap-4 text-xs text-muted">
-            <span className="flex items-center gap-1"><Sun className="h-3.5 w-3.5" /> paper</span>
+            <span className="flex items-center gap-1"><Sun className="h-3.5 w-3.5" /> light</span>
             <span className="flex items-center gap-1"><Monitor className="h-3.5 w-3.5" /> auto</span>
-            <span className="flex items-center gap-1"><Moon className="h-3.5 w-3.5" /> ink</span>
+            <span className="flex items-center gap-1"><Moon className="h-3.5 w-3.5" /> dark</span>
           </p>
         </section>
       </div>
@@ -555,6 +704,7 @@ export default function Settings() {
 
       <div className="space-y-3">
         <SectionTitle>Academics</SectionTitle>
+        <SemesterDatesCard />
         <Link
           to="/log"
           className="card flex items-center justify-between p-5 transition-transform active:scale-[0.99]"
