@@ -5,9 +5,9 @@
 /*
  * Three theme identities (Sakura / Terminal / Aurora), each with a light
  * and dark mode. Selected via [data-theme] on <html>, mode via .dark
- * (src/store/app.ts). Each theme also carries a few extra variables that
- * only it uses (--grain-opacity, --scanline-opacity, --aurora-*) to drive
- * its signature effect in the components/components layer below.
+ * (src/store/app.ts). Each theme distinguishes itself with color plus
+ * exactly one restrained, static trait (see @layer components below) —
+ * no animation, no overlays, nothing that fights the content.
  */
 
 /* ---------- Sakura — warm study-café paper ---------- */
@@ -25,7 +25,6 @@
   --bad-deep: 350 72% 42%;
   --shadow-card: 0 1px 2px rgb(60 20 30 / 0.05), 0 10px 26px -14px rgb(60 20 30 / 0.16);
   --line-alpha: 0.08;
-  --grain-opacity: 0.05;
 }
 [data-theme="sakura"].dark {
   --bg: 336 30% 7%;
@@ -41,10 +40,9 @@
   --bad-deep: 350 85% 68%;
   --shadow-card: 0 1px 0 rgb(255 220 230 / 0.04) inset, 0 14px 34px -16px rgb(0 0 0 / 0.65);
   --line-alpha: 0.09;
-  --grain-opacity: 0.06;
 }
 
-/* ---------- Terminal — phosphor CRT / hacker console ---------- */
+/* ---------- Terminal — quiet phosphor console ---------- */
 [data-theme="terminal"] {
   --bg: 66 25% 95%;
   --surface: 66 30% 98%;
@@ -59,7 +57,7 @@
   --bad-deep: 350 68% 40%;
   --shadow-card: 0 1px 2px rgb(10 40 20 / 0.05), 0 8px 22px -12px rgb(10 40 20 / 0.14);
   --line-alpha: 0.12;
-  --scanline-opacity: 0.03;
+  --radius-card: 0.625rem;
 }
 [data-theme="terminal"].dark {
   --bg: 160 35% 4%;
@@ -75,10 +73,10 @@
   --bad-deep: 4 90% 58%;
   --shadow-card: 0 0 0 1px hsl(140 100% 50% / 0.06) inset, 0 14px 34px -16px rgb(0 0 0 / 0.7);
   --line-alpha: 0.16;
-  --scanline-opacity: 0.06;
+  --radius-card: 0.625rem;
 }
 
-/* ---------- Aurora — premium drifting gradient mesh ---------- */
+/* ---------- Aurora — quiet glass, one soft gradient corner ---------- */
 [data-theme="aurora"] {
   --bg: 250 45% 98%;
   --surface: 0 0% 100%;
@@ -93,10 +91,9 @@
   --bad-deep: 345 72% 45%;
   --shadow-card: 0 1px 2px rgb(40 20 70 / 0.05), 0 10px 26px -14px rgb(40 20 70 / 0.14);
   --line-alpha: 0.07;
-  --aurora-1: 266 85% 78%;
-  --aurora-2: 186 80% 75%;
-  --aurora-3: 322 85% 80%;
-  --aurora-opacity: 0.4;
+  --wash-1: 266 85% 78%;
+  --wash-2: 186 80% 75%;
+  --wash-alpha: 0.14;
 }
 [data-theme="aurora"].dark {
   --bg: 252 48% 6%;
@@ -112,10 +109,9 @@
   --bad-deep: 338 85% 66%;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 16px 40px -18px rgb(20 0 40 / 0.7);
   --line-alpha: 0.1;
-  --aurora-1: 266 92% 62%;
-  --aurora-2: 186 90% 55%;
-  --aurora-3: 322 90% 62%;
-  --aurora-opacity: 0.35;
+  --wash-1: 266 92% 62%;
+  --wash-2: 186 90% 55%;
+  --wash-alpha: 0.22;
 }
 
 @layer base {
@@ -124,10 +120,16 @@
   }
   html {
     -webkit-text-size-adjust: 100%;
-    /* Paints before any negative z-index fx layer (fx-aurora), per spec —
-       keep this on html (the root element), not body, or the aurora
-       background layer will render underneath it and disappear. */
     background-color: hsl(var(--bg));
+  }
+  /* Aurora only: one static, subtle gradient bloom from the top corners.
+     No animation — it's a backdrop for the theme's glass cards, not a
+     focal point in its own right. */
+  html[data-theme="aurora"] {
+    background-image:
+      radial-gradient(60% 50% at 12% -8%, hsl(var(--wash-1) / var(--wash-alpha)), transparent 60%),
+      radial-gradient(55% 45% at 100% 0%, hsl(var(--wash-2) / var(--wash-alpha)), transparent 60%);
+    background-repeat: no-repeat;
   }
   body {
     @apply text-ink font-sans antialiased;
@@ -157,6 +159,7 @@
 @layer components {
   .card {
     @apply rounded-3xl border bg-surface shadow-card;
+    border-radius: var(--radius-card, 1.5rem);
   }
   .glass {
     background: hsl(var(--surface) / 0.78);
@@ -179,83 +182,27 @@
     display: none;
   }
 
-  /* Sakura x-factor: a warm blush wash across the top of every card, plus
-     the .fx-grain overlay (mounted by ThemeFx) for a soft paper texture. */
-  [data-theme="sakura"] .card {
-    background-image: radial-gradient(
-      120% 140% at 12% -10%,
-      hsl(var(--accent) / 0.07),
-      transparent 60%
-    );
-  }
-  .fx-grain {
-    position: fixed;
-    inset: 0;
-    z-index: 45;
-    pointer-events: none;
-    opacity: var(--grain-opacity, 0.05);
-    mix-blend-mode: overlay;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* Sakura x-factor: every stat number (SGPA, attendance %, …) renders in
+     warm serif oldstyle numerals instead of the app's default geometric
+     sans — a quiet editorial/stationery touch, free on every .tabular
+     number already in the app. No motion, no texture. */
+  [data-theme="sakura"] .tabular {
+    font-family: ui-serif, Georgia, "Times New Roman", serif;
+    font-variant-numeric: oldstyle-nums;
   }
 
-  /* Terminal x-factor: neon glow on every tabular stat number (free, since
-     .tabular already marks every stat/SGPA/percentage in the app) plus a
-     drifting CRT scanline overlay (mounted by ThemeFx). */
-  [data-theme="terminal"] .tabular {
-    text-shadow: 0 0 12px hsl(var(--accent) / 0.5);
-  }
-  [data-theme="terminal"].dark .tabular {
-    text-shadow: 0 0 14px hsl(var(--accent) / 0.7);
-  }
-  .fx-scanline {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    pointer-events: none;
-    mix-blend-mode: overlay;
-    background: repeating-linear-gradient(
-      to bottom,
-      hsl(var(--accent) / 0) 0px,
-      hsl(var(--accent) / var(--scanline-opacity, 0.04)) 1px,
-      hsl(var(--accent) / 0) 3px
-    );
-    animation: scanline-drift 9s linear infinite;
-  }
-  @keyframes scanline-drift {
-    from {
-      background-position: 0 0;
-    }
-    to {
-      background-position: 0 240px;
-    }
-  }
+  /* Terminal x-factor: tighter, squared-off card corners (--radius-card
+     above) instead of the app's default soft rounding — a plain-text
+     console feel from shape alone. Numbers already render in JetBrains
+     Mono via .tabular; nothing extra is added on top. */
 
-  /* Aurora x-factor: a slow-drifting three-color gradient mesh, painted
-     behind all normal-flow content (negative z-index — see the `html`
-     background-color note above for why that's load-bearing). */
-  .fx-aurora {
-    position: fixed;
-    inset: -10%;
-    z-index: -1;
-    pointer-events: none;
-    filter: blur(70px);
-    opacity: var(--aurora-opacity, 0.4);
-    background:
-      radial-gradient(38% 30% at 22% 26%, hsl(var(--aurora-1)), transparent 70%),
-      radial-gradient(34% 28% at 78% 18%, hsl(var(--aurora-2)), transparent 70%),
-      radial-gradient(42% 36% at 52% 82%, hsl(var(--aurora-3)), transparent 70%);
-    animation: aurora-drift 24s ease-in-out infinite alternate;
-  }
-  @keyframes aurora-drift {
-    0% {
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    50% {
-      transform: translate3d(-3%, 2%, 0) scale(1.08);
-    }
-    100% {
-      transform: translate3d(3%, -2%, 0) scale(1);
-    }
+  /* Aurora x-factor: cards go translucent/frosted so the static corner
+     wash above shows through — glass with something to actually be
+     glass over, instead of a flat color pretending to blur. */
+  [data-theme="aurora"] .card {
+    background: hsl(var(--surface) / 0.72);
+    backdrop-filter: blur(18px) saturate(1.5);
+    -webkit-backdrop-filter: blur(18px) saturate(1.5);
   }
 }
 
