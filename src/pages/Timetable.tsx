@@ -77,7 +77,7 @@ export default function Timetable() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
       <div className="flex items-center justify-between px-1">
         <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Timetable</h1>
         <Button

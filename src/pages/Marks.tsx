@@ -142,7 +142,7 @@ export default function Marks() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
       <div className="flex items-center justify-between gap-3 px-1">
         <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Marks</h1>
         <Segmented

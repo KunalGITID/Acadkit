@@ -101,7 +101,7 @@ export function AppShell() {
 
         <OfflineBanner />
 
-        <main className="mx-auto w-full max-w-5xl flex-1 overflow-x-hidden px-4 pb-32 pt-4 lg:px-10 lg:pb-16 lg:pt-8">
+        <main className="relative mx-auto w-full max-w-5xl flex-1 overflow-x-hidden px-4 pb-32 pt-4 lg:px-10 lg:pb-16 lg:pt-8">
           <AnimatePresence mode="popLayout" initial={false} custom={direction}>
             <motion.div
               key={location.pathname}
