@@ -433,9 +433,9 @@ export default function Dashboard() {
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between gap-3 px-1"
+        className="flex items-start justify-between gap-3 px-1"
       >
-        <h1 className="min-w-0 truncate text-2xl font-extrabold tracking-tight lg:text-3xl">
+        <h1 className="min-w-0 line-clamp-2 text-2xl font-extrabold tracking-tight lg:text-3xl">
           {greeting}
           {name ? `, ${name}` : ""}
         </h1>

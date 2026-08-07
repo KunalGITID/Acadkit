@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { getStoredPin, storePin, clearPin } from "@/lib/pin";
 
-export type ThemeName = "sakura" | "terminal" | "aurora";
+export type ThemeName = "sakura" | "terminal" | "aurora" | "oled";
 export type ColorMode = "light" | "dark" | "system";
 
 const THEME_KEY = "acadkit:theme-name";
@@ -21,6 +21,8 @@ const BG_HEX: Record<string, string> = {
   "terminal-dark": "#070e0b",
   "aurora-light": "#f8f8fc",
   "aurora-dark": "#0b0817",
+  "oled-light": "#ffffff",
+  "oled-dark": "#000000",
 };
 
 function applyTheme(themeName: ThemeName, mode: ColorMode) {

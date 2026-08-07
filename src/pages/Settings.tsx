@@ -8,6 +8,7 @@ import {
   CalendarX2,
   Check,
   ClipboardList,
+  Contrast,
   Copy,
   Download,
   ExternalLink,
@@ -602,6 +603,13 @@ const THEME_META: Record<
     icon: Sparkles,
     swatch: { bg: "hsl(252 48% 7%)", accent: "hsl(266 92% 68%)", accent2: "hsl(186 90% 55%)" },
   },
+  oled: {
+    label: "OLED",
+    tagline: "True black, zero color",
+    xFactor: "Pure #000 in dark mode — pixels off, not just dark",
+    icon: Contrast,
+    swatch: { bg: "hsl(0 0% 0%)", accent: "hsl(0 0% 38%)", accent2: "hsl(0 0% 58%)" },
+  },
 };
 
 function ThemePicker() {
@@ -609,7 +617,7 @@ function ThemePicker() {
   const setThemeName = useAppStore((s) => s.setThemeName);
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {(Object.keys(THEME_META) as ThemeName[]).map((key) => {
         const meta = THEME_META[key];
         const active = themeName === key;

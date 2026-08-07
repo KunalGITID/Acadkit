@@ -3,7 +3,8 @@ import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/utils";
 
 interface SegmentedProps<T extends string | number> {
-  options: Array<{ value: T; label: string }>;
+  /** `highlight` lights up the tab's label (e.g. "today") without adding to the label text. */
+  options: Array<{ value: T; label: string; highlight?: boolean }>;
   value: T;
   onChange: (value: T) => void;
   layoutId: string;
@@ -35,7 +36,7 @@ export function Segmented<T extends string | number>({
             }}
             className={cn(
               "relative flex-1 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
-              active ? "text-ink" : "text-muted hover:text-ink"
+              active ? "text-ink" : opt.highlight ? "text-accent" : "text-muted hover:text-ink"
             )}
           >
             {active && (

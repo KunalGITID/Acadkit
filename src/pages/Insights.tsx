@@ -84,9 +84,9 @@ function SubjectProjectionCard({ p, index }: { p: SubjectProjection; index: numb
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="flex items-center gap-2 font-bold">
-            <Dot color={p.subject.color_hex} />
-            <span className="truncate">{p.subject.name}</span>
+          <p className="flex items-start gap-2 font-bold">
+            <Dot color={p.subject.color_hex} className="mt-1.5 shrink-0" />
+            <span className="line-clamp-2">{p.subject.name}</span>
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted">
             {p.held > 0 ? `${p.attended}/${p.held} so far` : "no classes marked yet"} ·{" "}
@@ -433,9 +433,9 @@ function SubjectGradeCard({ p, index }: { p: SubjectGradeProjection; index: numb
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="flex items-center gap-2 font-bold">
-            <Dot color={p.subject.color_hex} />
-            <span className="truncate">{p.subject.name}</span>
+          <p className="flex items-start gap-2 font-bold">
+            <Dot color={p.subject.color_hex} className="mt-1.5 shrink-0" />
+            <span className="line-clamp-2">{p.subject.name}</span>
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted">
             {p.internalOnly

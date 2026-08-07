@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { CalendarPlus, Clock3, FlaskConical, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,29 @@ import { formatTime } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type { TimetableSlot } from "@/types";
 
+/** +1/-1 for which way to slide when paging between day orders. */
+function useDaySlideDirection(day: number) {
+  const prevRef = useRef(day);
+  const direction = day === prevRef.current ? 0 : day > prevRef.current ? 1 : -1;
+  useEffect(() => {
+    prevRef.current = day;
+  }, [day]);
+  return direction;
+}
+
+const daySlideVariants = {
+  enter: (direction: number) => ({ opacity: 0, x: direction >= 0 ? 44 : -44 }),
+  center: { opacity: 1, x: 0 },
+  exit: (direction: number) => ({ opacity: 0, x: direction >= 0 ? -44 : 44 }),
+};
+
 export default function Timetable() {
   const { data: timetable, isLoading: tLoading } = useTimetable();
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { info } = useToday();
 
   const [dayOrder, setDayOrder] = useState(info.dayOrder ?? 1);
+  const direction = useDaySlideDirection(dayOrder);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<TimetableSlot | null>(null);
 
@@ -78,19 +95,23 @@ export default function Timetable() {
         layoutId="timetable-day"
         options={[1, 2, 3, 4, 5].map((d) => ({
           value: d,
-          label: info.dayOrder === d ? `Day ${d} •` : `Day ${d}`,
+          label: `Day ${d}`,
+          highlight: info.dayOrder === d,
         }))}
         value={dayOrder}
         onChange={setDayOrder}
       />
 
-      <AnimatePresence mode="popLayout">
+      <AnimatePresence mode="popLayout" custom={direction}>
         {slots.length === 0 ? (
           <motion.div
             key={`empty-${dayOrder}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            custom={direction}
+            variants={daySlideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className="card"
           >
             <EmptyState
@@ -112,7 +133,16 @@ export default function Timetable() {
             />
           </motion.div>
         ) : (
-          <motion.div key={`list-${dayOrder}`} className="relative space-y-3">
+          <motion.div
+            key={`list-${dayOrder}`}
+            custom={direction}
+            variants={daySlideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            className="relative space-y-3"
+          >
             {/* timeline rail */}
             <div aria-hidden className="absolute bottom-6 left-[21px] top-6 w-px bg-line/10" />
             {slots.map((slot, i) => {

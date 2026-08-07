@@ -52,9 +52,9 @@ function SubjectMarksCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="flex items-center gap-2 font-bold">
-            <Dot color={subject.color_hex} />
-            <span className="truncate">{subject.name}</span>
+          <p className="flex items-start gap-2 font-bold">
+            <Dot color={subject.color_hex} className="mt-1.5 shrink-0" />
+            <span className="line-clamp-2">{subject.name}</span>
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted">
             {subject.code} · {audit ? "audit (no SGPA)" : `${subject.credits} credits`}
@@ -157,13 +157,13 @@ export default function Marks() {
         />
       </div>
 
-      <AnimatePresence mode="wait" initial={false}>
+      <AnimatePresence mode="popLayout" initial={false}>
         {view === "marks" ? (
           <motion.div
             key="marks-view"
-            initial={{ opacity: 0, x: -16 }}
+            initial={{ opacity: 0, x: -44 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -16 }}
+            exit={{ opacity: 0, x: -44 }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className="space-y-4"
           >
@@ -207,9 +207,9 @@ export default function Marks() {
         ) : (
           <motion.div
             key="calculator-view"
-            initial={{ opacity: 0, x: 16 }}
+            initial={{ opacity: 0, x: 44 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 16 }}
+            exit={{ opacity: 0, x: 44 }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
           >
             <MarksCalculators rows={result.rows} />
