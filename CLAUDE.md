@@ -78,13 +78,22 @@ The output embeds the anon key + PIN and is gitignored. `portal-sync.js` is
 the readable source; the build inlines credentials, minifies with esbuild,
 and emits a drag-to-bookmarks install page.
 
-Parsing matches on **header text** (`Course Code`, `Hours Conducted`, `Test
-Performance`), never DOM paths, because Zoho Creator regenerates class names
-between deploys. It walks table children explicitly rather than using
+Parsing matches on **header text**, never DOM paths, because these portals
+regenerate class names between deploys. Attendance needs a code column, a
+conducted column, and either an absent or a present/attended column
+(absences are then `conducted − present`). Marks need a code column and a
+performance column, and any table carrying attendance columns is rejected as
+a marks table. It walks table children explicitly rather than using
 `table.rows`, so a nested per-test table can't be mistaken for a report row.
 Ambiguous markup yields nothing rather than a guess. Tests live in
 `scripts/portal-sync/portal-sync.test.ts` (happy-dom) against synthetic
 fixtures — swap in real saved markup when the portal shape is confirmed.
+
+The fixtures were written against `academia.srmist.edu.in` (Zoho Creator).
+The student portal at `sp.srmist.edu.in` is a different JSP app with a `#!`
+hash router and has **not** been verified. The panel's "Copy diagnostics"
+button dumps every table's headers and two sample rows, which is the input
+needed to teach the parser a portal it doesn't yet recognise.
 
 **Attendance is a snapshot, not per-class rows.** The portal only reports
 per-subject totals, which can't go in `attendance` without inventing dates.
@@ -95,6 +104,16 @@ Manual per-class history is never overwritten. Marks carry a `source` column
 so a re-sync reconciles only the rows it owns — `'portal'` rows are matched
 client-side on `(subject_id, label)` and PATCHed, and hand-typed marks are
 left alone.
+
+### Offline preview — `npm run dev:mock`
+
+`scripts/dev-mock/server.mjs` speaks enough PostgREST for the app and seeds
+a full semester under PIN **1234** (6 subjects, a week of hand-marked
+classes, portal snapshots on 4 of them dated a week back so the "portal
+totals as of…" badge shows). It starts Vite pointed at itself, so the UI
+runs with no `.env.local` and never touches the real project. Realtime is
+not implemented — supabase-js retries a websocket in the background and the
+UI carries on without it.
 
 ### PWA
 

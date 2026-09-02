@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev:mock": "node scripts/dev-mock/server.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

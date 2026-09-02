@@ -143,6 +143,9 @@
   var RE_CODE = /course\s*code|subject\s*code|^code$/;
   var RE_CONDUCTED = /conducted|max.*hour|total\s*(?:class|hour)/;
   var RE_ABSENT = /absent/;
+  // Some portals report classes attended instead of missed; absences are
+  // then conducted − present.
+  var RE_PRESENT = /present|attended/;
   var RE_PCT = /%|percent/;
 
   function scrapeAttendance(all) {
@@ -151,18 +154,25 @@
       var iCode = col(hs, RE_CODE);
       var iCond = col(hs, RE_CONDUCTED, RE_ABSENT);
       var iAbs = col(hs, RE_ABSENT);
-      if (iCode < 0 || iCond < 0 || iAbs < 0) continue;
+      var iPres = iAbs < 0 ? col(hs, RE_PRESENT) : -1;
+      if (iCode < 0 || iCond < 0 || (iAbs < 0 && iPres < 0)) continue;
 
       var iPct = col(hs, RE_PCT);
       var rows = bodyRows(all[t]);
       var out = [];
       for (var r = 0; r < rows.length; r++) {
         var c = cellsOf(rows[r]);
-        if (!c || c.length <= Math.max(iCode, iCond, iAbs)) continue;
+        if (!c || c.length <= Math.max(iCode, iCond, iAbs, iPres)) continue;
         var code = norm(c[iCode].textContent).toUpperCase();
         var conducted = num(c[iCond].textContent);
-        var absent = num(c[iAbs].textContent);
-        if (!code || conducted === null || absent === null) continue;
+        var absent;
+        if (iAbs >= 0) {
+          absent = num(c[iAbs].textContent);
+        } else {
+          var present = num(c[iPres].textContent);
+          absent = present === null || conducted === null ? null : conducted - present;
+        }
+        if (!code || conducted === null || absent === null || absent < 0) continue;
         out.push({
           subject_code: code,
           conducted: conducted,
@@ -243,6 +253,7 @@
       var iPerf = col(hs, RE_PERF);
       // Skip the attendance table, which also has a course-code column.
       if (iCode < 0 || iPerf < 0 || col(hs, RE_CONDUCTED, RE_ABSENT) >= 0) continue;
+      if (col(hs, RE_ABSENT) >= 0 || col(hs, RE_PRESENT) >= 0) continue;
 
       var rows = bodyRows(all[t]);
       var out = [];
@@ -409,9 +420,47 @@
     });
   }
 
+  // ---------- diagnostics ----------
+
+  /**
+   * A description of every table on the page: headers, plus a couple of
+   * sample rows with cell text truncated. This is what to send when the
+   * scrapers come up empty on a portal whose markup we haven't seen.
+   */
+  function diagnose(found, all) {
+    var clip = function (t) {
+      t = norm(t);
+      return t.length > 60 ? t.slice(0, 60) + "…" : t;
+    };
+    var out = {
+      url: location.origin + location.pathname,
+      documents: found.docs.length,
+      blockedFrames: found.blocked,
+      tables: [],
+    };
+    for (var i = 0; i < all.length; i++) {
+      var rows = bodyRows(all[i]);
+      var sample = [];
+      for (var r = 0; r < Math.min(2, rows.length); r++) {
+        var cells = cellsOf(rows[r]);
+        var line = [];
+        for (var c = 0; c < cells.length; c++) line.push(clip(cells[c].textContent));
+        sample.push(line);
+      }
+      out.tables.push({
+        index: i,
+        headers: headers(all[i]),
+        rowCount: rows.length,
+        nestedTables: all[i].querySelectorAll("table").length,
+        sample: sample,
+      });
+    }
+    return JSON.stringify(out, null, 1);
+  }
+
   // ---------- panel ----------
 
-  function panel(attendance, marks, note) {
+  function panel(attendance, marks, note, diag) {
     var host = document.getElementById("acadkit-sync-host");
     if (host) host.remove();
     host = document.createElement("div");
@@ -459,7 +508,9 @@
       "<p class=note>" + note + "</p>" +
       "<div class=scroll><table>" + rows + "</table></div>" +
       "<div id=log></div>" +
-      "<div class=foot><button class=x id=cancel>Cancel</button>" +
+      "<div class=foot><button class=x id=diag>Copy diagnostics</button>" +
+      "<span style=flex:1></span>" +
+      "<button class=x id=cancel>Cancel</button>" +
       "<button class=go id=go" + (rows.indexOf("empty") > -1 ? " disabled" : "") + ">Sync to AcadKit</button></div>" +
       "</div></div>";
 
@@ -470,6 +521,26 @@
 
     root.getElementById("cancel").onclick = function () {
       host.remove();
+    };
+
+    root.getElementById("diag").onclick = function () {
+      // Shown in a textarea as well as copied: clipboard access is blocked
+      // in some embedded contexts, and this must never silently do nothing.
+      var box = root.querySelector(".scroll");
+      box.innerHTML =
+        "<p style='font-size:12px;color:#5b616e'>Check this over for anything personal, " +
+        "then send it along — it's what's needed to teach the parser this portal.</p>" +
+        "<textarea readonly style='width:100%;height:260px;font:11px ui-monospace,Menlo,monospace;" +
+        "border:1px solid #dcdfe6;border-radius:8px;padding:8px'></textarea>";
+      var ta = box.querySelector("textarea");
+      ta.value = diag;
+      ta.focus();
+      ta.select();
+      try {
+        if (navigator.clipboard) navigator.clipboard.writeText(diag);
+      } catch (e) {
+        /* textarea selection is the fallback */
+      }
     };
     root.getElementById("go").onclick = function () {
       var btn = root.getElementById("go");
@@ -523,8 +594,9 @@
   } else {
     note =
       "Scanned " + all.length + " table(s) on this page and found no attendance or marks " +
-      "columns. Open the Attendance / Marks report first, then run this again.";
+      "columns. Open the Attendance / Marks report first and run this again — or hit " +
+      "“Copy diagnostics” to capture this page's table structure.";
   }
 
-  panel(attendance, marks, note);
+  panel(attendance, marks, note, diagnose(found, all));
 })();

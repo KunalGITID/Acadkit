@@ -159,3 +159,48 @@ describe("component classification", () => {
     expect(api.classify(label)).toBe(expected);
   });
 });
+
+describe("attendance reported as classes attended", () => {
+  it("derives absences from a present column", () => {
+    expect(
+      api.scrapeAttendance(
+        load(`<table>
+          <tr><th>S.No</th><th>Subject Code</th><th>Total Classes</th><th>Present</th><th>Percentage</th></tr>
+          <tr><td>1</td><td>21CSC201J</td><td>45</td><td>39</td><td>86.67</td></tr>
+        </table>`)
+      )
+    ).toEqual([
+      { subject_code: "21CSC201J", conducted: 45, absent: 6, percentage: 86.67 },
+    ]);
+  });
+
+  it("prefers an explicit absent column when both are present", () => {
+    const [row] = api.scrapeAttendance(
+      load(`<table>
+        <tr><th>Course Code</th><th>Hours Conducted</th><th>Hours Present</th><th>Hours Absent</th></tr>
+        <tr><td>21CSC201J</td><td>45</td><td>39</td><td>6</td></tr>
+      </table>`)
+    );
+    expect(row).toEqual({ subject_code: "21CSC201J", conducted: 45, absent: 6, percentage: null });
+  });
+
+  it("drops rows where present exceeds conducted rather than storing a negative", () => {
+    expect(
+      api.scrapeAttendance(
+        load(`<table>
+          <tr><th>Course Code</th><th>Total Classes</th><th>Attended</th></tr>
+          <tr><td>21CSC201J</td><td>10</td><td>12</td></tr>
+        </table>`)
+      )
+    ).toEqual([]);
+  });
+
+  it("still refuses a table with no absent or present column", () => {
+    expect(
+      api.scrapeAttendance(
+        load(`<table><tr><th>Course Code</th><th>Total Classes</th></tr>
+          <tr><td>21CSC201J</td><td>45</td></tr></table>`)
+      )
+    ).toEqual([]);
+  });
+});
