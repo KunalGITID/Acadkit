@@ -10,6 +10,7 @@ import { AnimatedNumber } from "@/components/viz/animated-number";
 import {
   useArchives,
   useAttendance,
+  usePortalSnapshots,
   useDeleteArchive,
   useMarks,
   useSettings,
@@ -91,6 +92,7 @@ export default function History() {
   const { data: subjects } = useSubjects();
   const { data: marks } = useMarks();
   const { data: attendance } = useAttendance();
+  const { data: snapshots } = usePortalSnapshots();
   const { data: settings } = useSettings();
   const deleteArchive = useDeleteArchive();
   const [busy, setBusy] = useState(false);
@@ -116,7 +118,7 @@ export default function History() {
   }, [archives, current]);
 
   async function archiveNow() {
-    const overall = computeOverallAttendance(subjects ?? [], attendance ?? []);
+    const overall = computeOverallAttendance(subjects ?? [], attendance ?? [], snapshots ?? []);
     const attBySubject = new Map(overall.subjects.map((s) => [s.subject.id, s.percentage]));
     const summary: SubjectArchiveRow[] = current.rows
       .filter((r) => r.marks.hasAnyMarks || r.subject.credits > 0)

@@ -64,6 +64,38 @@ Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.d
 
 Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`. Migrations in `supabase/migrations/`; RLS allows the anon role full access (device_id scoping is client-side). The v2 app runs on the v1 schema unchanged — no new migrations were needed.
 
+### Portal sync (bookmarklet)
+
+`scripts/portal-sync/` builds a bookmarklet that scrapes SRM Academia and
+writes into Supabase directly over PostgREST — it runs inside the page you
+already logged into, so no SRM credentials are stored anywhere.
+
+```bash
+node scripts/portal-sync/build.mjs --pin 1234   # → scripts/portal-sync/dist/install.html
+```
+
+The output embeds the anon key + PIN and is gitignored. `portal-sync.js` is
+the readable source; the build inlines credentials, minifies with esbuild,
+and emits a drag-to-bookmarks install page.
+
+Parsing matches on **header text** (`Course Code`, `Hours Conducted`, `Test
+Performance`), never DOM paths, because Zoho Creator regenerates class names
+between deploys. It walks table children explicitly rather than using
+`table.rows`, so a nested per-test table can't be mistaken for a report row.
+Ambiguous markup yields nothing rather than a guess. Tests live in
+`scripts/portal-sync/portal-sync.test.ts` (happy-dom) against synthetic
+fixtures — swap in real saved markup when the portal shape is confirmed.
+
+**Attendance is a snapshot, not per-class rows.** The portal only reports
+per-subject totals, which can't go in `attendance` without inventing dates.
+Migration 012 adds `portal_snapshots` (unique on `device_id, subject_code`);
+`computeSubjectAttendance` uses the portal totals as the baseline and layers
+records dated after `as_of` on top, so the number stays live between syncs.
+Manual per-class history is never overwritten. Marks carry a `source` column
+so a re-sync reconciles only the rows it owns — `'portal'` rows are matched
+client-side on `(subject_id, label)` and PATCHed, and hand-typed marks are
+left alone.
+
 ### PWA
 
 `vite.config.ts` via `vite-plugin-pwa`: Supabase calls cached NetworkFirst (5s timeout), Google Fonts CacheFirst. On Node 18 the service worker is intentionally built unminified (workbox `mode` switch) because workbox's terser worker needs global webcrypto.

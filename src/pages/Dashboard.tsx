@@ -23,6 +23,7 @@ import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
 import { DayOrderChip } from "@/components/layout/day-order-chip";
 import {
   useAttendance,
+  usePortalSnapshots,
   useDeadlines,
   useMarks,
   useSettings,
@@ -195,10 +196,11 @@ function TodayCard() {
 function AttendanceHealthCard() {
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { data: attendance, isLoading: aLoading } = useAttendance();
+  const { data: snapshots } = usePortalSnapshots();
 
   const overall = useMemo(
-    () => computeOverallAttendance(subjects ?? [], attendance ?? []),
-    [subjects, attendance]
+    () => computeOverallAttendance(subjects ?? [], attendance ?? [], snapshots ?? []),
+    [subjects, attendance, snapshots]
   );
 
   if (sLoading || aLoading) return <Skeleton className="h-44 w-full" />;

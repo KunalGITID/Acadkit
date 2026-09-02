@@ -12,6 +12,8 @@ const TABLE_TO_KEY: Record<string, string> = {
   attendance: "attendance",
   marks: "marks",
   deadlines: "deadlines",
+  // the sync bookmarklet writes here; realtime pushes it straight into the UI
+  portal_snapshots: "portal_snapshots",
 };
 
 /**

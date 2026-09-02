@@ -6,6 +6,7 @@ import type {
   Deadline,
   DeclaredHoliday,
   Mark,
+  PortalSnapshot,
   SemesterArchive,
   Settings,
   Subject,
@@ -47,13 +48,39 @@ create table if not exists semester_archives (
 alter table semester_archives enable row level security;
 drop policy if exists "anon_all_semester_archives" on semester_archives;
 create policy "anon_all_semester_archives" on semester_archives
-  for all to anon using (true) with check (true);`;
+  for all to anon using (true) with check (true);
+
+-- Portal sync (012): attendance snapshots + de-duplicated portal marks
+create table if not exists portal_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  device_id text not null,
+  subject_code text not null,
+  conducted numeric not null,
+  absent numeric not null,
+  percentage numeric,
+  as_of date not null default current_date,
+  synced_at timestamptz not null default now(),
+  unique (device_id, subject_code)
+);
+create index if not exists idx_portal_snapshots_device on portal_snapshots(device_id);
+alter table portal_snapshots enable row level security;
+drop policy if exists "anon_all_portal_snapshots" on portal_snapshots;
+create policy "anon_all_portal_snapshots" on portal_snapshots
+  for all to anon using (true) with check (true);
+alter table marks
+  add column if not exists source text not null default 'manual'
+  check (source in ('manual', 'portal'));
+create unique index if not exists idx_marks_portal_unique
+  on marks(device_id, subject_id, label)
+  where source = 'portal';`;
 
 const OPTIONAL_COLUMNS: Array<{ table: string; column: string; enables: string }> = [
   { table: "settings", column: "name", enables: "greeting name that follows your PIN" },
   { table: "timetable_slots", column: "slot_type", enables: "theory/lab class tags" },
   { table: "subjects", column: "internal_only", enables: "internal-only subjects" },
   { table: "semester_archives", column: "id", enables: "semester history & CGPA" },
+  { table: "portal_snapshots", column: "id", enables: "portal attendance sync" },
+  { table: "marks", column: "source", enables: "portal marks sync" },
 ];
 
 /** Which optional features are blocked because their column is missing. */
@@ -278,6 +305,26 @@ export async function fetchMarks(pin: string): Promise<Mark[]> {
   return (data as Mark[]) ?? [];
 }
 
+// ---------- portal snapshots ----------
+
+/**
+ * Per-subject attendance totals as the portal last reported them.
+ * Returns [] if migration 012 hasn't been run, so the app keeps working
+ * on manual attendance alone.
+ */
+export async function fetchPortalSnapshots(pin: string): Promise<PortalSnapshot[]> {
+  const { data, error } = await supabase
+    .from("portal_snapshots")
+    .select("*")
+    .eq("device_id", pin);
+  if (error) return [];
+  return (data as PortalSnapshot[]) ?? [];
+}
+
+export async function clearPortalSnapshots(pin: string): Promise<void> {
+  await supabase.from("portal_snapshots").delete().eq("device_id", pin);
+}
+
 export async function insertMark(
   pin: string,
   mark: Omit<Mark, "id" | "device_id" | "added_at">
@@ -381,6 +428,8 @@ export async function clearAcademicData(pin: string): Promise<void> {
     const { error } = await supabase.from(table).delete().eq("device_id", pin);
     throwIf(error);
   }
+  // may not exist until migration 012 is run
+  await clearPortalSnapshots(pin);
 }
 
 // ---------- data management ----------
@@ -398,8 +447,9 @@ export async function deleteAllData(pin: string): Promise<void> {
     const { error } = await supabase.from(table).delete().eq("device_id", pin);
     throwIf(error);
   }
-  // archives table may not exist; ignore failure
+  // archives / snapshots tables may not exist; ignore failure
   await supabase.from("semester_archives").delete().eq("device_id", pin);
+  await clearPortalSnapshots(pin);
 }
 
 export async function exportAllData(pin: string) {

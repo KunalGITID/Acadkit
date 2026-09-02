@@ -235,6 +235,18 @@ export function useMarks() {
   });
 }
 
+/**
+ * Portal attendance snapshots written by the sync bookmarklet.
+ * Empty until migration 012 runs, which just falls back to manual counts.
+ */
+export function usePortalSnapshots() {
+  const pin = usePin();
+  return useQuery({
+    queryKey: ["portal_snapshots", pin],
+    queryFn: () => api.fetchPortalSnapshots(pin),
+  });
+}
+
 export function useAddMark() {
   const pin = usePin();
   return useOptimistic<Omit<Mark, "id" | "device_id" | "added_at">, Mark[]>({

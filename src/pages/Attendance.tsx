@@ -7,7 +7,7 @@ import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { AttendanceHeatmap } from "@/components/viz/heatmap";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
-import { useAttendance, useSettings, useSubjects } from "@/hooks/useData";
+import { useAttendance, usePortalSnapshots, useSettings, useSubjects } from "@/hooks/useData";
 import {
   attendanceColor,
   attendanceTextClass,
@@ -15,7 +15,7 @@ import {
   type SubjectAttendance,
 } from "@/lib/attendance";
 import { semesterWindow } from "@/lib/calendar";
-import { todayISO } from "@/lib/dates";
+import { formatDate, todayISO } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
 function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number }) {
@@ -96,12 +96,13 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
 export default function Attendance() {
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { data: attendance, isLoading: aLoading } = useAttendance();
+  const { data: snapshots } = usePortalSnapshots();
   const { data: settings } = useSettings();
   const [markDate, setMarkDate] = useState<string | null>(null);
 
   const overall = useMemo(
-    () => computeOverallAttendance(subjects ?? [], attendance ?? []),
-    [subjects, attendance]
+    () => computeOverallAttendance(subjects ?? [], attendance ?? [], snapshots ?? []),
+    [subjects, attendance, snapshots]
   );
   const semWindow = useMemo(
     () => semesterWindow(settings),
@@ -124,7 +125,15 @@ export default function Attendance() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
-        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Attendance</h1>
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Attendance</h1>
+          {overall.portalAsOf && (
+            <p className="mt-0.5 text-[11px] font-medium text-muted">
+              Portal totals as of {formatDate(overall.portalAsOf)} · classes marked since are
+              counted on top
+            </p>
+          )}
+        </div>
         <Button size="sm" onClick={() => setMarkDate(todayISO())}>
           <CalendarCheck2 className="h-4 w-4" /> Mark today
         </Button>

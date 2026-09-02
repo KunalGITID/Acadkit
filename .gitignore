@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# built bookmarklet — embeds the anon key + PIN
+scripts/portal-sync/dist/

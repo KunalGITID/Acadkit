@@ -54,7 +54,28 @@ export interface Mark {
   marks_obtained: number;
   max_marks: number;
   is_external: boolean;
+  /** "portal" rows are owned by the bookmarklet sync (migration 012). */
+  source?: MarkSource | null;
   added_at?: string;
+}
+
+export type MarkSource = "manual" | "portal";
+
+/**
+ * One subject's attendance as the portal last reported it. The portal
+ * only exposes totals, so this is the baseline that per-class records
+ * after `as_of` are layered onto.
+ */
+export interface PortalSnapshot {
+  id: string;
+  device_id: string;
+  subject_code: string;
+  conducted: number;
+  absent: number;
+  /** Percentage as printed by the portal, for cross-checking the parse. */
+  percentage: number | null;
+  as_of: string; // "YYYY-MM-DD"
+  synced_at?: string;
 }
 
 export type DeadlineType = "exam" | "assignment" | "lab" | "other";
