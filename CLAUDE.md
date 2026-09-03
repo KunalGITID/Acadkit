@@ -20,6 +20,11 @@ node environment with the `@/` alias.
 
 To regenerate PWA icons after changing the logo: `node scripts/generate-icons.mjs`
 
+After editing `src/data/semester.ts` for a new semester, regenerate the
+edge function's mirror of the calendar and redeploy:
+`node scripts/gen-edge-calendar.mjs`. `src/data/semester.test.ts` fails
+the build if the two drift.
+
 ## Architecture (v2 rebuild)
 
 AcadKit is a single-user academic PWA (React + Vite + TypeScript + Tailwind + framer-motion) for SRM KTR. There is no authentication — all data is scoped by a 4-digit PIN stored in `localStorage` (`src/lib/pin.ts`) and used as the `device_id` column on every Supabase row. Entering the same PIN on another device loads the same data; that's the entire sync model. New PINs are seeded (settings row + starter subjects) by `seedAccount` in `src/api/queries.ts`.
@@ -54,7 +59,7 @@ SRM uses a 5-day rotating schedule (Day 1–5), not weekdays. The canonical seme
 
 ### Pages & layout
 
-Six lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/timetable`, `/calendar`, `/settings`) plus `Onboarding`. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
+Nine lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/history`, `/settings`) plus `Onboarding`. `NAV_ITEMS` drives the sidebar and the bottom bar; `SECONDARY_NAV` (`/log`, `/history`) is sidebar-only, and `/insights` is filtered out of the bottom bar — five thumb targets is the cap. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
 
 ### Design system
 
@@ -63,6 +68,29 @@ Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.d
 ### Supabase
 
 Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`. Migrations in `supabase/migrations/`; RLS allows the anon role full access (device_id scoping is client-side). The v2 app runs on the v1 schema unchanged — no new migrations were needed.
+
+### Derived-decision libraries
+
+Four pure modules turn stored data into answers, all unit-tested and all
+free of React:
+
+- **`src/lib/autoMark.ts`** — `pendingAutoMarks` lists past scheduled
+  classes with no attendance row. Only the past (today stays open) and
+  never an overwrite (any existing record wins). Rows written carry
+  `auto_marked` (migration 013) so `deleteAutoMarks` can undo exactly
+  the app's guesses. Opt-in via `settings.auto_mark_present`; the runner
+  lives in `src/hooks/useAutoMark.ts` and fires once per app load.
+- **`src/lib/targets.ts`** — the reverse of the grade table: what the
+  next component must return for a target grade. Adding a component
+  grows the denominator too, so this is not "the gap".
+- **`src/lib/skipAdvice.ts`** — per-class verdicts for one day, spending
+  each subject's `skipBudget` cumulatively so a day with two classes of
+  one subject costs two. Drives the dashboard's verdict card.
+- **`src/lib/ics.ts`** — timetable → iCalendar. A day-order rotation
+  can't be an RRULE, so every class is its own VEVENT; UIDs are stable
+  so re-import updates rather than duplicates.
+- **`src/lib/shareCard.ts`** — `buildShareData` (pure, tested) feeds
+  `renderShareCard` (canvas, verified in-browser).
 
 ### Portal sync (bookmarklet)
 
