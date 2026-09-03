@@ -19,6 +19,9 @@ is verified manually via the preview. `vitest.config.ts` runs them in a
 node environment with the `@/` alias.
 
 To regenerate PWA icons after changing the logo: `node scripts/generate-icons.mjs`
+Then regenerate the iOS launch screens too: `node scripts/generate-splash.mjs`
+(writes `public/splash/` and the `<link>` tags to paste between the
+`splash:start`/`splash:end` markers in `index.html`).
 
 After editing `src/data/semester.ts` for a new semester, regenerate the
 edge function's mirror of the calendar and redeploy:
@@ -59,7 +62,30 @@ SRM uses a 5-day rotating schedule (Day 1–5), not weekdays. The canonical seme
 
 ### Pages & layout
 
-Nine lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/history`, `/settings`) plus `Onboarding`. `NAV_ITEMS` drives the sidebar and the bottom bar; `SECONDARY_NAV` (`/log`, `/history`) is sidebar-only, and `/insights` is filtered out of the bottom bar — five thumb targets is the cap. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
+Nine lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/history`, `/settings`) plus `Onboarding`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/history`) is listed inline in the sidebar on desktop and reached through the **More** sheet on mobile, which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
+
+### iOS PWA
+
+The app is installed to the home screen, so it has to behave like an app
+rather than a page in a browser that happens to be hidden:
+
+- **Launch screens.** `apple-touch-startup-image` for 11 iPhone sizes in
+  both colour schemes (iOS honours `prefers-color-scheme` in the startup
+  media query). Without them iOS shows a blank white screen between tap
+  and first paint. They are excluded from the Workbox precache via
+  `globIgnores` — Safari fetches them itself, and precaching ~600 KB of
+  images the service worker is never asked for would tax every install.
+- **16px form fields.** iOS zooms the viewport when a focused input is
+  under 16px. Every field is 16px, with a `@supports` backstop.
+- **No rubber-banding.** `overscroll-behavior: none` — standalone iOS has
+  no browser chrome to bounce against, so the bounce just exposes the
+  page background.
+- **Chrome isn't content.** Buttons, links and navs set
+  `-webkit-touch-callout: none`, `user-select: none` and
+  `touch-action: manipulation`; page content stays selectable.
+- Safe areas come from the `pt-safe-t` / `pb-safe-b` Tailwind spacing
+  tokens (`env(safe-area-inset-*)`), with `viewport-fit=cover` and a
+  `black-translucent` status bar.
 
 ### Design system
 

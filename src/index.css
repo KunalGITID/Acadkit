@@ -171,9 +171,35 @@
     overscroll-behavior-y: none;
     -webkit-tap-highlight-color: transparent;
     font-feature-settings: "cv11";
+    /* Standalone iOS has no browser chrome to rubber-band against, so a
+       bounce just exposes the page background and reads as a bug. */
+    overscroll-behavior: none;
   }
   #root {
     min-height: 100dvh;
+  }
+  /* Long-pressing a control in a native app doesn't offer to copy it or
+     preview a link, and a tab bar isn't text to be selected. Content
+     stays selectable — only chrome opts out. */
+  button,
+  a,
+  [role="button"],
+  [role="switch"],
+  nav {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    /* Skip the 300ms tap delay without disabling pinch-zoom globally. */
+    touch-action: manipulation;
+  }
+  /* iOS zooms the viewport when a focused field is under 16px. Every
+     field is 16px by design; this catches anything that slips through. */
+  @supports (-webkit-touch-callout: none) {
+    input,
+    select,
+    textarea {
+      font-size: max(16px, 1em);
+    }
   }
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button {

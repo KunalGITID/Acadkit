@@ -6,7 +6,7 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
     <input
       ref={ref}
       className={cn(
-        "h-12 w-full rounded-2xl border bg-surface-2/60 px-4 text-[15px] text-ink placeholder:text-muted/60",
+        "h-12 w-full rounded-2xl border bg-surface-2/60 px-4 text-[16px] text-ink placeholder:text-muted/60",
         "focus:border-accent/50 focus:bg-surface transition-colors",
         className
       )}
@@ -21,7 +21,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
     <select
       ref={ref}
       className={cn(
-        "h-12 w-full appearance-none rounded-2xl border bg-surface-2/60 px-4 text-[15px] text-ink",
+        "h-12 w-full appearance-none rounded-2xl border bg-surface-2/60 px-4 text-[16px] text-ink",
         "focus:border-accent/50 focus:bg-surface transition-colors",
         className
       )}

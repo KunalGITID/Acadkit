@@ -1,8 +1,10 @@
-import { Suspense, useEffect, useRef } from "react";
-import { Link, NavLink, useLocation, useOutlet } from "react-router-dom";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { Link, useLocation, useOutlet } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Settings, Sparkles } from "lucide-react";
+import { LayoutGrid, Settings, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { MoreSheet } from "@/components/layout/more-sheet";
+import { SECONDARY_NAV } from "@/components/layout/nav-items";
 import { Sidebar } from "@/components/layout/sidebar";
 import { OfflineBanner } from "@/components/layout/offline-banner";
 import { Skeleton } from "@/components/ui/misc";
@@ -61,6 +63,14 @@ export function AppShell() {
   const location = useLocation();
   const outlet = useOutlet();
   const direction = useTabSlideDirection(location.pathname);
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  // Light up the More button while one of its destinations is open,
+  // so the bar still says where you are.
+  const isSecondary = SECONDARY_NAV.some((i) => i.to === location.pathname);
+
+  // A route change means the sheet's job is done.
+  useEffect(() => setMoreOpen(false), [location.pathname]);
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[256px_1fr]">
@@ -77,19 +87,21 @@ export function AppShell() {
               <span className="text-[17px] font-extrabold tracking-tight">AcadKit</span>
             </Link>
             <div className="flex items-center gap-2">
-              <NavLink
-                to="/insights"
-                onClick={() => haptic()}
-                aria-label="Insights"
-                className={({ isActive }) =>
-                  cn(
-                    "flex h-10 w-10 items-center justify-center rounded-2xl border transition-colors",
-                    isActive ? "border-accent/40 bg-accent/15" : "bg-surface hover:bg-surface-2"
-                  )
-                }
+              <button
+                type="button"
+                onClick={() => {
+                  haptic();
+                  setMoreOpen(true);
+                }}
+                aria-label="More"
+                aria-haspopup="dialog"
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-2xl border transition-colors",
+                  isSecondary ? "border-accent/40 bg-accent/15" : "bg-surface hover:bg-surface-2"
+                )}
               >
-                <Sparkles className="h-5 w-5 text-accent" />
-              </NavLink>
+                <LayoutGrid className="h-5 w-5 text-accent" />
+              </button>
               <Link
                 to="/settings"
                 aria-label="Settings"
@@ -120,6 +132,7 @@ export function AppShell() {
         </main>
 
         <BottomNav />
+        <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} />
       </div>
     </div>
   );
