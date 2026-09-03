@@ -27,6 +27,10 @@ interface SyncApi {
   }>;
   tables: (docs: Document[]) => HTMLTableElement[];
   classify: (label: string) => string;
+  diagnose: (
+    found: { docs: Document[]; blocked: number },
+    all: HTMLTableElement[]
+  ) => string;
 }
 
 let api: SyncApi;
@@ -35,7 +39,8 @@ beforeAll(() => {
   const src = readFileSync(resolve(__dirname, "portal-sync.js"), "utf8")
     .replace("__SUPABASE_URL__", "https://example.supabase.co")
     .replace("__SUPABASE_ANON_KEY__", "test-key")
-    .replace("__PIN__", "1234");
+    .replace("__PIN__", "1234")
+    .replace("__DIAG_ONLY__", "false");
   (window as unknown as Record<string, unknown>).__ACADKIT_SYNC_TEST__ = true;
   new Function(src)();
   api = (window as unknown as Record<string, unknown>).__acadkitSync as SyncApi;
@@ -202,5 +207,51 @@ describe("attendance reported as classes attended", () => {
           <tr><td>21CSC201J</td><td>45</td></tr></table>`)
       )
     ).toEqual([]);
+  });
+});
+
+/**
+ * The capture step has to be useful on a portal that doesn't use <table>
+ * at all — otherwise a div-based report dumps `tables: []` and tells us
+ * only that the parser failed, not what the markup actually is.
+ */
+describe("diagnostics", () => {
+  const dump = (html: string) => {
+    document.body.innerHTML = html;
+    const found = { docs: [document], blocked: 0 };
+    return JSON.parse(api.diagnose(found, api.tables(found.docs)));
+  };
+
+  it("describes a div-based report that the table scrapers can't see", () => {
+    const out = dump(`<div class="rpt">
+      <div class="row"><span>21CSC201J</span><span>45</span><span>6</span></div>
+      <div class="row"><span>21CSC203J</span><span>40</span><span>2</span></div>
+      <div class="row"><span>21MAB201T</span><span>50</span><span>9</span></div>
+    </div>`);
+
+    expect(out.tables).toEqual([]);
+    const grid = out.grids.find((g: { rowCount: number }) => g.rowCount === 3);
+    expect(grid).toBeTruthy();
+    expect(grid.rowSignature).toBe("div.row");
+    expect(grid.sample[0]).toEqual(["21CSC201J", "45", "6"]);
+  });
+
+  it("records the hash, since the portal routes on it", () => {
+    location.hash = "#!/attendance";
+    expect(dump("<div></div>").hash).toBe("#!/attendance");
+    location.hash = "";
+  });
+
+  it("does not report a container whose repetition is really a table's", () => {
+    const out = dump(`<div class="wrap">
+      <table>
+        <tr><th>Course Code</th><th>Hours Conducted</th><th>Hours Absent</th></tr>
+        <tr><td>21CSC201J</td><td>45</td><td>6</td></tr>
+      </table>
+    </div>`);
+    expect(out.tables).toHaveLength(1);
+    expect(
+      out.grids.some((g: { container: string }) => g.container.startsWith("div.wrap"))
+    ).toBe(false);
   });
 });

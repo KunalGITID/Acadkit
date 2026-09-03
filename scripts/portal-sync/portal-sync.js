@@ -21,6 +21,11 @@
     pin: "__PIN__",
   };
 
+  // Built by `build.mjs --diagnostics`: no credentials are inlined and the
+  // panel only reports what it sees, so the capture step can be run on a
+  // portal we haven't taught the parser yet without handling any secrets.
+  var DIAG_ONLY = __DIAG_ONLY__;
+
   var norm = function (s) {
     return String(s == null ? "" : s).replace(/ /g, " ").replace(/\s+/g, " ").trim();
   };
@@ -278,6 +283,155 @@
     return [];
   }
 
+  // ---------- component-wise marks ----------
+
+  // sp.srmist.edu.in splits marks across two views: a summary table with
+  // one combined "2.00 / 5.00" total per subject, and a modal — one per
+  // subject, behind a "View Details" button — holding the labelled
+  // components. The summary alone is not enough: a total is not a test.
+
+  var RE_COMPONENT = /^component$/;
+  var RE_MARK_PAIR = /mark\s*\/\s*max/;
+  var RE_DETAIL_BTN = "button[onclick*='ComponentWiseMarks']";
+
+  /** "2.00 / 5.00" -> { obtained: 2, max: 5 }. "Abs" counts as 0. */
+  function splitPair(text) {
+    var m = norm(text).match(
+      /^(Abs(?:ent)?|\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/i
+    );
+    if (!m) return null;
+    return {
+      obtained: /^abs/i.test(m[1]) ? 0 : parseFloat(m[1]),
+      max: parseFloat(m[2]),
+    };
+  }
+
+  /**
+   * The component modal: "Entered on | Component | Mark / Max. Mark".
+   * The subject is the row that opened the modal, not a column, so the
+   * code is passed in rather than read off the table.
+   */
+  function scrapeComponents(all, code) {
+    for (var t = 0; t < all.length; t++) {
+      var hs = headers(all[t]);
+      var iComp = col(hs, RE_COMPONENT);
+      var iPair = col(hs, RE_MARK_PAIR);
+      if (iComp < 0 || iPair < 0) continue;
+
+      var rows = bodyRows(all[t]);
+      var out = [];
+      for (var r = 0; r < rows.length; r++) {
+        var c = cellsOf(rows[r]);
+        if (!c || c.length <= Math.max(iComp, iPair)) continue;
+        var label = norm(c[iComp].textContent);
+        var pair = splitPair(c[iPair].textContent);
+        if (!label || !pair) continue;
+        out.push({
+          subject_code: code,
+          label: label,
+          max_marks: pair.max,
+          marks_obtained: pair.obtained,
+          component_type: classify(label),
+        });
+      }
+      if (out.length) return out;
+    }
+    return [];
+  }
+
+  /** The summary table whose rows carry a "View Details" button. */
+  function findDetailTable(all) {
+    for (var t = 0; t < all.length; t++) {
+      var iCode = col(headers(all[t]), RE_CODE);
+      if (iCode < 0) continue;
+      if (!all[t].querySelector(RE_DETAIL_BTN)) continue;
+      return { table: all[t], iCode: iCode };
+    }
+    return null;
+  }
+
+  function sleep(ms) {
+    return new Promise(function (r) { setTimeout(r, ms); });
+  }
+
+  /**
+   * Poll for the open modal's component table. `prev` is the text of the
+   * last one read, so a modal that hasn't repainted yet isn't scraped
+   * twice under the wrong subject.
+   */
+  /**
+   * Bootstrap marks an open modal with `.show` (`.in` on v3). offsetParent
+   * is not a usable signal here — it reads null on this portal's modal
+   * even while it's on screen.
+   */
+  function isOpen(el) {
+    return !!(el.className && /(^|\s)(show|in)(\s|$)/.test(el.className));
+  }
+
+  function awaitModal(prev, tries) {
+    var mods = document.querySelectorAll(".modal");
+    for (var i = 0; i < mods.length; i++) {
+      if (!isOpen(mods[i])) continue;
+      var tbl = mods[i].querySelectorAll("table");
+      for (var j = 0; j < tbl.length; j++) {
+        var hs = headers(tbl[j]);
+        if (col(hs, RE_COMPONENT) < 0) continue;
+        var text = norm(tbl[j].textContent);
+        if (text && text !== prev) return Promise.resolve({ table: tbl[j], text: text });
+      }
+    }
+    if (tries <= 0) return Promise.resolve(null);
+    return sleep(250).then(function () { return awaitModal(prev, tries - 1); });
+  }
+
+  function closeModal() {
+    var btn = document.querySelector(
+      ".modal.show [data-dismiss='modal'], .modal.show [data-bs-dismiss='modal']"
+    );
+    if (btn) btn.click();
+    return sleep(400);
+  }
+
+  /**
+   * Open each subject's modal in turn and read its components. Clicking
+   * is the only way in — calling the portal's own handler directly
+   * throws on its jQuery build ($.post(...).error is not a function).
+   */
+  function collectComponentMarks(all, log) {
+    var found = findDetailTable(all);
+    if (!found) return Promise.resolve([]);
+
+    var rows = bodyRows(found.table);
+    var out = [];
+    var prev = "";
+
+    function step(i) {
+      if (i >= rows.length) return Promise.resolve(out);
+      var c = cellsOf(rows[i]);
+      var btn = rows[i].querySelector(RE_DETAIL_BTN);
+      var code = c && c.length > found.iCode
+        ? norm(c[found.iCode].textContent).toUpperCase()
+        : "";
+      if (!btn || !code) return step(i + 1);
+
+      btn.click();
+      return awaitModal(prev, 20)
+        .then(function (hit) {
+          if (!hit) {
+            if (log) log("No component detail opened for " + code + " — skipped.");
+            return;
+          }
+          prev = hit.text;
+          var got = scrapeComponents([hit.table], code);
+          for (var k = 0; k < got.length; k++) out.push(got[k]);
+        })
+        .then(closeModal)
+        .then(function () { return step(i + 1); });
+    }
+
+    return step(0);
+  }
+
   // ---------- supabase (PostgREST) ----------
 
   function rest(path, opts) {
@@ -427,6 +581,54 @@
    * sample rows with cell text truncated. This is what to send when the
    * scrapers come up empty on a portal whose markup we haven't seen.
    */
+  /**
+   * Repeating non-<table> structures, for portals that lay their reports
+   * out in divs. Without this a table-less page yields an empty dump, which
+   * says only that the parser found nothing and not what is actually there.
+   *
+   * A candidate is any container whose element children repeat a tag+class
+   * signature at least three times, each with 2+ children of its own.
+   */
+  function gridsIn(docs, clip) {
+    var out = [];
+    var sig = function (el) {
+      return el.tagName.toLowerCase() + "." + norm(el.className || "").replace(/\s+/g, ".");
+    };
+    for (var d = 0; d < docs.length && out.length < 12; d++) {
+      var nodes = docs[d].querySelectorAll(
+        "[role=grid],[role=table],[role=rowgroup],div,ul,ol,section"
+      );
+      for (var i = 0; i < nodes.length && out.length < 12; i++) {
+        var children = nodes[i].children || [];
+        if (children.length < 3) continue;
+        var first = sig(children[0]);
+        if (!first) continue;
+        var same = 0;
+        for (var c = 0; c < children.length; c++) if (sig(children[c]) === first) same++;
+        if (same < 3 || same < children.length - 1) continue;
+        if ((children[0].children || []).length < 2) continue;
+        // Skip a container whose repetition is inherited from a child that
+        // already qualified — the outermost match describes it better.
+        if (nodes[i].querySelector("table")) continue;
+
+        var rows = [];
+        for (var r = 0; r < Math.min(3, children.length); r++) {
+          var cells = children[r].children || [];
+          var line = [];
+          for (var k = 0; k < cells.length; k++) line.push(clip(cells[k].textContent));
+          rows.push(line);
+        }
+        out.push({
+          container: sig(nodes[i]),
+          rowSignature: first,
+          rowCount: same,
+          sample: rows,
+        });
+      }
+    }
+    return out;
+  }
+
   function diagnose(found, all) {
     var clip = function (t) {
       t = norm(t);
@@ -434,9 +636,14 @@
     };
     var out = {
       url: location.origin + location.pathname,
+      // The JSP portal routes on the hash, so the fragment is the only
+      // record of which report was actually on screen when this ran.
+      hash: location.hash || "",
+      title: clip(document.title),
       documents: found.docs.length,
       blockedFrames: found.blocked,
       tables: [],
+      grids: gridsIn(found.docs, clip),
     };
     for (var i = 0; i < all.length; i++) {
       var rows = bodyRows(all[i]);
@@ -504,15 +711,18 @@
       "#log{padding:0 20px 4px;font-size:12px;color:#5b616e;white-space:pre-line}" +
       "</style>" +
       "<div class=bg><div class=card>" +
-      "<h2>AcadKit — sync from portal</h2>" +
+      "<h2>AcadKit — " + (DIAG_ONLY ? "portal diagnostics" : "sync from portal") + "</h2>" +
       "<p class=note>" + note + "</p>" +
       "<div class=scroll><table>" + rows + "</table></div>" +
       "<div id=log></div>" +
       "<div class=foot><button class=x id=diag>Copy diagnostics</button>" +
       "<span style=flex:1></span>" +
-      "<button class=x id=cancel>Cancel</button>" +
-      "<button class=go id=go" + (rows.indexOf("empty") > -1 ? " disabled" : "") + ">Sync to AcadKit</button></div>" +
-      "</div></div>";
+      "<button class=x id=cancel>Close</button>" +
+      (DIAG_ONLY
+        ? ""
+        : "<button class=go id=go" + (rows.indexOf("empty") > -1 ? " disabled" : "") +
+          ">Sync to AcadKit</button>") +
+      "</div></div></div>";
 
     var logEl = root.getElementById("log");
     var log = function (line) {
@@ -523,7 +733,7 @@
       host.remove();
     };
 
-    root.getElementById("diag").onclick = function () {
+    var showDiag = function () {
       // Shown in a textarea as well as copied: clipboard access is blocked
       // in some embedded contexts, and this must never silently do nothing.
       var box = root.querySelector(".scroll");
@@ -542,6 +752,14 @@
         /* textarea selection is the fallback */
       }
     };
+    root.getElementById("diag").onclick = showDiag;
+
+    if (DIAG_ONLY) {
+      // Nothing to preview and nothing to write — the dump is the payload.
+      showDiag();
+      return;
+    }
+
     root.getElementById("go").onclick = function () {
       var btn = root.getElementById("go");
       btn.disabled = true;
@@ -567,10 +785,15 @@
     window.__acadkitSync = {
       scrapeAttendance: scrapeAttendance,
       scrapeMarks: scrapeMarks,
+      scrapeComponents: scrapeComponents,
+      collectComponentMarks: collectComponentMarks,
+      findDetailTable: findDetailTable,
+      splitPair: splitPair,
       tables: tables,
       documents: documents,
       classify: classify,
       splitHead: splitHead,
+      diagnose: diagnose,
     };
     return;
   }
@@ -580,6 +803,19 @@
   var attendance = scrapeAttendance(all);
   var marks = scrapeMarks(all);
 
+  // Portals that hide components behind a per-subject modal read as zero
+  // marks on the summary page. Walk the modals before deciding there's
+  // nothing here.
+  if (!marks.length && findDetailTable(all)) {
+    collectComponentMarks(all, null).then(function (got) {
+      render(attendance, got);
+    });
+    return;
+  }
+
+  render(attendance, marks);
+
+  function render(attendance, marks) {
   var note;
   if (attendance.length || marks.length) {
     note =
@@ -598,5 +834,6 @@
       "“Copy diagnostics” to capture this page's table structure.";
   }
 
-  panel(attendance, marks, note, diagnose(found, all));
+    panel(attendance, marks, note, diagnose(found, all));
+  }
 })();

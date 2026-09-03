@@ -78,6 +78,17 @@ The output embeds the anon key + PIN and is gitignored. `portal-sync.js` is
 the readable source; the build inlines credentials, minifies with esbuild,
 and emits a drag-to-bookmarks install page.
 
+```bash
+node scripts/portal-sync/build.mjs --diagnostics   # → dist/diagnostics.html
+```
+
+`--diagnostics` builds the same script with `DIAG_ONLY` set: no credentials
+are inlined, the sync button is gone, and the panel opens straight to the
+dump. It is the first step on a portal the parser hasn't been taught, since
+it can be run without handling any secrets. The dump also lists **`grids`** —
+repeating non-`<table>` structures — so a report laid out in divs describes
+itself instead of coming back as an empty `tables: []`.
+
 Parsing matches on **header text**, never DOM paths, because these portals
 regenerate class names between deploys. Attendance needs a code column, a
 conducted column, and either an absent or a present/attended column
@@ -89,11 +100,30 @@ Ambiguous markup yields nothing rather than a guess. Tests live in
 `scripts/portal-sync/portal-sync.test.ts` (happy-dom) against synthetic
 fixtures — swap in real saved markup when the portal shape is confirmed.
 
-The fixtures were written against `academia.srmist.edu.in` (Zoho Creator).
-The student portal at `sp.srmist.edu.in` is a different JSP app with a `#!`
-hash router and has **not** been verified. The panel's "Copy diagnostics"
-button dumps every table's headers and two sample rows, which is the input
-needed to teach the parser a portal it doesn't yet recognise.
+The `academia.srmist.edu.in` (Zoho Creator) fixtures are still synthetic.
+The student portal at `sp.srmist.edu.in` — a different JSP app with a `#!`
+hash router — **is** verified: `scripts/portal-sync/sp-portal.test.ts` holds
+verbatim markup captured from it, and the panel's "Copy diagnostics" button
+remains the way to teach the parser a portal it doesn't yet recognise.
+
+On `sp.srmist.edu.in`:
+
+- **Attendance** needed no changes. Its "Max. hours / Att. hours / Absent
+  hours" headers already satisfy the conducted/absent matching, and the
+  month-wise summary below it is correctly ignored for having no code column.
+- **Marks are split across two views.** "Internal Mark Details" lists one
+  combined `2.00 / 5.00` total per subject — a total is not a test, so it is
+  deliberately not written — and the labelled components ("Entered on |
+  Component | Mark / Max. Mark") live in a modal behind a per-row "View
+  Details" button. `collectComponentMarks` opens each row's modal in turn,
+  reads it with the code from the summary row, and closes it. The subject is
+  the row that opened the modal, not a column, so `scrapeComponents` takes
+  the code as an argument.
+- **Clicking the button is the only way in.** Calling the portal's own
+  `funViewComponentWiseMarks` directly throws on its jQuery build
+  (`$.post(...).error is not a function`). A synthetic `btn.click()` works.
+- **Detect an open modal by its `.show` class, not `offsetParent`**, which
+  reads null on this portal even while the modal is on screen.
 
 **Attendance is a snapshot, not per-class rows.** The portal only reports
 per-subject totals, which can't go in `attendance` without inventing dates.
