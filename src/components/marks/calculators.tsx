@@ -12,10 +12,14 @@ import {
   type Grade,
   type SubjectMarks,
 } from "@/lib/grades";
+import { targetsFor } from "@/lib/targets";
 import { cn } from "@/lib/utils";
 import type { Subject } from "@/types";
 
 type Row = { subject: Subject; marks: SubjectMarks };
+
+/** External needed · internals needed · marks needed on the next component. */
+type CalcMode = "external" | "internal" | "component";
 
 const TARGET_GRADES = GRADE_TABLE.filter((g) => g.grade !== "F");
 
@@ -68,9 +72,12 @@ function GradeChips({
 
 function WhatDoINeedCard({ rows }: { rows: Row[] }) {
   const [subjectId, setSubjectId] = useState(rows[0]?.subject.id ?? "");
-  const [mode, setMode] = useState<"external" | "internal">("external");
+  const [mode, setMode] = useState<CalcMode>("external");
   const [grade, setGrade] = useState<Grade>("A+");
   const [expectedExt, setExpectedExt] = useState("30");
+  // The portal reports components like "FT-I 2.00 / 5.00", so the next
+  // one is usually worth single digits, not 40.
+  const [nextMax, setNextMax] = useState("5");
 
   const row = rows.find((r) => r.subject.id === subjectId) ?? rows[0];
   if (!row) return null;
@@ -80,7 +87,45 @@ function WhatDoINeedCard({ rows }: { rows: Row[] }) {
   const scaled = internalScaled(row);
 
   let verdict: React.ReactNode;
-  if (isInternalOnly) {
+  // Component mode is checked first so it also works for internal-only
+  // subjects, where a single upcoming test moves the whole grade.
+  if (mode === "component") {
+    const upcoming = Math.max(0, Number(nextMax) || 0);
+    const targets = targetsFor(row.marks, upcoming);
+    const hit = targets.find((t) => t.grade === grade);
+    verdict = !hit ? (
+      <p className="text-sm font-semibold text-muted">
+        Enter what the next component is out of.
+      </p>
+    ) : (
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-muted">
+          Internals so far:{" "}
+          <span className="tabular">
+            {row.marks.internalObtained}/{row.marks.internalMax}
+          </span>
+        </p>
+        {hit.secured ? (
+          <p className="text-sm font-bold text-good-deep">
+            {grade} holds even if you score zero on this one.
+          </p>
+        ) : !hit.achievable ? (
+          <p className="text-sm font-bold text-bad-deep">
+            {grade} not reachable from this component alone — it would need{" "}
+            {hit.required}/{upcoming}.
+          </p>
+        ) : (
+          <p className="text-sm font-bold">
+            You need ≥{" "}
+            <span className="tabular text-accent">
+              {hit.required}/{upcoming}
+            </span>{" "}
+            on the next component for {grade}.
+          </p>
+        )}
+      </div>
+    );
+  } else if (isInternalOnly) {
     const pace = row.marks.hasAnyMarks ? row.marks.predictedTotal : null;
     verdict = (
       <div className="space-y-1">
@@ -163,16 +208,36 @@ function WhatDoINeedCard({ rows }: { rows: Row[] }) {
         </Select>
       </Field>
 
-      {!isInternalOnly && (
-        <Segmented
-          layoutId="calc-mode"
-          options={[
-            { value: "external", label: "Internals → External needed" },
-            { value: "internal", label: "Set external → Internal needed" },
-          ]}
-          value={mode}
-          onChange={(v) => setMode(v as "external" | "internal")}
-        />
+      <Segmented
+        layoutId="calc-mode"
+        options={
+          // An internal-only subject has no end sem, so the two
+          // external-facing modes collapse to a single pace view.
+          isInternalOnly
+            ? [
+                { value: "external", label: "Pace" },
+                { value: "component", label: "Next test" },
+              ]
+            : [
+                { value: "external", label: "External needed" },
+                { value: "internal", label: "Internals needed" },
+                { value: "component", label: "Next test" },
+              ]
+        }
+        value={isInternalOnly && mode === "internal" ? "external" : mode}
+        onChange={(v) => setMode(v as CalcMode)}
+      />
+
+      {mode === "component" && (
+        <Field label="Next component is out of">
+          <Input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            value={nextMax}
+            onChange={(e) => setNextMax(e.target.value)}
+          />
+        </Field>
       )}
 
       {mode === "internal" && !isInternalOnly && (
