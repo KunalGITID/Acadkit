@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Copy, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { NAV_ITEMS, SETTINGS_ITEM } from "@/components/layout/nav-items";
+import { NAV_ITEMS, SECONDARY_NAV, SETTINGS_ITEM } from "@/components/layout/nav-items";
 import { DayOrderChip } from "@/components/layout/day-order-chip";
 import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,7 @@ export function Sidebar() {
       </div>
 
       <nav className="mt-6 flex flex-1 flex-col gap-1" aria-label="Primary">
-        {[...NAV_ITEMS, SETTINGS_ITEM].map((item) => (
+        {[...NAV_ITEMS, ...SECONDARY_NAV, SETTINGS_ITEM].map((item) => (
           <NavLink key={item.to} to={item.to} end={item.to === "/"}>
             {({ isActive }) => (
               <span

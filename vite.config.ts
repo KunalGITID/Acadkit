@@ -80,6 +80,32 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        /**
+         * Vendor code changes far less often than app code. Splitting it
+         * out means a normal release only invalidates the app chunk, so
+         * returning users re-download kilobytes instead of the whole
+         * bundle — which matters more here than raw size, because the
+         * service worker precaches every chunk it hasn't seen.
+         */
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/.test(id))
+            return "vendor-react";
+          if (id.includes("@supabase")) return "vendor-supabase";
+          if (id.includes("framer-motion") || id.includes("motion-dom") || id.includes("motion-utils"))
+            return "vendor-motion";
+          if (id.includes("@tanstack")) return "vendor-query";
+          // No catch-all bucket: a generic "vendor" chunk ends up in a
+          // cycle with vendor-react. Everything else stays where rollup
+          // puts it.
+        },
+      },
+    },
+  },
+
   server: {
     port: Number(process.env.PORT) || 5173,
     strictPort: false,

@@ -2,7 +2,9 @@ import {
   CalendarDays,
   Clock3,
   GraduationCap,
+  History,
   House,
+  ListX,
   Settings,
   Sparkles,
   UserCheck,
@@ -22,6 +24,15 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/insights", label: "Insights", icon: Sparkles },
   { to: "/timetable", label: "Timetable", icon: Clock3 },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
+];
+
+/**
+ * Reachable from the sidebar and from Settings, but kept out of the
+ * bottom bar — five targets is already the most a thumb wants.
+ */
+export const SECONDARY_NAV: NavItem[] = [
+  { to: "/log", label: "Absences", icon: ListX },
+  { to: "/history", label: "History", icon: History },
 ];
 
 export const SETTINGS_ITEM: NavItem = { to: "/settings", label: "Settings", icon: Settings };
