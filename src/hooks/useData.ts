@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import * as api from "@/api/queries";
 import { broadcastInvalidate } from "@/lib/broadcast";
 import { useAppStore } from "@/store/app";
+import type { PendingMark } from "@/lib/autoMark";
 import type {
   AttendanceRecord,
   Deadline,
@@ -226,6 +227,42 @@ export function useUnmarkAttendance() {
 }
 
 // ---------- marks ----------
+
+/**
+ * Fill in every past unmarked class as present. Not optimistic: the row
+ * count matters to the user, and a bulk write that quietly rolled back
+ * would leave the attendance page lying.
+ */
+export function useAutoMark() {
+  const pin = usePin();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: PendingMark[]) => api.insertAutoMarks(pin, rows),
+    onSuccess: (count) => {
+      void qc.invalidateQueries({ queryKey: ["attendance", pin] });
+      broadcastInvalidate(["attendance"]);
+      toast.success(
+        count ? `Marked ${count} past class${count > 1 ? "es" : ""} present` : "Already up to date"
+      );
+    },
+    onError: () => toast.error("Couldn't auto-mark attendance"),
+  });
+}
+
+/** Undo: delete only the rows auto-marking created. */
+export function useClearAutoMarks() {
+  const pin = usePin();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.deleteAutoMarks(pin),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["attendance", pin] });
+      broadcastInvalidate(["attendance"]);
+      toast.success("Removed auto-marked classes");
+    },
+    onError: () => toast.error("Couldn't remove auto-marked classes"),
+  });
+}
 
 export function useMarks() {
   const pin = usePin();

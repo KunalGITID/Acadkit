@@ -293,6 +293,43 @@ export async function deleteAttendance(
   throwIf(error);
 }
 
+/**
+ * Write auto-marked `present` rows for past classes the user never
+ * touched. Uses ignoreDuplicates so a row that appeared since the
+ * pending list was computed is skipped rather than overwritten — the
+ * user's answer always wins over the app's assumption.
+ */
+export async function insertAutoMarks(
+  pin: string,
+  rows: Array<Pick<AttendanceRecord, "subject_id" | "date" | "start_time" | "end_time">>
+): Promise<number> {
+  if (!rows.length) return 0;
+  const payload = rows.map((r) => ({
+    ...r,
+    device_id: pin,
+    status: "present" as const,
+    auto_marked: true,
+  }));
+  const { error } = await supabase
+    .from("attendance")
+    .upsert(payload, {
+      onConflict: "device_id,subject_id,date,start_time",
+      ignoreDuplicates: true,
+    });
+  throwIf(error);
+  return rows.length;
+}
+
+/** Remove every auto-marked row, leaving hand-marked history untouched. */
+export async function deleteAutoMarks(pin: string): Promise<void> {
+  const { error } = await supabase
+    .from("attendance")
+    .delete()
+    .eq("device_id", pin)
+    .eq("auto_marked", true);
+  throwIf(error);
+}
+
 // ---------- marks ----------
 
 export async function fetchMarks(pin: string): Promise<Mark[]> {

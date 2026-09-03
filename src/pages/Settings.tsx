@@ -27,6 +27,7 @@ import {
   Sun,
   Trash2,
   Upload,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -48,9 +49,18 @@ import {
   PENDING_MIGRATIONS_SQL,
   type AcadkitExport,
 } from "@/api/queries";
-import { useSettings, useSubjects, useUpdateSettings } from "@/hooks/useData";
+import {
+  useAttendance,
+  useAutoMark,
+  useClearAutoMarks,
+  useSettings,
+  useSubjects,
+  useUpdateSettings,
+} from "@/hooks/useData";
 import { semesterWindow } from "@/lib/calendar";
 import { isValidPin } from "@/lib/pin";
+import { describePending } from "@/lib/autoMark";
+import { usePendingAutoMarks } from "@/hooks/useAutoMark";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore, type ColorMode, type ThemeName } from "@/store/app";
 import type { Subject } from "@/types";
@@ -662,6 +672,88 @@ function ThemePicker() {
   );
 }
 
+/**
+ * Auto-marking is opt-in and reversible, and says exactly how many rows
+ * it would write before it writes any of them. Inventing attendance
+ * silently would be worse than the daily friction it removes.
+ */
+function AutoMarkCard() {
+  const { data: settings } = useSettings();
+  const update = useUpdateSettings();
+  const pending = usePendingAutoMarks();
+  const autoMark = useAutoMark();
+  const clearAuto = useClearAutoMarks();
+  const { data: attendance } = useAttendance();
+
+  const on = settings?.auto_mark_present === true;
+  const autoCount = (attendance ?? []).filter((a) => a.auto_marked).length;
+
+  return (
+    <section className="card space-y-4 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-good/10 text-good-deep">
+            <Wand2 className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-bold">Assume present</p>
+            <p className="text-xs text-muted">
+              Past classes you never marked count as attended. You only record the
+              days you missed.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label="Assume present for unmarked past classes"
+          onClick={() => update.mutate({ auto_mark_present: !on })}
+          className={cn(
+            "relative h-7 w-12 shrink-0 rounded-full transition-colors",
+            on ? "bg-good" : "bg-surface-2"
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform",
+              on ? "translate-x-6" : "translate-x-1"
+            )}
+          />
+        </button>
+      </div>
+
+      <p className="text-xs text-muted">{describePending(pending)}</p>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!pending.length || autoMark.isPending}
+          onClick={() => autoMark.mutate(pending)}
+        >
+          {autoMark.isPending ? "Marking…" : "Catch up now"}
+        </Button>
+        {autoCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={clearAuto.isPending}
+            onClick={() => clearAuto.mutate()}
+          >
+            Undo {autoCount} auto-marked
+          </Button>
+        )}
+      </div>
+
+      <p className="text-[11px] text-muted">
+        Today's classes are never auto-marked, and anything you marked by hand —
+        present, absent, or cancelled — is never changed.
+      </p>
+    </section>
+  );
+}
+
 export default function Settings() {
   const themeMode = useAppStore((s) => s.themeMode);
   const setThemeMode = useAppStore((s) => s.setThemeMode);
@@ -713,6 +805,7 @@ export default function Settings() {
       <div className="space-y-3">
         <SectionTitle>Academics</SectionTitle>
         <SemesterDatesCard />
+        <AutoMarkCard />
         <Link
           to="/log"
           className="card flex items-center justify-between p-5 transition-transform active:scale-[0.99]"

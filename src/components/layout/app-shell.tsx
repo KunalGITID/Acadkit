@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { OfflineBanner } from "@/components/layout/offline-banner";
 import { Skeleton } from "@/components/ui/misc";
 import { useSync } from "@/hooks/useSync";
+import { useAutoMarkRunner } from "@/hooks/useAutoMark";
 import { cn, haptic } from "@/lib/utils";
 
 function PageFallback() {
@@ -56,6 +57,7 @@ const pageVariants = {
 
 export function AppShell() {
   useSync();
+  useAutoMarkRunner();
   const location = useLocation();
   const outlet = useOutlet();
   const direction = useTabSlideDirection(location.pathname);

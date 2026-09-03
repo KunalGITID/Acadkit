@@ -41,6 +41,8 @@ export interface AttendanceRecord {
   start_time: string;
   end_time: string;
   status: AttendanceStatus;
+  /** Written by auto-marking, not the user (migration 013). */
+  auto_marked?: boolean | null;
 }
 
 export type MarkComponentType = "CT" | "Lab" | "Assignment" | "Project" | "External";
@@ -134,4 +136,6 @@ export interface Settings {
   sem_end: string | null;
   declared_holidays: DeclaredHoliday[];
   current_day_order: number;
+  /** Assume past scheduled classes were attended (migration 013). */
+  auto_mark_present?: boolean | null;
 }
