@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
-import { Pencil, Plus, Target, TrendingUp } from "lucide-react";
+import { Pencil, Plus, Share2, Target, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Dot, Skeleton } from "@/components/ui/misc";
 import { SgpaDial } from "@/components/viz/sgpa-dial";
@@ -8,10 +9,72 @@ import { GradeBadge } from "@/components/viz/grade-badge";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { MarkSheet } from "@/components/sheets/mark-sheet";
 import { MarksCalculators } from "@/components/marks/calculators";
-import { useMarks, useSubjects } from "@/hooks/useData";
+import {
+  useAttendance,
+  useMarks,
+  usePortalSnapshots,
+  useSettings,
+  useSubjects,
+} from "@/hooks/useData";
 import { Segmented } from "@/components/ui/segmented";
 import { computeSgpa, groupMarksBySubject, type SubjectMarks } from "@/lib/grades";
+import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
+import { computeOverallAttendance } from "@/lib/attendance";
 import type { Mark, Subject } from "@/types";
+
+/**
+ * Renders the semester to a PNG and hands it to the OS share sheet,
+ * falling back to a download where Web Share can't take files.
+ */
+function ShareButton({
+  rows,
+  sgpa,
+}: {
+  rows: Array<{ subject: Subject; marks: SubjectMarks }>;
+  sgpa: number | null;
+}) {
+  const { data: settings } = useSettings();
+  const { data: attendance } = useAttendance();
+  const { data: snapshots } = usePortalSnapshots();
+  const [busy, setBusy] = useState(false);
+
+  async function onShare() {
+    setBusy(true);
+    try {
+      const overall = computeOverallAttendance(
+        rows.map((r) => r.subject),
+        attendance ?? [],
+        snapshots ?? []
+      );
+      const data = buildShareData({
+        name: settings?.name,
+        semester: settings?.semester,
+        sgpa,
+        attendancePct: overall.percentage,
+        subjects: rows.map((r) => ({
+          code: r.subject.code,
+          grade: r.marks.grade,
+          color: r.subject.color_hex,
+          hasMarks: r.marks.hasAnyMarks,
+        })),
+      });
+      const blob = await renderShareCard(data);
+      const how = await shareCard(blob, "acadkit-semester.png");
+      toast.success(how === "shared" ? "Shared" : "Image saved");
+    } catch (err) {
+      toast.error((err as Error)?.message ?? "Couldn't create the image");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Button variant="secondary" size="sm" disabled={busy} onClick={onShare}>
+      <Share2 className="h-4 w-4" />
+      {busy ? "Rendering…" : "Share"}
+    </Button>
+  );
+}
 
 function Bar({ value, max, color }: { value: number; max: number; color: string }) {
   return (
@@ -155,6 +218,7 @@ export default function Marks() {
           onChange={setView}
           className="w-56"
         />
+        <ShareButton rows={result.rows} sgpa={result.sgpa} />
       </div>
 
       <AnimatePresence mode="popLayout" initial={false}>

@@ -181,6 +181,71 @@ Deno.serve(async (req) => {
         }
       }
     }
+
+    // 5) Morning verdict (08:00): can today actually be skipped?
+    //
+    // Mirrors src/lib/skipAdvice.ts — a subject's skip budget is how
+    // many future classes it can still miss and finish at or above 75%:
+    //   attended + remaining - k >= 0.75 * (held + remaining)
+    // Today's repeats of one subject spend the budget cumulatively, so
+    // the day is walked rather than each class judged on its own.
+    if (ist.getHours() === 8 && dayOrder && todaySlots.length) {
+      const eff = effectiveMap(declared);
+      const remaining = new Map<string, number>();
+      for (const [d, order] of Object.entries(eff)) {
+        if (d < date || d > SEMESTER_END) continue;
+        for (const slot of timetable ?? []) {
+          if (slot.day_order !== order) continue;
+          remaining.set(slot.subject_id, (remaining.get(slot.subject_id) ?? 0) + 1);
+        }
+      }
+
+      const held = new Map<string, { p: number; t: number }>();
+      for (const a of attendance ?? []) {
+        if (a.status !== "present" && a.status !== "absent") continue;
+        const e = held.get(a.subject_id) ?? { p: 0, t: 0 };
+        if (a.status === "present") e.p++;
+        e.t++;
+        held.set(a.subject_id, e);
+      }
+
+      const spent = new Map<string, number>();
+      const mustAttend: string[] = [];
+      for (const slot of todaySlots) {
+        const { p = 0, t = 0 } = held.get(slot.subject_id) ?? {};
+        const rem = remaining.get(slot.subject_id) ?? 0;
+        const budget = Math.floor(p + rem - 0.75 * (t + rem));
+        const used = (spent.get(slot.subject_id) ?? 0) + 1;
+        spent.set(slot.subject_id, used);
+        if (budget - used < 0) {
+          const name = subjName.get(slot.subject_id) ?? "A subject";
+          if (!mustAttend.includes(name)) mustAttend.push(name);
+        }
+      }
+
+      msgs.push(
+        mustAttend.length
+          ? {
+              device_id: pin,
+              kind: "verdict",
+              ref: `verdict|${date}`,
+              title: `Attend today — ${mustAttend[0]} can't afford it`,
+              body:
+                mustAttend.length > 1
+                  ? `${mustAttend.length} subjects today are out of skip budget.`
+                  : "Missing today drops you below 75%.",
+              url: "/",
+            }
+          : {
+              device_id: pin,
+              kind: "verdict",
+              ref: `verdict|${date}`,
+              title: `Safe to skip today's ${todaySlots.length} class${todaySlots.length > 1 ? "es" : ""}`,
+              body: "Every subject today still has skip budget left.",
+              url: "/",
+            }
+      );
+    }
   }
 
   // Dedupe + send
