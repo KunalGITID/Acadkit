@@ -10,6 +10,8 @@ import {
   Clock3,
   PartyPopper,
   Plus,
+  ShieldCheck,
+  Siren,
   Sunrise,
   X,
 } from "lucide-react";
@@ -28,12 +30,15 @@ import {
   useMarks,
   useSettings,
   useSubjects,
+  useTimetable,
   useUpdateDeadline,
 } from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
 import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
-import { daysUntilSemesterStart, semesterWindow } from "@/lib/calendar";
-import { formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
+import { buildEffectiveMap, daysUntilSemesterStart, semesterWindow } from "@/lib/calendar";
+import { formatDate, formatDateLong, formatTimeRange, timeToMinutes, todayISO } from "@/lib/dates";
+import { buildProjection } from "@/lib/projections";
+import { skipAdviceFor } from "@/lib/skipAdvice";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
@@ -189,6 +194,141 @@ function TodayCard() {
           </div>
         )}
       </div>
+    </section>
+  );
+}
+
+/**
+ * The verdict card. Everything else on this page reports a number; this
+ * answers the question the number is a proxy for — can I skip the next
+ * class day, and if not, by when do I have to act.
+ */
+function VerdictCard() {
+  const { data: subjects } = useSubjects();
+  const { data: attendance } = useAttendance();
+  const { data: timetable } = useTimetable();
+  const { data: marks } = useMarks();
+  const { data: settings } = useSettings();
+
+  const report = useMemo(() => {
+    if (!subjects?.length || !timetable?.length) return null;
+    return buildProjection(
+      subjects,
+      attendance ?? [],
+      timetable,
+      marks ?? [],
+      settings?.declared_holidays ?? [],
+      todayISO(),
+      semesterWindow(settings)
+    );
+  }, [subjects, attendance, timetable, marks, settings]);
+
+  const next = useMemo(() => {
+    if (!settings && !subjects) return null;
+    const window = semesterWindow(settings);
+    const effMap = buildEffectiveMap(settings?.declared_holidays ?? [], window);
+    // The next working day strictly after today — "tomorrow" in the
+    // day-order sense, which may be Monday on a Friday.
+    const date = Object.keys(effMap)
+      .filter((d) => d > todayISO() && d <= window.end)
+      .sort()[0];
+    return date ? { date, dayOrder: effMap[date] } : null;
+  }, [settings, subjects]);
+
+  const advice = useMemo(() => {
+    if (!report || !next || !timetable) return null;
+    return skipAdviceFor(next.date, next.dayOrder, timetable, report.perSubject);
+  }, [report, next, timetable]);
+
+  if (!report) return null;
+
+  // Subjects that can no longer reach 75% however hard you try, and
+  // those with a dated point of no return.
+  const unreachable = report.perSubject.filter((p) => !p.reachable);
+  const deadlines = report.perSubject
+    .filter((p) => p.reachable && p.recoveryDate)
+    .sort((a, b) => (a.recoveryDate! < b.recoveryDate! ? -1 : 1))
+    .slice(0, 2);
+
+  return (
+    <section className="card space-y-3.5 p-5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted">
+          Next class day
+        </p>
+        {next && (
+          <Badge className="bg-surface-2 text-muted">
+            {formatDateLong(next.date)} · Day {next.dayOrder}
+          </Badge>
+        )}
+      </div>
+
+      {advice && advice.classes.length > 0 ? (
+        <>
+          <p
+            className={cn(
+              "flex items-center gap-2 text-base font-extrabold",
+              advice.allSafe ? "text-good-deep" : "text-bad-deep"
+            )}
+          >
+            {advice.allSafe ? (
+              <ShieldCheck className="h-5 w-5" />
+            ) : (
+              <Siren className="h-5 w-5" />
+            )}
+            {advice.headline}
+          </p>
+
+          <div className="space-y-1.5">
+            {advice.classes.map((c) => (
+              <div
+                key={c.slot.id}
+                className="flex items-center justify-between gap-3 text-sm"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Dot color={c.subject.color_hex} />
+                  <span className="truncate font-semibold">{c.subject.name}</span>
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 font-mono text-xs font-bold",
+                    c.safe ? "text-muted" : "text-bad-deep"
+                  )}
+                >
+                  {c.pctAfter === null ? "—" : `${Math.round(c.pctAfter)}%`}
+                  {c.safe ? ` · ${c.budgetAfter} left` : " · must attend"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="text-sm font-semibold text-muted">
+          {advice?.headline ?? "No classes scheduled."}
+        </p>
+      )}
+
+      {(unreachable.length > 0 || deadlines.length > 0) && (
+        <div className="space-y-1.5 border-t pt-3.5">
+          {unreachable.map((p) => (
+            <p
+              key={p.subject.id}
+              className="text-sm font-bold text-bad-deep"
+            >
+              {p.subject.code} can no longer reach 75% — {Math.round(p.bestPct)}% is
+              the ceiling.
+            </p>
+          ))}
+          {deadlines.map((p) => (
+            <p key={p.subject.id} className="text-sm font-semibold">
+              <span className="font-bold text-warn-deep">{p.subject.code}</span>: attend
+              every class until{" "}
+              <span className="font-mono font-bold">{formatDate(p.recoveryDate!)}</span>{" "}
+              to climb back.
+            </p>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -449,6 +589,7 @@ export default function Dashboard() {
           <TodayCard />
         </div>
         <div className="space-y-4 lg:col-span-2">
+          <VerdictCard />
           <AttendanceHealthCard />
           <MarksSummaryCard />
           <DeadlinesCard />
