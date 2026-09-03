@@ -28,6 +28,7 @@ import {
   Trash2,
   Upload,
   Wand2,
+  CalendarPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -38,16 +39,19 @@ import { SubjectSheet } from "@/components/sheets/subject-sheet";
 import { ImportSheet } from "@/components/sheets/import-sheet";
 import { usePush } from "@/hooks/usePush";
 import {
+  PENDING_MIGRATIONS_SQL,
   accountExists,
   clearTimetable,
   deleteAllData,
   ensureSettings,
   exportAllData,
+  fetchSettings,
+  fetchSubjects,
+  fetchTimetable,
   missingMigrations,
   sqlEditorUrl,
-  updateSettings as apiUpdateSettings,
-  PENDING_MIGRATIONS_SQL,
   type AcadkitExport,
+  updateSettings as apiUpdateSettings,
 } from "@/api/queries";
 import {
   useAttendance,
@@ -57,9 +61,10 @@ import {
   useSubjects,
   useUpdateSettings,
 } from "@/hooks/useData";
-import { semesterWindow } from "@/lib/calendar";
+import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
 import { isValidPin } from "@/lib/pin";
 import { describePending } from "@/lib/autoMark";
+import { buildIcs, countEvents } from "@/lib/ics";
 import { usePendingAutoMarks } from "@/hooks/useAutoMark";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore, type ColorMode, type ThemeName } from "@/store/app";
@@ -518,6 +523,50 @@ function DataCard() {
       >
         {busy === "export" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
         Export everything as JSON
+      </Button>
+
+      <Button
+        variant="secondary"
+        className="w-full justify-start"
+        disabled={busy !== null}
+        onClick={() =>
+          run("ics", async () => {
+            const [subjects, timetable, settings] = await Promise.all([
+              fetchSubjects(pin),
+              fetchTimetable(pin),
+              fetchSettings(pin),
+            ]);
+            if (!timetable.length) {
+              toast.error("Add a timetable first");
+              return;
+            }
+            const window = semesterWindow(settings);
+            const effMap = buildEffectiveMap(settings?.declared_holidays ?? [], window);
+            // Only what's ahead: nobody wants past classes replayed
+            // into their calendar.
+            const ics = buildIcs({
+              subjects,
+              timetable,
+              effMap,
+              from: new Date().toISOString().slice(0, 10),
+            });
+            const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `acadkit-timetable-${pin}.ics`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success(`${countEvents(ics)} classes exported`);
+          })
+        }
+      >
+        {busy === "ics" ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <CalendarPlus className="h-4 w-4" />
+        )}
+        Add timetable to my calendar
       </Button>
 
       <input
