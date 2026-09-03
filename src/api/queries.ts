@@ -72,7 +72,15 @@ alter table marks
   check (source in ('manual', 'portal'));
 create unique index if not exists idx_marks_portal_unique
   on marks(device_id, subject_id, label)
-  where source = 'portal';`;
+  where source = 'portal';
+
+-- Auto-marked attendance (013)
+alter table attendance
+  add column if not exists auto_marked boolean not null default false;
+create index if not exists idx_attendance_auto_marked
+  on attendance(device_id, auto_marked) where auto_marked;
+alter table settings
+  add column if not exists auto_mark_present boolean not null default false;`;
 
 const OPTIONAL_COLUMNS: Array<{ table: string; column: string; enables: string }> = [
   { table: "settings", column: "name", enables: "greeting name that follows your PIN" },
@@ -81,6 +89,7 @@ const OPTIONAL_COLUMNS: Array<{ table: string; column: string; enables: string }
   { table: "semester_archives", column: "id", enables: "semester history & CGPA" },
   { table: "portal_snapshots", column: "id", enables: "portal attendance sync" },
   { table: "marks", column: "source", enables: "portal marks sync" },
+  { table: "attendance", column: "auto_marked", enables: "auto-marking past classes" },
 ];
 
 /** Which optional features are blocked because their column is missing. */
