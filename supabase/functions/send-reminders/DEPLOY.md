@@ -56,6 +56,17 @@ then **Settings → Reminders → Turn on reminders** and allow notifications.
 - **Deadline due** — 8 AM, for anything due within 24 h.
 - **Low attendance** — 8 AM, any subject under 75%.
 
+- **Skip verdict** — 8 AM, whether today's classes are safe to miss.
+
 Dedupe is handled by `sent_notifications`, so the 10-min cadence won't spam.
-Keep the calendar block in `index.ts` in sync with `src/data/semester.ts`
-each semester.
+
+The calendar is no longer hand-copied into `index.ts`. It is imported from
+`calendar.generated.ts`, which `scripts/gen-edge-calendar.mjs` writes from
+`src/data/semester.ts`. Each new semester: edit `semester.ts`, run
+
+```bash
+node scripts/gen-edge-calendar.mjs
+supabase functions deploy send-reminders --no-verify-jwt
+```
+
+`src/data/semester.test.ts` fails the build if the generated copy drifts.
