@@ -1,4 +1,3 @@
-import { fitName } from "@/lib/subjectName";
 import type { Deadline, DeadlineType, Subject } from "@/types";
 
 /**
@@ -27,9 +26,13 @@ export function deadlineLabel(
   subject?: Pick<Subject, "name" | "short_name"> | null
 ): string {
   if (!subject?.name?.trim()) return DEADLINE_TYPE_LABEL[deadline.type];
-  // These rows sit beside a date and a badge, so a seventy-character
-  // portal name would be an ellipsis either way.
-  return fitName(subject);
+  // A short name the user typed still wins — that field exists to be
+  // honoured, and this is the last place that reads it. What's gone is
+  // the *automatic* abbreviation: a row sitting beside a date and a badge
+  // used to have no space for a long name, so one was invented from
+  // initials. The row wraps to a second line now, so it shows the real
+  // name instead of asking you to decode "TBVP".
+  return subject.short_name?.trim() || subject.name.trim();
 }
 
 /**

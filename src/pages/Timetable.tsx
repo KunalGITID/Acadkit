@@ -209,9 +209,9 @@ export default function Timetable() {
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-2 truncate font-bold">
-                      <Dot color={subject?.color_hex ?? "#888"} />
-                      <span className="truncate">{subject?.name ?? "Unknown subject"}</span>
+                    <p className="flex items-start gap-2 font-bold">
+                      <Dot color={subject?.color_hex ?? "#888"} className="mt-1.5 shrink-0" />
+                      <span className="line-clamp-2">{subject?.name ?? "Unknown subject"}</span>
                     </p>
                     <p className="mt-0.5 text-xs font-medium text-muted">
                       {formatTime(slot.start_time)} – {formatTime(slot.end_time)}

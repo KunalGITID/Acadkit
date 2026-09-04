@@ -45,9 +45,9 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
         </ProgressRing>
 
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 truncate font-bold">
-            <Dot color={stats.subject.color_hex} />
-            <span className="truncate">{stats.subject.name}</span>
+          <p className="flex items-start gap-2 font-bold">
+            <Dot color={stats.subject.color_hex} className="mt-1.5 shrink-0" />
+            <span className="line-clamp-2">{stats.subject.name}</span>
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted">
             {stats.total === 0

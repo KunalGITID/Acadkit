@@ -1,18 +1,16 @@
-import type { Subject } from "@/types";
-
 /**
- * A name that fits a list row.
+ * Initials for a subject name.
  *
  * Portal subject names run to seventy characters — "UNIVERSAL HUMAN
- * VALUES - II: UNDERSTANDING HARMONY AND ETHICAL HUMAN CONDUCT" — and
- * truncate identically in every list, which turns distinct subjects into
- * the same ellipsis.
+ * VALUES - II: UNDERSTANDING HARMONY AND ETHICAL HUMAN CONDUCT". Lists
+ * used to abbreviate them to fit a row, on the theory that initials beat
+ * truncation: TBVP keeps the *end* of "Transforms & Boundary Value
+ * Problems", where "Transforms & Boundary V…" throws it away.
  *
- * An explicit `short_name` always wins. Otherwise the name is abbreviated
- * by initials, which beats truncation because it keeps the *end* of the
- * name: "Transforms & Boundary Value Problems" reads as TBVP rather than
- * "Transforms & Boundary V…", and the two subjects starting "Data" stay
- * distinguishable.
+ * They no longer do — every subject row wraps to a second line and shows
+ * the real name. What's left is the suggestion shown under the subject
+ * sheet's "short name" field, so someone renaming a subject can see what
+ * the app would pick before typing their own.
  */
 
 /** Words that carry no signal in an abbreviation. */
@@ -30,21 +28,4 @@ export function abbreviate(name: string): string {
   // One real word: keep it readable rather than reducing it to a letter.
   if (words.length === 1) return words[0].slice(0, 6);
   return words.map((w) => w[0].toUpperCase()).join("").slice(0, 5);
-}
-
-/** Full name for headings, short for rows. */
-export function shortName(subject: Pick<Subject, "name" | "short_name">): string {
-  const explicit = subject.short_name?.trim();
-  if (explicit) return explicit;
-  return abbreviate(subject.name);
-}
-
-/** Use the full name when it fits; abbreviate only when it wouldn't. */
-export function fitName(
-  subject: Pick<Subject, "name" | "short_name">,
-  maxChars = 22
-): string {
-  const explicit = subject.short_name?.trim();
-  if (explicit) return explicit;
-  return subject.name.length <= maxChars ? subject.name : abbreviate(subject.name);
 }

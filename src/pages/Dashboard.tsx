@@ -187,7 +187,7 @@ function TodayCard() {
                   <div className="flex min-w-0 items-center gap-3">
                     <Dot color={subject?.color_hex ?? "#888"} />
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold">
+                      <p className="line-clamp-2 text-sm font-bold">
                         {subject?.name ?? "Unknown subject"}
                       </p>
                       <p className="truncate text-xs font-medium text-muted">
@@ -430,11 +430,11 @@ function DeadlinesCard() {
                     setSheetOpen(true);
                   }}
                 >
-                  <p className="flex items-center gap-1.5 truncate text-sm font-bold">
+                  <p className="flex items-start gap-1.5 text-sm font-bold">
                     {subject && (
-                      <Dot color={subject.color_hex} className="h-1.5 w-1.5 shrink-0" />
+                      <Dot color={subject.color_hex} className="mt-[7px] h-1.5 w-1.5 shrink-0" />
                     )}
-                    <span className="truncate">{deadlineLabel(d, subject)}</span>
+                    <span className="line-clamp-2">{deadlineLabel(d, subject)}</span>
                   </p>
                   <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
                     <span className={cn(urgent && "font-bold text-bad-deep")}>

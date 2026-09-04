@@ -283,7 +283,7 @@ export default function Calendar() {
                   <div key={d.id} className="flex items-center gap-3 rounded-2xl border bg-surface-2/40 p-3">
                     <Dot color={subject?.color_hex ?? "hsl(var(--accent))"} />
                     <div className="min-w-0 flex-1">
-                      <p className={cn("truncate text-sm font-bold", d.status === "done" && "text-muted line-through")}>
+                      <p className={cn("line-clamp-2 text-sm font-bold", d.status === "done" && "text-muted line-through")}>
                         {deadlineLabel(d, subject)}
                       </p>
                       {subject && <p className="text-xs text-muted">{subject.code}</p>}

@@ -74,7 +74,7 @@ export default function Widget() {
                   className="flex items-center gap-3 rounded-2xl border bg-surface-2/40 p-3.5"
                 >
                   {subject && <Dot color={subject.color_hex} className="shrink-0" />}
-                  <span className="min-w-0 flex-1 truncate text-sm font-bold">
+                  <span className="min-w-0 flex-1 line-clamp-2 text-sm font-bold">
                     {deadlineLabel(d, subject)}
                   </span>
                   <span
