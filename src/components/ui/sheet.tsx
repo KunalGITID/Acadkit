@@ -23,7 +23,13 @@ export function Sheet({ open, onOpenChange, title, description, children, classN
             className
           )}
         >
-          <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-ink/15" />
+          {/* Wider and slightly stronger than a decorative rule, with
+              room around it, so it reads as something you can pull
+              rather than a divider that happens to be centred. */}
+          <div
+            aria-hidden
+            className="mx-auto mb-1 mt-3 h-1.5 w-12 shrink-0 rounded-full bg-ink/25 transition-colors"
+          />
           <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
             <Drawer.Title className="text-lg font-bold">{title}</Drawer.Title>
             {description ? (

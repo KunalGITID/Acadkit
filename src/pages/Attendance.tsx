@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronDown, GraduationCap, ShieldCheck, Siren } from "lucide-react";
+import { AlertTriangle, ChevronDown, GraduationCap, ShieldCheck, Siren } from "lucide-react";
 import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
@@ -14,6 +14,8 @@ import {
 } from "@/lib/attendance";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
 import { relativeDay } from "@/lib/dates";
+import { fitName } from "@/lib/subjectName";
+import { syncHealth } from "@/lib/syncHealth";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
@@ -29,7 +31,7 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
       layout
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.04 }}
+      transition={{ type: "spring", stiffness: 260, damping: 26, delay: Math.min(index, 5) * 0.04 }}
       className="card overflow-hidden"
     >
       <button
@@ -46,7 +48,7 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 truncate font-bold">
             <Dot color={stats.subject.color_hex} />
-            <span className="truncate">{stats.subject.name}</span>
+            <span className="truncate">{fitName(stats.subject)}</span>
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted">
             {stats.total === 0
@@ -55,16 +57,6 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
           </p>
         </div>
 
-        {stats.total > 0 && (
-          <span
-            className={cn(
-              "shrink-0 text-[11px] font-bold",
-              stats.needToAttend > 0 ? "text-bad-deep" : "text-good-deep"
-            )}
-          >
-            {say(VOICE.diagnosis, tone, stats.canBunk, stats.needToAttend === 0, stats.needToAttend)}
-          </span>
-        )}
         <ChevronDown
           className={cn("h-4 w-4 shrink-0 text-muted transition-transform", open && "rotate-180")}
         />
@@ -127,6 +119,7 @@ export default function Attendance() {
   );
   // Working days only, declared holidays already shifted out — the
   // heatmap draws the days that actually happened, in sequence.
+  const health = useMemo(() => syncHealth(snapshots ?? []), [snapshots]);
   const effMap = useMemo(
     () => buildEffectiveMap(settings?.declared_holidays ?? [], semWindow),
     [settings?.declared_holidays, semWindow]
@@ -159,9 +152,23 @@ export default function Attendance() {
               </p>
             )}
           </div>
-          {overall.portalAsOf && (
+          {overall.portalAsOf && health.state !== "stale" && (
             <p className="mt-0.5 text-[11px] font-medium text-muted">
               Synced {relativeDay(overall.portalAsOf)} · classes marked since are counted on top
+            </p>
+          )}
+          {/* Silent staleness is the failure mode: the sync writes with no
+              announcement, so a broken job looks exactly like a quiet
+              week. Only shouts once the numbers are actually suspect. */}
+          {health.state === "stale" && health.days !== null && (
+            <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-warn-deep">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              {say(VOICE.syncStale, tone, health.days)}
+            </p>
+          )}
+          {health.state === "never" && (
+            <p className="mt-1 text-xs font-semibold text-muted">
+              {say(VOICE.syncNever, tone)}
             </p>
           )}
         </div>

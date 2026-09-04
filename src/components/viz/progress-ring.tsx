@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 
 interface ProgressRingProps {
@@ -31,6 +32,14 @@ export function ProgressRing({
   // Rotate so a partial sweep gauge opens at the bottom
   const rotation = sweep === 360 ? -90 : 90 + (360 - sweep) / 2;
 
+  // Survives remounts within a session so a route change doesn't reset
+  // the ring to empty; null on the very first paint, which is the one
+  // time sweeping up from zero is the right thing.
+  const previous = useRef<number | null>(null);
+  useEffect(() => {
+    previous.current = filled;
+  }, [filled]);
+
   return (
     <div className={`relative inline-flex items-center justify-center ${className ?? ""}`}>
       <svg width={size} height={size} role="img" aria-label={`${Math.round(clamped)}%`}>
@@ -54,7 +63,11 @@ export function ProgressRing({
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeDasharray={`${arcLength} ${circumference}`}
-            initial={{ strokeDashoffset: arcLength }}
+            // Animate from wherever it already was, not from empty. The
+            // ring used to sweep up from zero on every mount, so opening
+            // Attendance replayed the same flourish and an actual change
+            // in the number looked identical to no change at all.
+            initial={{ strokeDashoffset: arcLength - (previous.current ?? 0) }}
             animate={{ strokeDashoffset: arcLength - filled }}
             transition={{ type: "spring", stiffness: 50, damping: 16 }}
             style={{ filter: `drop-shadow(0 0 6px ${color}50)` }}

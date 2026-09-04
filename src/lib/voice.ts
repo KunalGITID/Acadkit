@@ -298,6 +298,17 @@ export const VOICE = {
   }),
 
   titleWidget: pick({ plain: () => "Due soon", brutal: () => "what's coming for you" }),
+
+  // ---- sync health ----
+
+  syncStale: pick<[days: number]>({
+    plain: (days) => `Portal data is ${days} days old — open the portal and run the sync.`,
+    brutal: (days) => `${days} days since the portal talked. these numbers are fiction now.`,
+  }),
+  syncNever: pick({
+    plain: () => "Never synced from the portal — these are only classes you marked by hand.",
+    brutal: () => "never synced. you're grading your own homework.",
+  }),
 } as const;
 
 /** Resolve one line for a tone. */
