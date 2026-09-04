@@ -63,6 +63,27 @@ describe("buildWallet", () => {
   });
 });
 
+describe("the knife edge", () => {
+  it("flags a subject that is safe with nothing spare", () => {
+    // Exactly at the line: still fine, but one absence ends it. This is
+    // the tensest state the app can describe.
+    const w = buildWallet([row("OS", 30, 40, 0, 0)]);
+    expect(w.credit[0].onEdge).toBe(true);
+  });
+
+  it("does not flag a subject that still has room", () => {
+    expect(buildWallet([row("OS", 38, 40, 3, 0)]).credit[0].onEdge).toBe(false);
+  });
+
+  it("does not flag a subject already below the line", () => {
+    // Owing classes is a different situation from having none spare, and
+    // conflating them would put a debt in the credit list.
+    const w = buildWallet([row("Maths", 30, 46, 0, 34)]);
+    expect(w.credit).toHaveLength(0);
+    expect(w.debt[0].onEdge).toBe(false);
+  });
+});
+
 describe("pipsFor", () => {
   it("draws one pip per skip while the count is readable", () => {
     expect(pipsFor(3)).toEqual({ pips: 3, overflow: 0 });

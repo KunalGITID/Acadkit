@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildProjection, projectSubject } from "@/lib/projections";
+import { buildProjection, projectSubject,
+  attendanceTrend,
+} from "@/lib/projections";
 import type { AttendanceRecord, Mark, Subject, TimetableSlot } from "@/types";
 
 const subj = (over: Partial<Subject>): Subject => ({
@@ -85,5 +87,64 @@ describe("buildProjection — grade targets", () => {
     expect(g.bestGrade).toBe("A+"); // 48 + 40 = 88
     expect(g.nextGrade?.grade).toBe("A+");
     expect(g.nextGrade?.externalNeeded).toBeCloseTo(33, 5); // 81 - 48
+  });
+});
+
+describe("attendanceTrend", () => {
+  const day = (i: number) => `2026-09-${String(i).padStart(2, "0")}`;
+  const runOf = (statuses: Array<"present" | "absent">): AttendanceRecord[] =>
+    statuses.map((status, i) => ({ date: day(i + 1), status }) as AttendanceRecord);
+
+  it("will not guess a direction from too little", () => {
+    // Four points is a mood, not a trend.
+    expect(attendanceTrend(runOf(["present", "absent", "present", "absent"]))).toBe("insufficient");
+  });
+
+  it("sees a slide", () => {
+    // First half all present, second half all absent.
+    expect(
+      attendanceTrend(runOf(["present", "present", "present", "absent", "absent", "absent"]))
+    ).toBe("declining");
+  });
+
+  it("sees a recovery", () => {
+    expect(
+      attendanceTrend(runOf(["absent", "absent", "absent", "present", "present", "present"]))
+    ).toBe("improving");
+  });
+
+  it("calls an evenly spread record steady", () => {
+    // One absence in each half: the rate is unchanged, so there is no
+    // direction to report.
+    expect(
+      attendanceTrend(
+        runOf(["present", "present", "absent", "present", "present", "absent"])
+      )
+    ).toBe("steady");
+  });
+
+  it("is sensitive at small sample sizes, by design", () => {
+    // Eight records means halves of four, so a single absence moves the
+    // rate 0.25 — far past the 0.08 band. That is not a bug: early in a
+    // semester one miss genuinely is a quarter of your recent record.
+    expect(
+      attendanceTrend(
+        runOf(["present", "present", "present", "present", "present", "present", "present", "absent"])
+      )
+    ).toBe("declining");
+  });
+
+  it("ignores cancelled classes when counting", () => {
+    // "holiday" means no class was held; it is not a data point.
+    const withHolidays = [
+      ...runOf(["present", "present", "present", "absent", "absent", "absent"]),
+      { date: day(7), status: "holiday" } as AttendanceRecord,
+    ];
+    expect(attendanceTrend(withHolidays)).toBe("declining");
+  });
+
+  it("does not depend on the caller sorting by date", () => {
+    const shuffled = [...runOf(["present", "present", "present", "absent", "absent", "absent"])].reverse();
+    expect(attendanceTrend(shuffled)).toBe("declining");
   });
 });

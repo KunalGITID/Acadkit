@@ -20,6 +20,14 @@ export interface WalletRow {
   spent: number;
   /** Set when the subject is below the line: skips are no longer the question. */
   owed: number;
+  /**
+   * Still safe, but with nothing spare — one absence ends it.
+   *
+   * Worth its own flag rather than leaving the reader to notice a zero.
+   * It is the tensest state the app can describe and it looked identical
+   * to a comfortable subject that happened to have run its budget down.
+   */
+  onEdge: boolean;
 }
 
 export interface Wallet {
@@ -43,8 +51,11 @@ export function buildWallet(stats: SubjectAttendance[]): Wallet {
       left: s.canBunk,
       spent: s.total - s.attended,
       owed: s.needToAttend,
+      onEdge: s.canBunk === 0 && s.needToAttend === 0,
     }));
 
+  // Edge subjects sort last within credit — the list reads from "plenty
+  // spare" down to "one away", which is the order you care about.
   const credit = rows.filter((r) => r.owed === 0).sort((a, b) => b.left - a.left);
   const debt = rows.filter((r) => r.owed > 0).sort((a, b) => b.owed - a.owed);
 

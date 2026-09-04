@@ -1,7 +1,9 @@
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Dot } from "@/components/ui/misc";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { buildWallet, pipsFor } from "@/lib/bunkWallet";
+import { useSurvivalPlan } from "@/hooks/useSurvivalPlan";
+import { formatDate } from "@/lib/dates";
 import type { SubjectAttendance } from "@/lib/attendance";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
@@ -21,6 +23,19 @@ import { cn } from "@/lib/utils";
 export function BunkWallet({ stats }: { stats: SubjectAttendance[] }) {
   const tone = useTone();
   const wallet = buildWallet(stats);
+  const plan = useSurvivalPlan();
+
+  /**
+   * The last date each subject can be missed.
+   *
+   * A balance reads as permission; a date reads as a deadline. Same
+   * number, and the deadline is the one that changes what you do on the
+   * morning in question. survival.ts already worked these out and
+   * nothing had ever shown them.
+   */
+  const skipBy = new Map(
+    (plan?.subjects ?? []).map((o) => [o.subject.id, o.lastSkippable])
+  );
 
   if (wallet.empty) {
     return (
@@ -56,30 +71,63 @@ export function BunkWallet({ stats }: { stats: SubjectAttendance[] }) {
 
       {wallet.credit.length > 0 && (
         <ul className="divide-y">
-          {wallet.credit.map(({ subject, left }) => {
+          {wallet.credit.map(({ subject, left, onEdge }) => {
             const { pips, overflow } = pipsFor(left);
+            const last = skipBy.get(subject.subject.id);
             return (
-              <li key={subject.subject.id} className="flex items-center gap-3 px-5 py-3">
+              <li
+                key={subject.subject.id}
+                className={cn(
+                  "flex items-center gap-3 px-5 py-3",
+                  // The tensest state in the app used to look like the
+                  // dullest: a grey "none" beside a comfortable subject.
+                  onEdge && "bg-warn/[0.07]"
+                )}
+              >
                 <Dot color={subject.subject.color_hex} className="shrink-0" />
-                <span className="line-clamp-1 min-w-0 flex-1 text-sm font-bold">
-                  {subject.subject.name}
+                <span className="min-w-0 flex-1">
+                  <span className="line-clamp-1 text-sm font-bold">{subject.subject.name}</span>
+                  {onEdge ? (
+                    <span className="mt-0.5 block text-[11px] font-bold text-warn-deep">
+                      {say(VOICE.onTheEdge, tone)}
+                    </span>
+                  ) : last ? (
+                    <span className="mt-0.5 block text-[11px] font-medium text-muted">
+                      {say(VOICE.skipBy, tone, formatDate(last, { day: "numeric", month: "short" }))}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="flex shrink-0 items-center gap-1">
-                  {Array.from({ length: pips }, (_, i) => (
-                    <motion.span
-                      key={i}
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: i * 0.03, type: "spring", stiffness: 400, damping: 22 }}
-                      className="h-2 w-2 rounded-full"
-                      style={{ background: subject.subject.color_hex }}
-                    />
-                  ))}
+                  {/* Spending a skip used to be a silent re-render with
+                      one fewer dot. AnimatePresence keeps the departing
+                      pip alive long enough to flare and go out, so the
+                      cost of the absence you just marked is something you
+                      see happen rather than something you could notice. */}
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    {Array.from({ length: pips }, (_, i) => (
+                      <motion.span
+                        key={i}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        exit={{ scale: [1, 1.9, 0], opacity: [1, 1, 0] }}
+                        transition={{ delay: i * 0.03, type: "spring", stiffness: 400, damping: 22 }}
+                        className="h-2 w-2 rounded-full"
+                        style={{ background: subject.subject.color_hex }}
+                      />
+                    ))}
+                  </AnimatePresence>
                   {overflow > 0 && (
                     <span className="ml-0.5 text-xs font-bold tabular text-muted">+{overflow}</span>
                   )}
                   {left === 0 && (
-                    <span className="text-xs font-bold text-muted">none</span>
+                    <span
+                      className={cn(
+                        "text-xs font-bold",
+                        onEdge ? "text-warn-deep" : "text-muted"
+                      )}
+                    >
+                      none
+                    </span>
                   )}
                 </span>
               </li>

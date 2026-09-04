@@ -275,6 +275,48 @@ export const VOICE = {
     brutal: (n) => (n === 0 ? "you have none left. attend everything." : `${n} left. spend wisely.`),
   }),
 
+  // ---- trend ----
+
+  /** Second half of the semester attended more than the first. */
+  trendImproving: pick({
+    plain: () => "You're attending more than you were",
+    brutal: () => "you're pulling it back. weird.",
+  }),
+
+  /** Attendance rate has fallen between the halves. */
+  trendDeclining: pick({
+    plain: () => "You're attending less than you were",
+    brutal: () => "you're sliding. visibly.",
+  }),
+
+  trendSteady: pick({
+    plain: () => "Holding steady",
+    brutal: () => "same as ever. consistent, at least.",
+  }),
+
+  // ---- the knife edge ----
+
+  /**
+   * At the minimum with nothing spare — still safe, but one absence ends
+   * it. The tensest state the app can describe.
+   */
+  onTheEdge: pick({
+    plain: () => "One absence from dropping",
+    brutal: () => "one miss and it's gone",
+  }),
+
+  /** `when` is a formatted date: the last day this subject can be missed. */
+  skipBy: pick<[when: string]>({
+    plain: (when) => `Last skippable ${when}`,
+    brutal: (when) => `skip by ${when} or not at all`,
+  }),
+
+  /** No remaining class of this subject can be missed. */
+  skipNever: pick({
+    plain: () => "No skips left",
+    brutal: () => "attend every single one",
+  }),
+
   survivalTitle: pick({
     plain: () => "Days you can skip",
     brutal: () => "days you can vanish",

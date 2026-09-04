@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, ChevronDown, GraduationCap, ShieldCheck, Siren } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  GraduationCap,
+  ShieldCheck,
+  Siren,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
@@ -22,6 +30,7 @@ import {
 } from "@/lib/attendance";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
 import { relativeDay, todayISO } from "@/lib/dates";
+import { attendanceTrend } from "@/lib/projections";
 import { syncHealth } from "@/lib/syncHealth";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
@@ -129,6 +138,9 @@ export default function Attendance() {
   // Working days only, declared holidays already shifted out — the
   // heatmap draws the days that actually happened, in sequence.
   const health = useMemo(() => syncHealth(snapshots ?? []), [snapshots]);
+  // Which way the number is moving. Insights has said this all along,
+  // two taps away; it belongs beside the number it describes.
+  const trend = useMemo(() => attendanceTrend(attendance ?? []), [attendance]);
   const effMap = useMemo(
     () => buildEffectiveMap(settings?.declared_holidays ?? [], semWindow),
     [settings?.declared_holidays, semWindow]
@@ -229,6 +241,33 @@ export default function Attendance() {
               ? "Mark your first class to see stats"
               : `${overall.attended} attended · ${overall.total - overall.attended} missed · 75% required`}
           </p>
+
+          {/* A percentage says where you are; the direction says where
+              you're going, which is the half that changes behaviour. */}
+          {trend !== "insufficient" && (
+            <p
+              className={cn(
+                "mt-2 flex items-center gap-1.5 text-xs font-bold",
+                trend === "improving" && "text-good-deep",
+                trend === "declining" && "text-bad-deep",
+                trend === "steady" && "text-muted"
+              )}
+            >
+              {trend === "declining" ? (
+                <TrendingDown className="h-3.5 w-3.5 shrink-0" />
+              ) : (
+                <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+              )}
+              {say(
+                trend === "improving"
+                  ? VOICE.trendImproving
+                  : trend === "declining"
+                    ? VOICE.trendDeclining
+                    : VOICE.trendSteady,
+                tone
+              )}
+            </p>
+          )}
         </section>
 
         {/* Heatmap */}

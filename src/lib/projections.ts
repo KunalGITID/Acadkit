@@ -202,19 +202,44 @@ function patterns(
     if (!mostSkippedDayOrder || n > mostSkippedDayOrder.absents)
       mostSkippedDayOrder = { dayOrder: d, absents: n };
 
-  // Trend: compare attend-rate of the earlier vs later half of the timeline
-  let trend: AttendancePatterns["trend"] = "insufficient";
+  return {
+    mostSkippedSubject,
+    mostSkippedDayOrder,
+    trend: attendanceTrend(counted),
+  };
+}
+
+/** Minimum marked classes before the halves mean anything. */
+const TREND_MIN_RECORDS = 6;
+/** Rate change that counts as a direction rather than noise. */
+const TREND_BAND = 0.08;
+
+/**
+ * Which way attendance is heading: the later half of the record against
+ * the earlier half.
+ *
+ * Exported because it needs to be said somewhere you actually look. It
+ * lived inside the patterns block, which renders on the Insights tab —
+ * two taps from anywhere — and "you're sliding" is the one fact here
+ * that changes behaviour on the day you read it.
+ *
+ * The band exists so a single class can't flip the verdict. Below the
+ * minimum it says "insufficient" rather than guessing a direction from
+ * four data points.
+ */
+export function attendanceTrend(records: AttendanceRecord[]): AttendancePatterns["trend"] {
+  const counted = records.filter((r) => r.status === "present" || r.status === "absent");
+  if (counted.length < TREND_MIN_RECORDS) return "insufficient";
+
   const sorted = [...counted].sort((a, b) => a.date.localeCompare(b.date));
-  if (sorted.length >= 6) {
-    const mid = Math.floor(sorted.length / 2);
-    const rate = (arr: AttendanceRecord[]) =>
-      arr.filter((r) => r.status === "present").length / arr.length;
-    const first = rate(sorted.slice(0, mid));
-    const second = rate(sorted.slice(mid));
-    const delta = second - first;
-    trend = delta > 0.08 ? "improving" : delta < -0.08 ? "declining" : "steady";
-  }
-  return { mostSkippedSubject, mostSkippedDayOrder, trend };
+  const mid = Math.floor(sorted.length / 2);
+  const rate = (arr: AttendanceRecord[]) =>
+    arr.filter((r) => r.status === "present").length / arr.length;
+  const delta = rate(sorted.slice(mid)) - rate(sorted.slice(0, mid));
+
+  if (delta > TREND_BAND) return "improving";
+  if (delta < -TREND_BAND) return "declining";
+  return "steady";
 }
 
 export interface WhatIfRow {
