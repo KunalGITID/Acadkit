@@ -276,6 +276,20 @@
     color: hsl(0 0% 6%);
   }
 
+  /* OLED: the glass surfaces stop being glass.
+     Measured on device, the top bar rendered rgb(3,3,3)-rgb(8,8,8) —
+     a faint gradient from surface/0.78 plus the backdrop blur — while
+     the page below sat at a true rgb(0,0,0). On a panel where black
+     means the pixels are off, that reads as a lit slab across the top
+     rather than a translucent bar. Opaque --bg, no blur: the border is
+     enough separation, and "pixels off, not just dark" is the whole
+     point of the theme. */
+  [data-theme="oled"] .glass {
+    background: hsl(var(--bg));
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
   /* OLED x-factor: there isn't one, deliberately — zero saturation everywhere
      and true #000 in dark mode (--radius-card above trims the corners a touch
      tighter too). The restraint itself is the theme. */
