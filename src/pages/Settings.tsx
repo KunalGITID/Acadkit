@@ -35,7 +35,7 @@ import { SubjectSheet } from "@/components/sheets/subject-sheet";
 import { ImportSheet } from "@/components/sheets/import-sheet";
 import { usePush } from "@/hooks/usePush";
 import { useSession } from "@/hooks/useSession";
-import { signOut } from "@/lib/auth";
+import { claimDevice, signOut } from "@/lib/auth";
 import {
   PENDING_MIGRATIONS_SQL,
   accountExists,
@@ -319,6 +319,17 @@ function SyncCard() {
     }
     setBusy(true);
     try {
+      // Claim before looking. Once policies are owner-scoped, an
+      // unclaimed PIN reads back empty whether or not it holds data, so
+      // checking first would report "no data" for a PIN that is simply
+      // not yours yet.
+      const claim = await claimDevice(input);
+      if (claim === "taken") {
+        toast.error(`PIN ${input} belongs to another account`, {
+          description: "Sign in with that account to reach its data.",
+        });
+        return;
+      }
       if (await accountExists(input)) {
         await ensureSettings(input);
         setPin(input);
