@@ -115,6 +115,30 @@
   #root {
     min-height: 100dvh;
   }
+  /* Clip the page transitions horizontally without making a scroll box.
+     A page slides out sideways on every route change and would otherwise
+     widen the document.
+
+     This lives here rather than as an `overflow-x-hidden` class because
+     the class wins the cascade — `.overflow-x-hidden` outranks `main` on
+     specificity, so an @supports override on the element never applied.
+
+     `hidden` forces the other axis to `auto`, which is how <main> became
+     a scroll container by accident and, with overscroll containment on
+     top, swallowed every touch scroll in the app. `clip` has no such side
+     effect: overflow-y stays `visible` and the document remains the only
+     thing that scrolls. `hidden` stays as the fallback for Safari below
+     16, where behaviour is simply what it has always been. */
+  main {
+    overflow-x: hidden;
+  }
+  @supports (overflow: clip) {
+    main {
+      overflow-x: clip;
+      overflow-y: visible;
+    }
+  }
+
   /* `main` is NOT the scroll container — the document is. It only looks
      like one because `overflow-x: hidden` forces the other axis to
      `auto`, and that accident used to carry `overscroll-behavior-y:

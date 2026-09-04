@@ -165,8 +165,12 @@ function TodayCard() {
           <EmptyState icon={PartyPopper} title="It's the weekend" description="No day order today. Recharge." />
         ) : info.kind === "official-holiday" || info.kind === "declared-holiday" ? (
           // A holiday is the one thing worth shouting about, so it gets
-          // the colour block rather than another grey empty state.
-          <ColourBlock tone="bad">
+          // the colour block rather than another grey empty state —
+          // rounded and evenly inset, though. Bleeding to the card's
+          // edges put square corners inside a rounded card and left a
+          // strip of white beneath, which read as unfinished rather than
+          // as a deliberate field of colour.
+          <ColourBlock tone="bad" className="mx-0 rounded-[22px]">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-xs font-bold tracking-[0.22em] opacity-80">holiday</p>
