@@ -42,6 +42,7 @@ import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
 import { ColourBlock } from "@/components/viz/colour-block";
 import { SwipeToAbsent } from "@/components/sheets/swipe-absent";
+import { LiveClassCard } from "@/components/viz/live-class";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
@@ -103,6 +104,29 @@ function TodayCard() {
       </div>
 
       <MarkDaySheet date={markOpen ? date : null} onClose={() => setMarkOpen(false)} />
+
+      <LiveClassCard
+        slots={slots}
+        nowMinutes={nowMin}
+        disabled={isNextDay}
+        statusFor={({ slot }) =>
+          attendance?.find(
+            (r) =>
+              r.subject_id === slot.subject_id &&
+              r.date === date &&
+              r.start_time === slot.start_time
+          )?.status ?? null
+        }
+        onMark={({ slot }, status) =>
+          markAttendance.mutate({
+            subject_id: slot.subject_id,
+            date,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+            status,
+          })
+        }
+      />
 
       <div className="p-4">
         {info.kind === "pre-semester" ? (

@@ -47,6 +47,42 @@ export const VOICE = {
     },
   }),
 
+  /** The live class card's heading, while a class is running. */
+  inClassNow: pick({
+    plain: () => "In class now",
+    brutal: () => "currently trapped",
+  }),
+
+  /** Heading while waiting for the next class of the day. */
+  upNext: pick({
+    plain: () => "Up next",
+    brutal: () => "next sentence",
+  }),
+
+  /** Heading once every class has finished. */
+  dayDone: pick({
+    plain: () => "Day done",
+    brutal: () => "released",
+  }),
+
+  /** Said under the heading when the last class has ended. */
+  dayDoneBody: pick({
+    plain: () => "No more classes today.",
+    brutal: () => "no more classes. you survived.",
+  }),
+
+  /** `left` is a preformatted duration like "22 min". */
+  minutesLeft: pick<[left: string]>({
+    plain: (left) => `${left} left`,
+    brutal: (left) => `${left} of your life left`,
+  }),
+
+  /** `until` is a preformatted duration like "1h 20m". */
+  startsIn: pick<[until: string]>({
+    plain: (until) => `starts in ${until}`,
+    brutal: (until) => `${until} of freedom`,
+  }),
+
   noClassesToday: pick({
     plain: () => "No classes today — enjoy the break.",
     brutal: () => "no classes. go touch grass.",
