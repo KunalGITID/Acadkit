@@ -52,10 +52,20 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
           <p className="mt-0.5 text-xs font-medium text-muted">
             {stats.total === 0
               ? say(VOICE.noClassesMarked, tone)
-              : `${stats.attended} of ${stats.total} attended`}
+              : say(VOICE.hoursWasted, tone, stats.attended, stats.total)}
           </p>
         </div>
 
+        {stats.total > 0 && (
+          <span
+            className={cn(
+              "shrink-0 text-[11px] font-bold",
+              stats.needToAttend > 0 ? "text-bad-deep" : "text-good-deep"
+            )}
+          >
+            {say(VOICE.diagnosis, tone, stats.canBunk, stats.needToAttend === 0, stats.needToAttend)}
+          </span>
+        )}
         <ChevronDown
           className={cn("h-4 w-4 shrink-0 text-muted transition-transform", open && "rotate-180")}
         />
@@ -136,7 +146,14 @@ export default function Attendance() {
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Attendance</h1>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleAttendance, tone)}</h1>
+            {say(VOICE.subAttendance, tone) && (
+              <p className="mt-0.5 text-xs italic text-muted">
+                ({say(VOICE.subAttendance, tone)})
+              </p>
+            )}
+          </div>
           {overall.portalAsOf && (
             <p className="mt-0.5 text-[11px] font-medium text-muted">
               Portal totals as of {formatDate(overall.portalAsOf)} · classes marked since are

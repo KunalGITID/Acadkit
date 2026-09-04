@@ -210,8 +210,7 @@ export default function Insights() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3 px-1">
         <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight lg:text-3xl">
-          <Sparkles className="h-6 w-6 text-accent" /> Insights
-        </h1>
+          <Sparkles className="h-6 w-6 text-accent" />{say(VOICE.titleInsights, tone)}</h1>
         <Segmented
           layoutId="insights-view"
           options={[

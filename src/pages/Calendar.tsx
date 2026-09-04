@@ -15,6 +15,8 @@ import { Badge, Dot } from "@/components/ui/misc";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
 import { useDeadlines, useSettings, useSubjects, useUpdateSettings } from "@/hooks/useData";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
 import { deadlineLabel } from "@/lib/deadlines";
 import { getDayInfo, semesterWindow } from "@/lib/calendar";
 import { formatDateLong, parseISODate, toISODate, todayISO } from "@/lib/dates";
@@ -31,6 +33,7 @@ function monthLabel(year: number, month: number): string {
 }
 
 export default function Calendar() {
+  const tone = useTone();
   const { data: settings } = useSettings();
   const semWindow = useMemo(
     () => semesterWindow(settings),
@@ -116,7 +119,7 @@ export default function Calendar() {
 
   return (
     <div className="space-y-4">
-      <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">Calendar</h1>
+      <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleCalendar, tone)}</h1>
 
       <section className="card p-4 lg:p-6">
         <div className="mb-4 flex items-center justify-between">

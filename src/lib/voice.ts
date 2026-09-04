@@ -131,6 +131,74 @@ export const VOICE = {
     plain: () => "Add marks to project grades",
     brutal: () => "give me marks and i'll tell you the damage.",
   }),
+
+  // ---- page titles ----
+  // The brutal register renames the app's own furniture. Each title has
+  // a matching subtitle below; keep them paired.
+
+  titleAttendance: pick({ plain: () => "Attendance", brutal: () => "attendance scam" }),
+  titleMarks: pick({ plain: () => "Marks", brutal: () => "prepare to cry" }),
+  titleTimetable: pick({ plain: () => "Timetable", brutal: () => "prison schedule" }),
+  titleInsights: pick({ plain: () => "Insights", brutal: () => "the damage report" }),
+  titleCalendar: pick({ plain: () => "Calendar", brutal: () => "countdown to freedom" }),
+  titleAbsences: pick({ plain: () => "Absent log", brutal: () => "hall of shame" }),
+  titleHistory: pick({ plain: () => "Semester history", brutal: () => "past crimes" }),
+  titleSettings: pick({ plain: () => "Settings", brutal: () => "damage control" }),
+
+  subAttendance: pick({
+    plain: () => "",
+    brutal: () => "a statistical summary of your life choices",
+  }),
+  subTimetable: pick({
+    plain: () => "",
+    brutal: () => "when & where you will be miserable",
+  }),
+  subMarks: pick({ plain: () => "", brutal: () => "numbers that decide your summer" }),
+  subInsights: pick({ plain: () => "", brutal: () => "the maths you keep avoiding" }),
+
+  /** Sits under the attendance ring. `held` is classes conducted. */
+  hoursWasted: pick<[attended: number, held: number]>({
+    plain: (attended, held) => `${attended} of ${held} attended`,
+    brutal: (attended, held) => `${attended} / ${held} hrs wasted`,
+  }),
+
+  /**
+   * The per-subject verdict, with the bunk budget spelled out — the one
+   * number anybody actually wants. `budget` is future classes you can
+   * still miss and finish at or above the minimum.
+   */
+  diagnosis: pick<[budget: number, safe: boolean, needed: number]>({
+    plain: (budget, safe, needed) =>
+      safe
+        ? `${budget} class${budget === 1 ? "" : "es"} you can skip`
+        : `${needed} needed to reach 75%`,
+    brutal: (budget, safe, needed) => {
+      // Below the line, the number that matters is how many in a row it
+      // takes to climb back — "cooked" on every subject says nothing.
+      if (!safe) {
+        if (needed <= 0) return "cooked";
+        if (needed === 1) return "one class from safe";
+        if (needed > 40) return "mathematically doomed";
+        return `${needed} straight to survive`;
+      }
+      if (budget === 0) return "barely safe (0 bunks left)";
+      if (budget >= 5) return `nerd (${budget} free bunks)`;
+      return `${budget} free bunk${budget === 1 ? "" : "s"}`;
+    },
+  }),
+
+  /** Shown when a subject can no longer reach the minimum at all. */
+  unreachable: pick({
+    plain: () => "75% is no longer reachable",
+    brutal: () => "mathematically doomed",
+  }),
+
+  /** Footer, and the only place the app admits what it is. */
+  footer: pick({
+    plain: () =>
+      "AcadKit 2.0 — built for SRM KTR's day-order life. Internals /60, externals /40, 75% or bust.",
+    brutal: () => "scribbled in the back bench by someone who hates this app",
+  }),
 } as const;
 
 /** Resolve one line for a tone. */

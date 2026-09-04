@@ -184,6 +184,7 @@ function SubjectMarksCard({
 }
 
 export default function Marks() {
+  const tone = useTone();
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { data: marks, isLoading: mLoading } = useMarks();
 
@@ -210,7 +211,14 @@ export default function Marks() {
   return (
     <div className="relative space-y-4">
       <div className="flex items-center justify-between gap-3 px-1">
-        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Marks</h1>
+        <div>
+            <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleMarks, tone)}</h1>
+            {say(VOICE.subMarks, tone) && (
+              <p className="mt-0.5 text-xs italic text-muted">
+                ({say(VOICE.subMarks, tone)})
+              </p>
+            )}
+          </div>
         <Segmented
           layoutId="marks-view"
           options={[

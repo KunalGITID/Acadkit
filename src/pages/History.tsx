@@ -17,6 +17,8 @@ import {
   useSubjects,
 } from "@/hooks/useData";
 import { clearAcademicData, insertArchive } from "@/api/queries";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
 import { computeOverallAttendance } from "@/lib/attendance";
 import { computeSgpa, groupMarksBySubject, type Grade } from "@/lib/grades";
 import { useAppStore } from "@/store/app";
@@ -86,6 +88,7 @@ function SemesterCard({
 }
 
 export default function History() {
+  const tone = useTone();
   const pin = useAppStore((s) => s.pin)!;
   const qc = useQueryClient();
   const { data: archives, isLoading } = useArchives();
@@ -182,7 +185,7 @@ export default function History() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">Semester history</h1>
+      <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleHistory, tone)}</h1>
 
       {/* CGPA hero */}
       <section className="card flex items-center justify-around gap-3 p-6">

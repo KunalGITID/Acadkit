@@ -39,15 +39,32 @@ describe("attendanceBelow", () => {
   });
 });
 
+/**
+ * Subtitles exist only in the brutal register — the plain app has no
+ * parenthetical commentary under its page titles — so an empty string
+ * there is the intended value, not a missing line.
+ */
+const PLAIN_MAY_BE_EMPTY = new Set(
+  Object.keys(VOICE).filter((k) => k.startsWith("sub"))
+);
+
 describe("every line", () => {
-  it("exists in both tones and is never blank", () => {
+  it("is present in both tones, and never blank where it should speak", () => {
     for (const [key, copy] of Object.entries(VOICE)) {
       for (const tone of ["plain", "brutal"] as const) {
         // 1 and "Kunal" are harmless for the lines that take no args.
         const line = (copy[tone] as (...a: unknown[]) => string)(1, "Kunal");
-        expect(line, `${key}.${tone}`).toBeTruthy();
         expect(line, `${key}.${tone}`).not.toContain("undefined");
+        if (tone === "plain" && PLAIN_MAY_BE_EMPTY.has(key)) continue;
+        expect(line, `${key}.${tone}`).toBeTruthy();
       }
+    }
+  });
+
+  it("always gives the brutal register something to say", () => {
+    for (const [key, copy] of Object.entries(VOICE)) {
+      const line = (copy.brutal as (...a: unknown[]) => string)(1, "Kunal");
+      expect(line.trim(), key).not.toBe("");
     }
   });
 

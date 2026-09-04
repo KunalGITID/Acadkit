@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
 import { useAttendance, useSubjects } from "@/hooks/useData";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
 import { formatTime, parseISODate } from "@/lib/dates";
 import type { AttendanceRecord } from "@/types";
 
 const INITIAL_DAYS = 6;
 
 export default function AbsentLog() {
+  const tone = useTone();
   const { data: attendance, isLoading: aLoading } = useAttendance();
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const [markDate, setMarkDate] = useState<string | null>(null);
@@ -46,7 +49,7 @@ export default function AbsentLog() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="px-1">
-        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Absent log</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleAbsences, tone)}</h1>
         <p className="mt-1 text-sm font-medium text-muted">
           {totalMissed === 0
             ? "Every period you miss will show up here."

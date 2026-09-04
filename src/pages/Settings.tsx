@@ -36,6 +36,8 @@ import { SubjectSheet } from "@/components/sheets/subject-sheet";
 import { ImportSheet } from "@/components/sheets/import-sheet";
 import { usePush } from "@/hooks/usePush";
 import { useSession } from "@/hooks/useSession";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
 import { signOut } from "@/lib/auth";
 import {
   PENDING_MIGRATIONS_SQL,
@@ -786,12 +788,13 @@ function CollapsibleSection({
 }
 
 export default function Settings() {
+  const tone = useTone();
   const themeMode = useAppStore((s) => s.themeMode);
   const setThemeMode = useAppStore((s) => s.setThemeMode);
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">Settings</h1>
+      <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleSettings, tone)}</h1>
 
       <SetupCard />
 
@@ -843,7 +846,7 @@ export default function Settings() {
       </CollapsibleSection>
 
       <p className="pb-4 pt-2 text-center text-xs text-muted">
-        AcadKit 2.0 — built for SRM KTR's day-order life. Internals /60, externals /40, 75% or bust.
+        {say(VOICE.footer, tone)}
       </p>
     </div>
   );
