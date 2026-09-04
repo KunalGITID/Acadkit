@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import {
   useSubjects,
   useUpdateDeadline,
 } from "@/hooks/useData";
+import { derivedTitle } from "@/lib/deadlines";
 import { todayISO } from "@/lib/dates";
 import type { Deadline, DeadlinePriority, DeadlineType } from "@/types";
 
@@ -28,7 +28,6 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
   const update = useUpdateDeadline();
   const remove = useDeleteDeadline();
 
-  const [title, setTitle] = useState("");
   const [subjectId, setSubjectId] = useState<string>("");
   const [type, setType] = useState<DeadlineType>("assignment");
   const [priority, setPriority] = useState<DeadlinePriority>("medium");
@@ -39,7 +38,6 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
     if (!open) return;
     if (deadline) {
       const due = new Date(deadline.due_date);
-      setTitle(deadline.title);
       setSubjectId(deadline.subject_id ?? "");
       setType(deadline.type);
       setPriority(deadline.priority);
@@ -50,7 +48,6 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
         `${String(due.getHours()).padStart(2, "0")}:${String(due.getMinutes()).padStart(2, "0")}`
       );
     } else {
-      setTitle("");
       setSubjectId("");
       setType("assignment");
       setPriority("medium");
@@ -60,13 +57,12 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
   }, [open, deadline, defaultDate]);
 
   function save() {
-    if (!title.trim()) {
-      toast.error("Give it a title");
-      return;
-    }
     const due = new Date(`${date}T${time}:00`);
+    const subject = (subjects ?? []).find((s) => s.id === subjectId);
     const payload = {
-      title: title.trim(),
+      // `title` is NOT NULL and appears in the JSON export, so it's
+      // derived rather than dropped now the field is gone.
+      title: derivedTitle(type, subject),
       subject_id: subjectId || null,
       type,
       priority,
@@ -85,15 +81,6 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
       title={deadline ? "Edit deadline" : "New deadline"}
     >
       <div className="space-y-4">
-        <Field label="Title">
-          <Input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. DSA Assignment 3"
-            autoFocus={!deadline}
-          />
-        </Field>
-
         <Field label="Subject (optional)">
           <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
             <option value="">No subject</option>
@@ -132,7 +119,7 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
           />
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Due date">
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>

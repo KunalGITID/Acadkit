@@ -109,6 +109,12 @@ free of React:
 - **`src/lib/targets.ts`** — the reverse of the grade table: what the
   next component must return for a target grade. Adding a component
   grows the denominator too, so this is not "the gap".
+- **`src/lib/deadlines.ts`** — deadlines are named by what they are.
+  There is no title field: a row leads with its subject (falling back to
+  the type when unassigned) and carries a type badge. The `title` column
+  is still NOT NULL and still in the JSON export, so writes fill it with
+  a derived `"<code> <Type>"` string via `derivedTitle`; older rows keep
+  whatever was typed, but the UI no longer shows it.
 - **`src/lib/ics.ts`** — timetable → iCalendar. A day-order rotation
   can't be an RRULE, so every class is its own VEVENT; UIDs are stable
   so re-import updates rather than duplicates.

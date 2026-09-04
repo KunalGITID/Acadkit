@@ -34,6 +34,7 @@ import { useToday } from "@/hooks/useToday";
 import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
 import { daysUntilSemesterStart, semesterWindow } from "@/lib/calendar";
 import { formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
+import { deadlineLabel } from "@/lib/deadlines";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
@@ -370,7 +371,7 @@ function DeadlinesCard() {
                 className="flex items-center gap-3 rounded-2xl border bg-surface-2/40 p-3"
               >
                 <button
-                  aria-label={`Mark ${d.title} done`}
+                  aria-label={`Mark ${deadlineLabel(d, subject)} done`}
                   onClick={() => {
                     haptic([10, 40, 14]);
                     updateDeadline.mutate({ id: d.id, patch: { status: "done" } });
@@ -384,14 +385,13 @@ function DeadlinesCard() {
                     setSheetOpen(true);
                   }}
                 >
-                  <p className="truncate text-sm font-bold">{d.title}</p>
-                  <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                  <p className="flex items-center gap-1.5 truncate text-sm font-bold">
                     {subject && (
-                      <>
-                        <Dot color={subject.color_hex} className="h-1.5 w-1.5" />
-                        <span className="truncate">{subject.code}</span> ·
-                      </>
+                      <Dot color={subject.color_hex} className="h-1.5 w-1.5 shrink-0" />
                     )}
+                    <span className="truncate">{deadlineLabel(d, subject)}</span>
+                  </p>
+                  <p className="text-xs font-medium text-muted">
                     <span className={cn(urgent && "font-bold text-bad-deep")}>
                       {days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}
                     </span>

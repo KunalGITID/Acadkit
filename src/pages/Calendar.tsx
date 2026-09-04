@@ -15,6 +15,7 @@ import { Badge, Dot } from "@/components/ui/misc";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
 import { useDeadlines, useSettings, useSubjects, useUpdateSettings } from "@/hooks/useData";
+import { deadlineLabel } from "@/lib/deadlines";
 import { getDayInfo, semesterWindow } from "@/lib/calendar";
 import { formatDateLong, parseISODate, toISODate, todayISO } from "@/lib/dates";
 import { cn, haptic } from "@/lib/utils";
@@ -268,7 +269,7 @@ export default function Calendar() {
                     <Dot color={subject?.color_hex ?? "hsl(var(--accent))"} />
                     <div className="min-w-0 flex-1">
                       <p className={cn("truncate text-sm font-bold", d.status === "done" && "text-muted line-through")}>
-                        {d.title}
+                        {deadlineLabel(d, subject)}
                       </p>
                       {subject && <p className="text-xs text-muted">{subject.code}</p>}
                     </div>
