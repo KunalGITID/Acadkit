@@ -36,6 +36,7 @@ import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
 import { daysUntilSemesterStart, semesterWindow } from "@/lib/calendar";
 import { formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
 import { deadlineLabel } from "@/lib/deadlines";
+import { deadlineTarget, describeTarget } from "@/lib/deadlineTarget";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
@@ -354,6 +355,7 @@ function MarksSummaryCard() {
 
 function DeadlinesCard() {
   const tone = useTone();
+  const { data: marks } = useMarks();
   const settled = useHasAnimated("dashboard-deadlines");
   const { data: deadlines, isLoading } = useDeadlines();
   const { data: subjects } = useSubjects();
@@ -398,6 +400,10 @@ function DeadlinesCard() {
         <div className="space-y-2">
           {upcoming.map((d, i) => {
             const subject = subjects?.find((s) => s.id === d.subject_id);
+            const outlook = d.max_marks
+              ? deadlineTarget(d, (marks ?? []).filter((m) => m.subject_id === d.subject_id))
+              : null;
+            const target = outlook ? describeTarget(outlook, Number(d.max_marks)) : null;
             const due = new Date(d.due_date);
             const days = Math.ceil((due.getTime() - Date.now()) / 86_400_000);
             const urgent = days <= 2;
@@ -431,10 +437,18 @@ function DeadlinesCard() {
                     )}
                     <span className="truncate">{deadlineLabel(d, subject)}</span>
                   </p>
-                  <p className="text-xs font-medium text-muted">
+                  <p className="flex items-center gap-1.5 text-xs font-medium text-muted">
                     <span className={cn(urgent && "font-bold text-bad-deep")}>
                       {days <= 0 ? "today" : days === 1 ? "tomorrow" : `in ${days} days`}
                     </span>
+                    {target && (
+                      <>
+                        <span aria-hidden>·</span>
+                        {/* The whole point of adding a deadline: what to
+                            aim for, not just when it lands. */}
+                        <span className="truncate font-bold text-accent">{target}</span>
+                      </>
+                    )}
                   </p>
                 </button>
                 <Badge

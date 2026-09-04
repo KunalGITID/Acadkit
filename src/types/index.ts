@@ -95,6 +95,8 @@ export interface Deadline {
   due_date: string; // ISO timestamp
   status: DeadlineStatus;
   priority: DeadlinePriority;
+  /** What the test is out of, when it carries marks (migration 017). */
+  max_marks?: number | null;
   created_at?: string;
 }
 

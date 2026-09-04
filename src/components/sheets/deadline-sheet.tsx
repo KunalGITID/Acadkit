@@ -33,6 +33,7 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
   const [priority, setPriority] = useState<DeadlinePriority>("medium");
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("23:59");
+  const [maxMarks, setMaxMarks] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -47,12 +48,14 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
       setTime(
         `${String(due.getHours()).padStart(2, "0")}:${String(due.getMinutes()).padStart(2, "0")}`
       );
+      setMaxMarks(deadline.max_marks != null ? String(deadline.max_marks) : "");
     } else {
       setSubjectId("");
       setType("assignment");
       setPriority("medium");
       setDate(defaultDate ?? todayISO());
       setTime("23:59");
+      setMaxMarks("");
     }
   }, [open, deadline, defaultDate]);
 
@@ -68,6 +71,9 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
       priority,
       due_date: due.toISOString(),
       status: deadline?.status ?? ("pending" as const),
+      // Blank means "no marks attached", not zero — a lab record has no
+      // denominator and shouldn't be made to invent one.
+      max_marks: maxMarks.trim() ? Number(maxMarks) : null,
     };
     if (deadline) update.mutate({ id: deadline.id, patch: payload });
     else add.mutate(payload);
@@ -116,6 +122,17 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
             ]}
             value={priority}
             onChange={(v) => setPriority(v as DeadlinePriority)}
+          />
+        </Field>
+
+        <Field label="Out of (optional)">
+          <Input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            placeholder="e.g. 50 — leave blank if it carries no marks"
+            value={maxMarks}
+            onChange={(e) => setMaxMarks(e.target.value)}
           />
         </Field>
 
