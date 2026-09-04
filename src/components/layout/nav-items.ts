@@ -5,6 +5,7 @@ import {
   History,
   House,
   ListX,
+  PartyPopper,
   Settings,
   Sparkles,
   UserCheck,
@@ -43,6 +44,11 @@ export const SECONDARY_NAV: NavItem[] = [
   { to: "/insights", label: "Insights", icon: Sparkles, blurb: "Projections, risk and what-ifs" },
   { to: "/log", label: "Absences", icon: ListX, blurb: "Every period you've missed" },
   { to: "/history", label: "History", icon: History, blurb: "Past semesters and CGPA" },
+  // Wrapped was reachable only from Settings, which is where nobody looks
+  // at the end of term — the one moment it is worth opening. It stays out
+  // of the tab bar (five daily destinations, and this is not one) but
+  // belongs in the drawer with the other occasional pages.
+  { to: "/wrapped", label: "Wrapped", icon: PartyPopper, blurb: "Your semester, counted up" },
 ];
 
 /** Contents of the More sheet. Settings has its own button, so it's not repeated here. */

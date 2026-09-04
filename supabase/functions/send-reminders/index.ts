@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
   for (const pin of deviceIds) {
     const [{ data: settings }, { data: subjects }, { data: timetable }, { data: attendance }, { data: deadlines }, { data: snapshots }] =
       await Promise.all([
-        sb.from("settings").select("declared_holidays,sem_start,sem_end").eq("device_id", pin).maybeSingle(),
+        sb.from("settings").select("declared_holidays,sem_start,sem_end,theme").eq("device_id", pin).maybeSingle(),
         sb.from("subjects").select("id,name,code,short_name").eq("device_id", pin),
         sb.from("timetable_slots").select("*").eq("device_id", pin),
         sb.from("attendance").select("subject_id,date,start_time,status").eq("device_id", pin),
@@ -132,6 +132,24 @@ Deno.serve(async (req) => {
       ]);
 
     const subjName = new Map((subjects ?? []).map((s) => [s.id, s.name]));
+
+    /**
+     * Notifications speak the same register as the app.
+     *
+     * Every screen changes language with the Brutalist theme; a push was
+     * the one surface still talking like corporate software. It couldn't
+     * before — the theme lived only in localStorage, so the server had no
+     * way to know it. Migration 018 put `settings.theme` in the database,
+     * which is the only reason this is possible.
+     *
+     * The tone rule mirrors `toneFor` in src/lib/voice.ts: brutalist is
+     * brutal, everything else is plain. Kept as a literal rather than
+     * generated, because the app never renders these strings — there is
+     * no shared copy to drift from, only this rule, and a new theme
+     * simply falls through to plain.
+     */
+    const brutal = settings?.theme === "brutalist";
+    const pickCopy = <T,>(plain: T, brut: T): T => (brutal ? brut : plain);
 
     /**
      * What a deadline is called, matching deadlineLabel in
@@ -215,7 +233,10 @@ Deno.serve(async (req) => {
           device_id: pin,
           kind: "class",
           ref: `${slot.id}|${date}`,
-          title: `${subjName.get(slot.subject_id) ?? "Class"} in ${lead} min`,
+          title: pickCopy(
+            `${subjName.get(slot.subject_id) ?? "Class"} in ${lead} min`,
+            `${subjName.get(slot.subject_id) ?? "class"} in ${lead} min. run.`
+          ),
           body: `${fmt(slot.start_time.slice(0, 5))}${slot.room ? ` · ${slot.room}` : ""} · Day Order ${dayOrder}`,
           url: "/",
         });
@@ -237,8 +258,11 @@ Deno.serve(async (req) => {
           device_id: pin,
           kind: "mark",
           ref: `mark|${date}`,
-          title: "Mark today's attendance",
-          body: `${unmarked} class${unmarked > 1 ? "es" : ""} still unmarked from today.`,
+          title: pickCopy("Mark today's attendance", "mark today. or don't. it'll show."),
+          body: pickCopy(
+            `${unmarked} class${unmarked > 1 ? "es" : ""} still unmarked from today.`,
+            `${unmarked} class${unmarked > 1 ? "es" : ""} unaccounted for.`
+          ),
           url: "/attendance",
         });
       }
@@ -259,7 +283,10 @@ Deno.serve(async (req) => {
             title: deadlineHeadline(d),
             // "within 24 hours" is the window that selected this row, not
             // news. The hour is the part you act on.
-            body: hrs <= 12 ? "Due today." : "Due tomorrow.",
+            body: pickCopy(
+              hrs <= 12 ? "Due today." : "Due tomorrow.",
+              hrs <= 12 ? "due today. good luck." : "due tomorrow. start now."
+            ),
             url: "/calendar",
           });
         }
@@ -275,8 +302,14 @@ Deno.serve(async (req) => {
             device_id: pin,
             kind: "low_attendance",
             ref: `low|${subject.id}|${date}`,
-            title: `${subject.name ?? "A subject"} below 75%`,
-            body: `You're at ${Math.round((attended / total) * 100)}% — attend the next few to recover.`,
+            title: pickCopy(
+              `${subject.name ?? "A subject"} below 75%`,
+              `${subject.name ?? "a subject"} is cooked`
+            ),
+            body: pickCopy(
+              `You're at ${Math.round((attended / total) * 100)}% — attend the next few to recover.`,
+              `${Math.round((attended / total) * 100)}%. attend the next few or it's gone.`
+            ),
             url: "/attendance",
           });
         }
@@ -328,19 +361,32 @@ Deno.serve(async (req) => {
               device_id: pin,
               kind: "verdict",
               ref: `verdict|${date}`,
-              title: `Attend today — ${mustAttend[0]} can't afford it`,
-              body:
+              title: pickCopy(
+                `Attend today — ${mustAttend[0]} can't afford it`,
+                `go in today. ${mustAttend[0]} can't take the hit.`
+              ),
+              body: pickCopy(
                 mustAttend.length > 1
                   ? `${mustAttend.length} subjects today are out of skip budget.`
                   : "Missing today drops you below 75%.",
+                mustAttend.length > 1
+                  ? `${mustAttend.length} subjects today are broke.`
+                  : "miss today and you're under."
+              ),
               url: "/",
             }
           : {
               device_id: pin,
               kind: "verdict",
               ref: `verdict|${date}`,
-              title: `Safe to skip today's ${todaySlots.length} class${todaySlots.length > 1 ? "es" : ""}`,
-              body: "Every subject today still has skip budget left.",
+              title: pickCopy(
+                `Safe to skip today's ${todaySlots.length} class${todaySlots.length > 1 ? "es" : ""}`,
+                `today's ${todaySlots.length} class${todaySlots.length > 1 ? "es are" : " is"} skippable`
+              ),
+              body: pickCopy(
+                "Every subject today still has skip budget left.",
+                "every subject still has budget. go touch grass."
+              ),
               url: "/",
             }
       );
