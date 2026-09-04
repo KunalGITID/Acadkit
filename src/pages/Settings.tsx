@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -18,6 +19,7 @@ import {
   ArrowUpRight,
   LayoutGrid,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -587,6 +589,32 @@ function WidgetCard() {
   );
 }
 
+/**
+ * Wrapped lives here rather than in the nav bar.
+ *
+ * It's an occasion, not a destination — read once, shared, and then not
+ * opened again for weeks. A permanent tab would make it furniture, and
+ * the tab bar has exactly five slots that earn their place daily.
+ */
+function WrappedCard() {
+  const tone = useTone();
+  return (
+    <Link
+      to="/wrapped"
+      className="card flex items-center gap-3 p-5 transition-transform active:scale-[0.99]"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+        <Sparkles className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-bold">{say(VOICE.wrappedTitle, tone)}</p>
+        <p className="mt-0.5 text-xs text-muted">{say(VOICE.wrappedIntro, tone)}</p>
+      </div>
+      <ArrowUpRight className="h-4 w-4 shrink-0 text-muted" />
+    </Link>
+  );
+}
+
 export default function Settings() {
   const tone = useTone();
   const themeMode = useAppStore((s) => s.themeMode);
@@ -634,6 +662,7 @@ export default function Settings() {
       <div className="space-y-3">
         <SectionTitle>Home screen</SectionTitle>
         <WidgetCard />
+        <WrappedCard />
       </div>
 
       <div className="space-y-3">

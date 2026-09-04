@@ -175,6 +175,71 @@ export const VOICE = {
     brutal: () => "that puts you under. don't.",
   }),
 
+  // ---- wrapped ----
+
+  wrappedTitle: pick({
+    plain: () => "Semester Wrapped",
+    brutal: () => "the receipts",
+  }),
+
+  wrappedIntro: pick({
+    plain: () => "Here's your semester so far.",
+    brutal: () => "everything you did. and didn't.",
+  }),
+
+  /** `h` hours sat in a classroom. */
+  wrappedHours: pick<[h: number]>({
+    plain: () => "hours in a classroom",
+    brutal: (h) => (h >= 100 ? "hours you're not getting back" : "hours of your life, gone"),
+  }),
+
+  wrappedAttended: pick({
+    plain: () => "classes attended",
+    brutal: () => "times you showed up",
+  }),
+
+  wrappedMissed: pick({
+    plain: () => "classes missed",
+    brutal: () => "times you didn't",
+  }),
+
+  wrappedBest: pick({
+    plain: () => "Your best subject",
+    brutal: () => "the one you actually turn up for",
+  }),
+
+  wrappedWorst: pick({
+    plain: () => "Your worst",
+    brutal: () => "the one you avoid",
+  }),
+
+  /** `n` consecutive marked days with no absence. */
+  wrappedStreak: pick<[n: number]>({
+    plain: () => "day clean streak",
+    brutal: (n) => (n >= 10 ? "days straight. who are you?" : "days straight, then you cracked"),
+  }),
+
+  /** `d` day order, `n` classes missed on it. */
+  wrappedWorstDay: pick<[d: number, n: number]>({
+    plain: (d) => `Day ${d} is your weak spot`,
+    brutal: (d) => `day ${d} never stood a chance`,
+  }),
+
+  wrappedNoAbsence: pick({
+    plain: () => "You haven't missed a single class.",
+    brutal: () => "zero absences. suspicious, but respect.",
+  }),
+
+  wrappedEmpty: pick({
+    plain: () => "Mark some classes and come back — there's nothing to wrap yet.",
+    brutal: () => "no data. nothing to roast. mark something.",
+  }),
+
+  wrappedShare: pick({
+    plain: () => "Share",
+    brutal: () => "post the receipts",
+  }),
+
   noClassesToday: pick({
     plain: () => "No classes today — enjoy the break.",
     brutal: () => "no classes. go touch grass.",
