@@ -163,7 +163,31 @@ free of React:
   can't be an RRULE, so every class is its own VEVENT; UIDs are stable
   so re-import updates rather than duplicates.
 - **`src/lib/shareCard.ts`** — `buildShareData` (pure, tested) feeds
-  `renderShareCard` (canvas, verified in-browser).
+  `renderShareCard` (canvas, verified in-browser). `renderWrappedCard`
+  is a separate renderer, not a variant: one is a report (a grade per
+  subject, uniform rows), the other a boast (one enormous number and a
+  2×2 grid). The hero number is measured and shrunk to fit.
+- **`src/lib/liveClass.ts`** — which class is running right now, from
+  minutes-since-midnight, so it's testable without mocking a clock. The
+  case that needs the test is the handover: 08:50 both ends one class
+  and starts the next, and treating the end minute as still-inside
+  matches both.
+- **`src/lib/bunkWallet.ts`** — `canBunk` reshaped as a balance. No new
+  maths; it sorts, sums, and keeps subjects below 75% out of the
+  spendable total, since you can't skip your way out of 65%.
+- **`src/lib/examCountdown.ts`** — the next exam inside a 21-day
+  horizon. Exams only, because they're the one type entered by hand (the
+  portal never publishes their dates) and the reason to enter one is to
+  aim at a number.
+- **`src/lib/forecast.ts`** — the cost of skipping *specific* future
+  days, for the heatmap. Baselines on "attend everything from here", not
+  today's percentage: measuring against today credits the plan with
+  every class you're still going to sit, making each skip look cheaper
+  than it is.
+- **`src/lib/wrapped.ts`** — the semester counted up. Everything is a
+  count of something recorded and anything unknowable comes back null
+  for the UI to drop, because one invented superlative discredits the
+  rest. Hours round down.
 
 ### Portal sync (bookmarklet)
 
