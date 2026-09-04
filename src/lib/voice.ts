@@ -199,6 +199,64 @@ export const VOICE = {
       "AcadKit 2.0 — built for SRM KTR's day-order life. Internals /60, externals /40, 75% or bust.",
     brutal: () => "scribbled in the back bench by someone who hates this app",
   }),
+
+  // ---- first contact ----
+  // The sign-in screen is where a new user meets the app, so it is the
+  // worst possible place to break character.
+
+  signInTagline: pick({
+    plain: () => "Sign in to sync your semester",
+    brutal: () => "sign in and face the numbers",
+  }),
+  signUpTagline: pick({
+    plain: () => "Create your account",
+    brutal: () => "new here? bold of you",
+  }),
+  signInAction: pick({ plain: () => "Sign in", brutal: () => "let me in" }),
+  signUpAction: pick({ plain: () => "Create account", brutal: () => "start the suffering" }),
+  signInSwap: pick({
+    plain: () => "New here? Create an account",
+    brutal: () => "no account? make one",
+  }),
+  signUpSwap: pick({
+    plain: () => "I already have an account",
+    brutal: () => "i've been here before",
+  }),
+  staysSignedIn: pick({
+    plain: () => "This device stays signed in — you only do this once.",
+    brutal: () => "you only do this once. small mercies.",
+  }),
+
+  onboardingBlurb: pick({
+    plain: () =>
+      "Attendance, marks, SGPA and your day-order timetable — on every device you sign in to.",
+    brutal: () =>
+      "attendance, marks and the day order, on every device you sign in to. no escape.",
+  }),
+  onboardingAction: pick({
+    plain: () => "Set up my semester",
+    brutal: () => "let's see the damage",
+  }),
+  onboardingNote: pick({
+    plain: () => "Seeds your SRM subjects so there's something to edit rather than a blank app.",
+    brutal: () => "seeds your srm subjects. edit them, they're probably wrong.",
+  }),
+  onboardingDone: pick({
+    plain: () => "You're set up — your subjects are ready to edit.",
+    brutal: () => "done. now go ruin it.",
+  }),
+
+  // ---- absences ----
+
+  absentLogBlurb: pick({
+    plain: () => "Every period you miss will show up here.",
+    brutal: () => "every period you skipped, itemised.",
+  }),
+  absentEmptyTitle: pick({ plain: () => "Clean sheet", brutal: () => "suspiciously clean" }),
+  absentEmptyBody: pick({
+    plain: () => "No absents on record. Keep it that way!",
+    brutal: () => "no absences on record. either you're good or you're not marking.",
+  }),
 } as const;
 
 /** Resolve one line for a tone. */

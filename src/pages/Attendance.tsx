@@ -18,6 +18,7 @@ import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
 import { formatDate, todayISO } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
+import { Struck } from "@/components/ui/struck";
 import { cn } from "@/lib/utils";
 
 function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number }) {
@@ -118,9 +119,14 @@ export default function Attendance() {
     () => computeOverallAttendance(subjects ?? [], attendance ?? [], snapshots ?? []),
     [subjects, attendance, snapshots]
   );
+  // Depend on the two fields, not the settings object: React Query
+  // hands back a new object on every refetch, so listing `settings`
+  // would satisfy the linter by defeating the memo.
+  const semStart = settings?.sem_start ?? null;
+  const semEnd = settings?.sem_end ?? null;
   const semWindow = useMemo(
-    () => semesterWindow(settings),
-    [settings?.sem_start, settings?.sem_end]
+    () => semesterWindow({ sem_start: semStart, sem_end: semEnd }),
+    [semStart, semEnd]
   );
   // Working days only, declared holidays already shifted out — the
   // heatmap draws the days that actually happened, in sequence.
@@ -147,7 +153,9 @@ export default function Attendance() {
       <div className="flex items-center justify-between px-1">
         <div>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleAttendance, tone)}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">
+              <Struck official="system of academic excellence" honest={say(VOICE.titleAttendance, tone)} />
+            </h1>
             {say(VOICE.subAttendance, tone) && (
               <p className="mt-0.5 text-xs italic text-muted">
                 ({say(VOICE.subAttendance, tone)})

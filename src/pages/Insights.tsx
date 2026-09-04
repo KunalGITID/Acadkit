@@ -173,9 +173,14 @@ export default function Insights() {
     () => settings?.declared_holidays ?? [],
     [settings?.declared_holidays]
   );
+  // Depend on the two fields, not the settings object: React Query
+  // hands back a new object on every refetch, so listing `settings`
+  // would satisfy the linter by defeating the memo.
+  const semStart = settings?.sem_start ?? null;
+  const semEnd = settings?.sem_end ?? null;
   const semWindow = useMemo(
-    () => semesterWindow(settings),
-    [settings?.sem_start, settings?.sem_end]
+    () => semesterWindow({ sem_start: semStart, sem_end: semEnd }),
+    [semStart, semEnd]
   );
   const report = useMemo(
     () =>

@@ -2,6 +2,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2, Sparkles, Wand2 } from "lucide-react";
 import { toast } from "sonner";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
 import { Button } from "@/components/ui/button";
 import { accountExists, seedAccount } from "@/api/queries";
 import { claimDevice } from "@/lib/auth";
@@ -9,6 +11,7 @@ import { generatePin } from "@/lib/pin";
 import { useAppStore } from "@/store/app";
 
 export default function Onboarding() {
+  const tone = useTone();
   const setPin = useAppStore((s) => s.setPin);
   const [busy, setBusy] = useState(false);
 
@@ -21,10 +24,9 @@ export default function Onboarding() {
       await seedAccount(pin);
       await claimDevice(pin);
       setPin(pin);
-      toast.success(`Your sync PIN is ${pin}`, {
-        description: "Find it anytime in Settings — it links all your devices.",
-        duration: 8000,
-      });
+      // The PIN is internal now — there is no Settings card to find it
+      // in, and your account is what follows you between devices.
+      toast.success(say(VOICE.onboardingDone, tone));
     } catch (err) {
       toast.error("Couldn't set things up", {
         description: err instanceof Error ? err.message : "Check your connection and retry.",
@@ -55,17 +57,16 @@ export default function Onboarding() {
             Welcome to <span className="accent-gradient-text">AcadKit</span>
           </h1>
           <p className="mt-2 text-[15px] text-muted">
-            Attendance, marks, SGPA and your day-order timetable — on every device you
-            sign in to.
+{say(VOICE.onboardingBlurb, tone)}
           </p>
         </div>
 
         <Button size="lg" className="h-14 w-full" onClick={createFresh} disabled={busy}>
           {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />}
-          Set up my semester
+          {say(VOICE.onboardingAction, tone)}
         </Button>
         <p className="pt-3 text-center text-xs text-muted">
-          Seeds your SRM subjects so there's something to edit rather than a blank app.
+          {say(VOICE.onboardingNote, tone)}
         </p>
       </motion.div>
     </div>

@@ -10,6 +10,7 @@ import { useToday } from "@/hooks/useToday";
 import { formatTime } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
+import { Struck } from "@/components/ui/struck";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { cn } from "@/lib/utils";
 import type { TimetableSlot } from "@/types";
@@ -85,7 +86,9 @@ export default function Timetable() {
     <div className="relative space-y-4">
       <div className="flex items-center justify-between px-1">
         <div>
-            <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleTimetable, tone)}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">
+              <Struck official="well structured timetable" honest={say(VOICE.titleTimetable, tone)} />
+            </h1>
             {say(VOICE.subTimetable, tone) && (
               <p className="mt-0.5 text-xs italic text-muted">
                 ({say(VOICE.subTimetable, tone)})

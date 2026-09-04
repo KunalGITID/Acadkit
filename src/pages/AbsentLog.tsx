@@ -52,7 +52,7 @@ export default function AbsentLog() {
         <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleAbsences, tone)}</h1>
         <p className="mt-1 text-sm font-medium text-muted">
           {totalMissed === 0
-            ? "Every period you miss will show up here."
+            ? say(VOICE.absentLogBlurb, tone)
             : `${totalMissed} period${totalMissed === 1 ? "" : "s"} missed across ${days.length} day${days.length === 1 ? "" : "s"} — tap a day to fix mistakes.`}
         </p>
       </div>
@@ -61,8 +61,8 @@ export default function AbsentLog() {
         <section className="card">
           <EmptyState
             icon={PartyPopper}
-            title="Clean sheet"
-            description="No absents on record. Keep it that way!"
+            title={say(VOICE.absentEmptyTitle, tone)}
+            description={say(VOICE.absentEmptyBody, tone)}
             className="py-10"
           />
         </section>

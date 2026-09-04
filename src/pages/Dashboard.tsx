@@ -37,6 +37,7 @@ import { formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
 import { deadlineLabel } from "@/lib/deadlines";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
+import { Struck } from "@/components/ui/struck";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
@@ -362,12 +363,13 @@ function DeadlinesCard() {
       </div>
 
       {upcoming.length === 0 ? (
-        <EmptyState
-          icon={CalendarCheck2}
-          title={say(VOICE.deadlinesEmptyTitle, tone)}
-          description={say(VOICE.deadlinesEmptyBody, tone)}
-          className="py-6"
-        />
+        // A full empty state — icon, heading, paragraph — is a lot of
+        // dashboard for "you have no deadlines", which is the steady
+        // state for most people. One line keeps the Add button reachable
+        // without the card shouting about being empty.
+        <p className="px-1 pb-1 text-sm font-semibold text-muted">
+          {say(VOICE.deadlinesEmptyTitle, tone)}
+        </p>
       ) : (
         <div className="space-y-2">
           {upcoming.map((d, i) => {
@@ -445,8 +447,8 @@ export default function Dashboard() {
         animate={{ opacity: 1, y: 0 }}
         className="flex items-start justify-between gap-3 px-1"
       >
-        <h1 className="min-w-0 line-clamp-2 text-2xl font-extrabold tracking-tight lg:text-3xl">
-          {greeting}
+        <h1 className="min-w-0 text-2xl font-extrabold tracking-tight lg:text-3xl">
+          <Struck official="welcome back, scholar" honest={greeting} />
         </h1>
         <DayOrderChip />
       </motion.div>
