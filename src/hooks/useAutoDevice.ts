@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ownedDevices } from "@/lib/auth";
+import { chooseDevice } from "@/lib/devices";
 import { useAppStore } from "@/store/app";
 
 /**
@@ -26,11 +27,8 @@ export function useAutoDevice(enabled: boolean): void {
 
     void ownedDevices()
       .then((devices) => {
-        if (!devices.length) return; // nothing claimed yet — onboarding handles it
-        // Multiple claims can only exist from before the PIN UI was
-        // removed, so the oldest wins rather than asking a question the
-        // app no longer has a screen for.
-        if (!pin || !devices.includes(pin)) setPin(devices[0]);
+        const next = chooseDevice(pin, devices);
+        if (next && next !== pin) setPin(next);
       })
       .catch(() => {});
   }, [enabled, pin, setPin]);
