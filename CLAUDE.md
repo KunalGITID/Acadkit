@@ -97,7 +97,7 @@ Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `sett
 
 ### Derived-decision libraries
 
-Four pure modules turn stored data into answers, all unit-tested and all
+These pure modules turn stored data into answers, all unit-tested and all
 free of React:
 
 - **`src/lib/autoMark.ts`** — `pendingAutoMarks` lists past scheduled
@@ -109,9 +109,6 @@ free of React:
 - **`src/lib/targets.ts`** — the reverse of the grade table: what the
   next component must return for a target grade. Adding a component
   grows the denominator too, so this is not "the gap".
-- **`src/lib/skipAdvice.ts`** — per-class verdicts for one day, spending
-  each subject's `skipBudget` cumulatively so a day with two classes of
-  one subject costs two. Drives the dashboard's verdict card.
 - **`src/lib/ics.ts`** — timetable → iCalendar. A day-order rotation
   can't be an RRULE, so every class is its own VEVENT; UIDs are stable
   so re-import updates rather than duplicates.

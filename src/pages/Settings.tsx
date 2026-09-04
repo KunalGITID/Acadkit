@@ -1,19 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  ArrowRight,
   CalendarRange,
   CalendarX2,
   Check,
-  ClipboardList,
   Contrast,
   Copy,
   Download,
   ExternalLink,
   Flower2,
-  GraduationCap,
   Loader2,
   Bell,
   BellOff,
@@ -855,36 +851,6 @@ export default function Settings() {
         <SectionTitle>Academics</SectionTitle>
         <SemesterDatesCard />
         <AutoMarkCard />
-        <Link
-          to="/log"
-          className="card flex items-center justify-between p-5 transition-transform active:scale-[0.99]"
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-bad/10 text-bad-deep">
-              <ClipboardList className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="font-bold">Absent log</p>
-              <p className="text-xs text-muted">Every period you've missed, day by day</p>
-            </div>
-          </div>
-          <ArrowRight className="h-4 w-4 text-muted" />
-        </Link>
-        <Link
-          to="/history"
-          className="card flex items-center justify-between p-5 transition-transform active:scale-[0.99]"
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-              <GraduationCap className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="font-bold">Semester history & CGPA</p>
-              <p className="text-xs text-muted">Archive past semesters, track CGPA</p>
-            </div>
-          </div>
-          <ArrowRight className="h-4 w-4 text-muted" />
-        </Link>
         <SubjectsCard />
       </div>
 

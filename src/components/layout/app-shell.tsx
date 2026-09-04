@@ -1,9 +1,8 @@
-import { Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useOutlet } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { LayoutGrid, Settings, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import { MoreSheet } from "@/components/layout/more-sheet";
 import { SECONDARY_NAV } from "@/components/layout/nav-items";
 import { Sidebar } from "@/components/layout/sidebar";
 import { OfflineBanner } from "@/components/layout/offline-banner";
@@ -11,6 +10,13 @@ import { Skeleton } from "@/components/ui/misc";
 import { useSync } from "@/hooks/useSync";
 import { useAutoMarkRunner } from "@/hooks/useAutoMark";
 import { cn, haptic } from "@/lib/utils";
+
+// The sheet drags in vaul, which is bigger than the whole app shell.
+// Loading it eagerly put ~20 KB gzip in front of first paint for a
+// panel most sessions never open.
+const MoreSheet = lazy(() =>
+  import("@/components/layout/more-sheet").then((m) => ({ default: m.MoreSheet }))
+);
 
 function PageFallback() {
   return (
@@ -132,7 +138,11 @@ export function AppShell() {
         </main>
 
         <BottomNav />
-        <MoreSheet open={moreOpen} onOpenChange={setMoreOpen} />
+        {moreOpen && (
+          <Suspense fallback={null}>
+            <MoreSheet open onOpenChange={setMoreOpen} />
+          </Suspense>
+        )}
       </div>
     </div>
   );
