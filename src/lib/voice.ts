@@ -157,6 +157,24 @@ export const VOICE = {
     brutal: () => "no marks yet. nothing to aim at.",
   }),
 
+  /** Prompt inviting you to plan skips on the heatmap. */
+  forecastHint: pick({
+    plain: () => "Tap a day ahead to see the cost of skipping it.",
+    brutal: () => "tap a future day. see what it costs you.",
+  }),
+
+  /** `n` days, `c` classes selected. */
+  forecastSelected: pick<[n: number, c: number]>({
+    plain: (n, c) => `Skipping ${n} day${n === 1 ? "" : "s"} · ${c} class${c === 1 ? "" : "es"}`,
+    brutal: (n, c) => `${n} day${n === 1 ? "" : "s"} off · ${c} class${c === 1 ? "" : "es"} binned`,
+  }),
+
+  /** Shown when the plan lands under the minimum. */
+  forecastBelow: pick({
+    plain: () => "That drops you below 75%.",
+    brutal: () => "that puts you under. don't.",
+  }),
+
   noClassesToday: pick({
     plain: () => "No classes today — enjoy the break.",
     brutal: () => "no classes. go touch grass.",

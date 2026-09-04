@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { formatDate, todayISO } from "@/lib/dates";
+import { cn } from "@/lib/utils";
 import type { AttendanceRecord } from "@/types";
 
 interface HeatmapProps {
@@ -11,6 +12,14 @@ interface HeatmapProps {
    * existed; anything absent from it never happened.
    */
   effMap: Record<string, number>;
+  /**
+   * Future days to draw after today, with the classes each carries.
+   * Omitted, the grid stops at today exactly as it used to.
+   */
+  future?: { date: string; classes: number }[];
+  /** Dates currently pencilled in as skipped. */
+  skipped?: ReadonlySet<string>;
+  onToggleSkip?: (date: string) => void;
 }
 
 interface DayCell {
@@ -18,6 +27,9 @@ interface DayCell {
   dayOrder: number;
   present: number;
   absent: number;
+  /** Future cells carry a class count instead of a record. */
+  future: boolean;
+  classes: number;
 }
 
 /** Day Order 1–5, so each row of the grid is one day order. */
@@ -35,8 +47,19 @@ const ROWS = 5;
  *
  * That also makes each row a Day Order, so a subject you keep missing
  * shows up as a bad streak along one row.
+ *
+ * Past cells are filled; future ones are outlines. The difference is
+ * deliberately a fill rather than a colour, so "hasn't happened" can
+ * never be mistaken for "went badly" — the grid stays readable as a
+ * record even while it is being used to plan.
  */
-export function AttendanceHeatmap({ records, effMap }: HeatmapProps) {
+export function AttendanceHeatmap({
+  records,
+  effMap,
+  future,
+  skipped,
+  onToggleSkip,
+}: HeatmapProps) {
   const columns = useMemo(() => {
     const byDate = new Map<string, { present: number; absent: number }>();
     for (const r of records) {
@@ -48,22 +71,34 @@ export function AttendanceHeatmap({ records, effMap }: HeatmapProps) {
     }
 
     const today = todayISO();
-    // Only days that have happened; the rest of the semester isn't news.
-    const days: DayCell[] = Object.keys(effMap)
+    const past: DayCell[] = Object.keys(effMap)
       .filter((d) => d <= today)
       .sort()
       .map((date) => ({
         date,
         dayOrder: effMap[date],
+        future: false,
+        classes: 0,
         ...(byDate.get(date) ?? { present: 0, absent: 0 }),
       }));
 
+    const ahead: DayCell[] = (future ?? []).map(({ date, classes }) => ({
+      date,
+      dayOrder: effMap[date] ?? 0,
+      present: 0,
+      absent: 0,
+      future: true,
+      classes,
+    }));
+
+    const days = [...past, ...ahead];
     const out: DayCell[][] = [];
     for (let i = 0; i < days.length; i += ROWS) out.push(days.slice(i, i + ROWS));
     return out;
-  }, [records, effMap]);
+  }, [records, effMap, future]);
 
-  function cellColor(cell: DayCell): string {
+  function cellColor(cell: DayCell): string | undefined {
+    if (cell.future) return undefined; // outlined, painted by className
     const total = cell.present + cell.absent;
     if (total === 0) return "hsl(var(--line) / 0.08)";
     const ratio = cell.present / total;
@@ -73,8 +108,14 @@ export function AttendanceHeatmap({ records, effMap }: HeatmapProps) {
   }
 
   function label(cell: DayCell): string {
-    const total = cell.present + cell.absent;
     const head = `${formatDate(cell.date)} · Day ${cell.dayOrder}`;
+    if (cell.future) {
+      const n = `${cell.classes} class${cell.classes === 1 ? "" : "es"}`;
+      return skipped?.has(cell.date)
+        ? `${head} — skipping, ${n}`
+        : `${head} — ${n} ahead${onToggleSkip ? ". Tap to pencil in a skip." : ""}`;
+    }
+    const total = cell.present + cell.absent;
     return total === 0
       ? `${head} — not marked`
       : `${head} — ${cell.present} present, ${cell.absent} absent`;
@@ -91,18 +132,37 @@ export function AttendanceHeatmap({ records, effMap }: HeatmapProps) {
       >
         {columns.map((column, ci) => (
           <div key={ci} className="flex flex-col gap-1.5">
-            {column.map((cell) => (
-              <div
-                key={cell.date}
-                className="h-3.5 w-3.5 rounded-[5px]"
-                style={{ backgroundColor: cellColor(cell) }}
-                title={label(cell)}
-              />
-            ))}
+            {column.map((cell) => {
+              const isSkipped = cell.future && skipped?.has(cell.date);
+              // A day with nothing scheduled can't be skipped, so it
+              // stays inert rather than offering a toggle that does
+              // nothing to the number.
+              const tappable = cell.future && cell.classes > 0 && Boolean(onToggleSkip);
+              const common = {
+                title: label(cell),
+                style: { backgroundColor: cellColor(cell) },
+                className: cn(
+                  "h-3.5 w-3.5 rounded-[5px]",
+                  cell.future && "border border-dashed border-ink/25",
+                  isSkipped && "border-solid border-bad bg-bad/30",
+                  tappable && "cursor-pointer transition-transform active:scale-90"
+                ),
+              };
+              return tappable ? (
+                <button
+                  key={cell.date}
+                  {...common}
+                  aria-pressed={isSkipped}
+                  onClick={() => onToggleSkip?.(cell.date)}
+                />
+              ) : (
+                <div key={cell.date} {...common} />
+              );
+            })}
           </div>
         ))}
       </motion.div>
-      <div className="mt-3 flex items-center gap-4 text-[11px] font-medium text-muted">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-medium text-muted">
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-[4px] bg-good" /> all present
         </span>
@@ -112,6 +172,11 @@ export function AttendanceHeatmap({ records, effMap }: HeatmapProps) {
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-[4px] bg-bad" /> absent
         </span>
+        {future && future.length > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-[4px] border border-dashed border-ink/25" /> ahead
+          </span>
+        )}
       </div>
     </div>
   );

@@ -6,7 +6,14 @@ import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { AttendanceHeatmap } from "@/components/viz/heatmap";
 import { BunkWallet } from "@/components/viz/bunk-wallet";
-import { useAttendance, usePortalSnapshots, useSettings, useSubjects } from "@/hooks/useData";
+import { classesPerDayOrder, forecast, remainingDays } from "@/lib/forecast";
+import {
+  useAttendance,
+  usePortalSnapshots,
+  useSettings,
+  useSubjects,
+  useTimetable,
+} from "@/hooks/useData";
 import {
   attendanceColor,
   attendanceTextClass,
@@ -14,7 +21,7 @@ import {
   type SubjectAttendance,
 } from "@/lib/attendance";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
-import { relativeDay } from "@/lib/dates";
+import { relativeDay, todayISO } from "@/lib/dates";
 import { syncHealth } from "@/lib/syncHealth";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
@@ -103,6 +110,8 @@ export default function Attendance() {
   const { data: attendance, isLoading: aLoading } = useAttendance();
   const { data: snapshots } = usePortalSnapshots();
   const { data: settings } = useSettings();
+  const { data: timetable } = useTimetable();
+  const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
 
   const overall = useMemo(
     () => computeOverallAttendance(subjects ?? [], attendance ?? [], snapshots ?? []),
@@ -124,6 +133,23 @@ export default function Attendance() {
     () => buildEffectiveMap(settings?.declared_holidays ?? [], semWindow),
     [settings?.declared_holidays, semWindow]
   );
+
+  // The rest of the semester, each day carrying its day order's class
+  // count — what a pencilled-in skip actually costs.
+  const future = useMemo(
+    () => remainingDays(effMap, classesPerDayOrder(timetable), todayISO()),
+    [effMap, timetable]
+  );
+  const plan = useMemo(
+    () => forecast(overall.attended, overall.total, future, skipped),
+    [overall.attended, overall.total, future, skipped]
+  );
+  const toggleSkip = (date: string) =>
+    setSkipped((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(date)) next.add(date);
+      return next;
+    });
 
   if (sLoading || aLoading) {
     return (
@@ -218,7 +244,57 @@ export default function Attendance() {
               className="py-6"
             />
           ) : (
-            <AttendanceHeatmap records={attendance ?? []} effMap={effMap} />
+            <>
+              <AttendanceHeatmap
+                records={attendance ?? []}
+                effMap={effMap}
+                future={future}
+                skipped={skipped}
+                onToggleSkip={toggleSkip}
+              />
+
+              {/* The forecast only earns space once there is a plan to
+                  report on; before that it's a hint, not a readout. */}
+              {plan.baseline !== null && (
+                <div className="mt-4 border-t pt-3">
+                  {skipped.size === 0 ? (
+                    <p className="text-xs font-medium text-muted">
+                      {say(VOICE.forecastHint, tone)}
+                    </p>
+                  ) : (
+                    <div className="flex items-end justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-muted">
+                          {say(VOICE.forecastSelected, tone, skipped.size, plan.classesSkipped)}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-0.5 text-2xl font-extrabold tabular",
+                            attendanceTextClass(plan.projected)
+                          )}
+                        >
+                          {plan.projected!.toFixed(1)}%
+                          <span className="ml-2 text-sm font-bold text-muted">
+                            {plan.delta.toFixed(1)}
+                          </span>
+                        </p>
+                        {plan.belowMinimum && (
+                          <p className="mt-0.5 text-xs font-bold text-bad-deep">
+                            {say(VOICE.forecastBelow, tone)}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setSkipped(new Set())}
+                        className="shrink-0 rounded-xl bg-surface-2 px-3 py-2 text-xs font-bold"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>
