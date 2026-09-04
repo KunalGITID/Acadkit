@@ -11,8 +11,10 @@ export function UpdatePrompt() {
 
   useEffect(() => {
     if (!needRefresh) return;
-    toast("AcadKit just got an update", {
-      description: "Reload to get the latest version.",
+    // One line, not two: the action says what happens, so a description
+    // repeating it only makes the toast taller on the screen where
+    // there's least room for it.
+    toast("Update available", {
       duration: Infinity,
       action: {
         label: "Reload",

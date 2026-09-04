@@ -1,55 +1,67 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { addDays, formatDate, parseISODate, todayISO } from "@/lib/dates";
+import { formatDate, todayISO } from "@/lib/dates";
 import type { AttendanceRecord } from "@/types";
 
 interface HeatmapProps {
   records: AttendanceRecord[];
-  /** Semester start date ("YYYY-MM-DD") — the heatmap's earliest possible column. */
-  semStart: string;
+  /**
+   * Effective date → day order, holidays already removed
+   * (`buildEffectiveMap`). This is the list of days that actually
+   * existed; anything absent from it never happened.
+   */
+  effMap: Record<string, number>;
 }
 
 interface DayCell {
   date: string;
+  dayOrder: number;
   present: number;
   absent: number;
 }
 
+/** Day Order 1–5, so each row of the grid is one day order. */
+const ROWS = 5;
+
 /**
- * GitHub-style attendance heatmap: one column per week (Mon–Fri rows)
- * from semester start through today. Green = all present, amber =
- * mixed, red = all absent, neutral = nothing marked.
+ * Attendance heatmap over **working days only**.
+ *
+ * A calendar-shaped grid has to leave a hole wherever a weekday holiday
+ * falls, and a hole is indistinguishable from a day you forgot to mark
+ * — both render as an empty cell. Since SRM runs a five-day rotation
+ * rather than a week, the honest layout is the sequence of days that
+ * actually happened, packed five to a column. Holidays don't leave a
+ * gap; the next working day simply takes the slot.
+ *
+ * That also makes each row a Day Order, so a subject you keep missing
+ * shows up as a bad streak along one row.
  */
-export function AttendanceHeatmap({ records, semStart }: HeatmapProps) {
-  const weeks = useMemo(() => {
-    const byDate = new Map<string, DayCell>();
+export function AttendanceHeatmap({ records, effMap }: HeatmapProps) {
+  const columns = useMemo(() => {
+    const byDate = new Map<string, { present: number; absent: number }>();
     for (const r of records) {
       if (r.status !== "present" && r.status !== "absent") continue;
-      const cell = byDate.get(r.date) ?? { date: r.date, present: 0, absent: 0 };
+      const cell = byDate.get(r.date) ?? { present: 0, absent: 0 };
       if (r.status === "present") cell.present++;
       else cell.absent++;
       byDate.set(r.date, cell);
     }
 
     const today = todayISO();
-    const lastMarked = [...byDate.keys()].sort().pop() ?? semStart;
-    const end = [today, semStart, lastMarked].sort().pop()!;
-    // Walk back to the Monday of the start week
-    let cursor = semStart;
-    while (parseISODate(cursor).getDay() !== 1) cursor = addDays(cursor, -1);
+    // Only days that have happened; the rest of the semester isn't news.
+    const days: DayCell[] = Object.keys(effMap)
+      .filter((d) => d <= today)
+      .sort()
+      .map((date) => ({
+        date,
+        dayOrder: effMap[date],
+        ...(byDate.get(date) ?? { present: 0, absent: 0 }),
+      }));
 
-    const result: Array<Array<DayCell | null>> = [];
-    while (cursor <= end) {
-      const week: Array<DayCell | null> = [];
-      for (let i = 0; i < 5; i++) {
-        const date = addDays(cursor, i);
-        week.push(date > end ? null : byDate.get(date) ?? { date, present: 0, absent: 0 });
-      }
-      result.push(week);
-      cursor = addDays(cursor, 7);
-    }
-    return result;
-  }, [records, semStart]);
+    const out: DayCell[][] = [];
+    for (let i = 0; i < days.length; i += ROWS) out.push(days.slice(i, i + ROWS));
+    return out;
+  }, [records, effMap]);
 
   function cellColor(cell: DayCell): string {
     const total = cell.present + cell.absent;
@@ -60,26 +72,35 @@ export function AttendanceHeatmap({ records, semStart }: HeatmapProps) {
     return "#fb7185";
   }
 
+  function label(cell: DayCell): string {
+    const total = cell.present + cell.absent;
+    const head = `${formatDate(cell.date)} · Day ${cell.dayOrder}`;
+    return total === 0
+      ? `${head} — not marked`
+      : `${head} — ${cell.present} present, ${cell.absent} absent`;
+  }
+
   return (
     <div className="overflow-x-auto pb-1 scrollbar-none">
-      <div className="flex gap-1.5" style={{ minWidth: weeks.length * 18 }}>
-        {weeks.map((week, wi) => (
-          <div key={wi} className="flex flex-col gap-1.5">
-            {week.map((cell, di) =>
-              cell === null ? (
-                <div key={di} className="h-3.5 w-3.5" />
-              ) : (
-                <motion.div
-                  key={cell.date}
-                  initial={{ opacity: 0, scale: 0.4 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: (wi * 5 + di) * 0.006, type: "spring", stiffness: 300, damping: 22 }}
-                  className="h-3.5 w-3.5 rounded-[5px]"
-                  style={{ backgroundColor: cellColor(cell) }}
-                  title={`${formatDate(cell.date)} — ${cell.present} present, ${cell.absent} absent`}
-                />
-              )
-            )}
+      <div className="flex gap-1.5" style={{ minWidth: columns.length * 18 }}>
+        {columns.map((column, ci) => (
+          <div key={ci} className="flex flex-col gap-1.5">
+            {column.map((cell, di) => (
+              <motion.div
+                key={cell.date}
+                initial={{ opacity: 0, scale: 0.4 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{
+                  delay: (ci * ROWS + di) * 0.006,
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 22,
+                }}
+                className="h-3.5 w-3.5 rounded-[5px]"
+                style={{ backgroundColor: cellColor(cell) }}
+                title={label(cell)}
+              />
+            ))}
           </div>
         ))}
       </div>

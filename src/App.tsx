@@ -57,6 +57,11 @@ export default function App() {
         <MotionConfig reducedMotion="user">
           <Toaster
             position="top-center"
+            // Standalone iOS draws under the status bar and the Dynamic
+            // Island, so a toast at the default offset lands beneath
+            // them — visible enough to notice, not enough to tap.
+            offset="calc(env(safe-area-inset-top) + 10px)"
+            mobileOffset="calc(env(safe-area-inset-top) + 10px)"
             toastOptions={{
               className: "!rounded-2xl !border !bg-surface !text-ink !shadow-card",
             }}

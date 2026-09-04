@@ -14,7 +14,7 @@ import {
   computeOverallAttendance,
   type SubjectAttendance,
 } from "@/lib/attendance";
-import { semesterWindow } from "@/lib/calendar";
+import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
 import { formatDate, todayISO } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
@@ -108,6 +108,12 @@ export default function Attendance() {
     () => semesterWindow(settings),
     [settings?.sem_start, settings?.sem_end]
   );
+  // Working days only, declared holidays already shifted out — the
+  // heatmap draws the days that actually happened, in sequence.
+  const effMap = useMemo(
+    () => buildEffectiveMap(settings?.declared_holidays ?? [], semWindow),
+    [settings?.declared_holidays, semWindow]
+  );
 
   if (sLoading || aLoading) {
     return (
@@ -183,7 +189,7 @@ export default function Attendance() {
               className="py-6"
             />
           ) : (
-            <AttendanceHeatmap records={attendance ?? []} semStart={semWindow.start} />
+            <AttendanceHeatmap records={attendance ?? []} effMap={effMap} />
           )}
         </section>
       </div>
