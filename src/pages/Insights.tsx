@@ -28,12 +28,21 @@ import {
 import { GRADE_COLORS, GRADE_TABLE } from "@/lib/grades";
 import { formatDate, todayISO } from "@/lib/dates";
 import { semesterWindow } from "@/lib/calendar";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
 import { cn } from "@/lib/utils";
 
 const RISK_STYLE = {
-  safe: { text: "text-good-deep", bg: "bg-good/12", label: "On track" },
-  watch: { text: "text-warn-deep", bg: "bg-warn/12", label: "Watch" },
-  critical: { text: "text-bad-deep", bg: "bg-bad/12", label: "Critical" },
+  safe: { text: "text-good-deep", bg: "bg-good/12" },
+  watch: { text: "text-warn-deep", bg: "bg-warn/12" },
+  critical: { text: "text-bad-deep", bg: "bg-bad/12" },
+} as const;
+
+/** Risk labels read very differently in the brutal register. */
+const RISK_VOICE = {
+  safe: VOICE.riskSafe,
+  watch: VOICE.riskWatch,
+  critical: VOICE.riskCritical,
 } as const;
 
 function DateBadge({ iso, tone }: { iso: string; tone: "warn" | "good" }) {
@@ -72,6 +81,7 @@ function ScenarioBar({ label, pct, color }: { label: string; pct: number; color:
 }
 
 function SubjectProjectionCard({ p, index }: { p: SubjectProjection; index: number }) {
+  const tone = useTone();
   const risk = RISK_STYLE[p.riskLevel];
   const pace = p.pacePct;
 
@@ -93,7 +103,7 @@ function SubjectProjectionCard({ p, index }: { p: SubjectProjection; index: numb
             {p.remaining} class{p.remaining === 1 ? "" : "es"} left
           </p>
         </div>
-        <Badge className={cn(risk.bg, risk.text)}>{risk.label}</Badge>
+        <Badge className={cn(risk.bg, risk.text)}>{say(RISK_VOICE[p.riskLevel], tone)}</Badge>
       </div>
 
       {/* The headline action line */}
@@ -151,6 +161,7 @@ function SubjectProjectionCard({ p, index }: { p: SubjectProjection; index: numb
 }
 
 export default function Insights() {
+  const tone = useTone();
   const { data: subjects, isLoading: sL } = useSubjects();
   const { data: attendance, isLoading: aL } = useAttendance();
   const { data: timetable, isLoading: tL } = useTimetable();
@@ -219,7 +230,7 @@ export default function Insights() {
         <section className="card">
           <EmptyState
             icon={CalendarClock}
-            title="Build your timetable first"
+            title={say(VOICE.insightsNeedTimetable, tone)}
             description="Attendance projections count your real remaining classes from the day-order calendar — add your class slots and this comes alive. (Grades work without it.)"
           />
         </section>
@@ -487,12 +498,13 @@ function SubjectGradeCard({ p, index }: { p: SubjectGradeProjection; index: numb
 }
 
 function GradesProjection({ report }: { report: ReturnType<typeof buildProjection> }) {
+  const tone = useTone();
   if (report.gradeProjections.length === 0) {
     return (
       <section className="card">
         <EmptyState
           icon={GraduationCap}
-          title="Add marks to project grades"
+          title={say(VOICE.insightsNeedMarks, tone)}
           description="Enter internal marks (a CT, an assignment) and this view backsolves exactly what you need in the end-sem for each grade — plus your projected SGPA range."
           className="py-10"
         />

@@ -16,9 +16,12 @@ import {
 } from "@/lib/attendance";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
 import { formatDate, todayISO } from "@/lib/dates";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
 import { cn } from "@/lib/utils";
 
 function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number }) {
+  const tone = useTone();
   const [open, setOpen] = useState(false);
   const pct = stats.percentage;
 
@@ -48,7 +51,7 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted">
             {stats.total === 0
-              ? "No classes marked yet"
+              ? say(VOICE.noClassesMarked, tone)
               : `${stats.attended} of ${stats.total} attended`}
           </p>
         </div>
@@ -70,7 +73,7 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
               <div>
                 <p className="text-lg font-extrabold tabular">{stats.canBunk}</p>
                 <p className="text-[11px] font-semibold text-muted">
-                  class{stats.canBunk === 1 ? "" : "es"} you can skip
+                  {say(VOICE.skipBudget, tone, stats.canBunk)}
                 </p>
               </div>
             </div>
@@ -94,6 +97,7 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
 }
 
 export default function Attendance() {
+  const tone = useTone();
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { data: attendance, isLoading: aLoading } = useAttendance();
   const { data: snapshots } = usePortalSnapshots();
@@ -184,8 +188,8 @@ export default function Attendance() {
           {overall.total === 0 ? (
             <EmptyState
               icon={GraduationCap}
-              title="Your semester map starts here"
-              description="Every day you mark paints this grid green, amber or red."
+              title={say(VOICE.heatmapEmptyTitle, tone)}
+              description={say(VOICE.heatmapEmptyBody, tone)}
               className="py-6"
             />
           ) : (

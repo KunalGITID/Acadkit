@@ -82,20 +82,18 @@ export function AttendanceHeatmap({ records, effMap }: HeatmapProps) {
 
   return (
     <div className="overflow-x-auto pb-1 scrollbar-none">
-      <div className="flex gap-1.5" style={{ minWidth: columns.length * 18 }}>
+      <motion.div
+        className="flex gap-1.5"
+        style={{ minWidth: columns.length * 18 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.25 }}
+      >
         {columns.map((column, ci) => (
           <div key={ci} className="flex flex-col gap-1.5">
-            {column.map((cell, di) => (
-              <motion.div
+            {column.map((cell) => (
+              <div
                 key={cell.date}
-                initial={{ opacity: 0, scale: 0.4 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{
-                  delay: (ci * ROWS + di) * 0.006,
-                  type: "spring",
-                  stiffness: 300,
-                  damping: 22,
-                }}
                 className="h-3.5 w-3.5 rounded-[5px]"
                 style={{ backgroundColor: cellColor(cell) }}
                 title={label(cell)}
@@ -103,7 +101,7 @@ export function AttendanceHeatmap({ records, effMap }: HeatmapProps) {
             ))}
           </div>
         ))}
-      </div>
+      </motion.div>
       <div className="mt-3 flex items-center gap-4 text-[11px] font-medium text-muted">
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-[4px] bg-good" /> all present

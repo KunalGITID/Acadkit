@@ -17,6 +17,8 @@ import {
   useSubjects,
 } from "@/hooks/useData";
 import { Segmented } from "@/components/ui/segmented";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
 import { computeSgpa, groupMarksBySubject, type SubjectMarks } from "@/lib/grades";
 import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
 import { computeOverallAttendance } from "@/lib/attendance";
@@ -103,6 +105,7 @@ function SubjectMarksCard({
   onAdd: (subject: Subject) => void;
   onEdit: (subject: Subject, mark: Mark) => void;
 }) {
+  const tone = useTone();
   const audit = subject.credits === 0;
 
   return (
@@ -170,7 +173,7 @@ function SubjectMarksCard({
             <span className="text-muted">/ 100</span>
           </p>
         ) : (
-          <p className="text-sm font-semibold text-muted">No internals yet</p>
+          <p className="text-sm font-semibold text-muted">{say(VOICE.noInternals, tone)}</p>
         )}
         <Button variant="secondary" size="sm" onClick={() => onAdd(subject)}>
           <Plus className="h-3.5 w-3.5" /> Add marks

@@ -37,6 +37,7 @@ import { formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
 import { deadlineLabel } from "@/lib/deadlines";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
@@ -44,10 +45,17 @@ import type { Deadline } from "@/types";
 
 const stagger = {
   hidden: { opacity: 0, y: 16 },
+  // `i` carries the index on first paint and -1 once the list has
+  // already animated this session, which drops the delay entirely.
   show: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { type: "spring" as const, stiffness: 260, damping: 26, delay: i * 0.06 },
+    transition: {
+      type: "spring" as const,
+      stiffness: 260,
+      damping: 26,
+      delay: i < 0 ? 0 : i * 0.06,
+    },
   }),
 };
 
@@ -321,6 +329,7 @@ function MarksSummaryCard() {
 
 function DeadlinesCard() {
   const tone = useTone();
+  const settled = useHasAnimated("dashboard-deadlines");
   const { data: deadlines, isLoading } = useDeadlines();
   const { data: subjects } = useSubjects();
   const updateDeadline = useUpdateDeadline();
@@ -369,7 +378,7 @@ function DeadlinesCard() {
             return (
               <motion.div
                 key={d.id}
-                custom={i}
+                custom={settled ? -1 : i}
                 variants={stagger}
                 initial="hidden"
                 animate="show"

@@ -78,6 +78,59 @@ export const VOICE = {
     plain: () => "Add assignments and exams so they can't sneak up on you.",
     brutal: () => "either you're on top of it or you forgot to add anything.",
   }),
+
+  // ---- attendance ----
+
+  noClassesMarked: pick({
+    plain: () => "No classes marked yet",
+    brutal: () => "no record. convenient.",
+  }),
+
+  heatmapEmptyTitle: pick({
+    plain: () => "Your semester map starts here",
+    brutal: () => "an empty grid. tragic.",
+  }),
+
+  heatmapEmptyBody: pick({
+    plain: () => "Every day you mark paints this grid green, amber or red.",
+    brutal: () => "mark a day and find out which colour you are.",
+  }),
+
+  /** `n` future classes can still be missed. */
+  skipBudget: pick<[n: number]>({
+    plain: (n) => `class${n === 1 ? "" : "es"} you can skip`,
+    brutal: (n) => (n === 0 ? "you can skip nothing" : `free skip${n === 1 ? "" : "s"} left`),
+  }),
+
+  // ---- risk labels ----
+
+  riskSafe: pick({ plain: () => "On track", brutal: () => "fine" }),
+  riskWatch: pick({ plain: () => "Watch", brutal: () => "shaky" }),
+  riskCritical: pick({ plain: () => "Critical", brutal: () => "cooked" }),
+
+  // ---- marks ----
+
+  noInternals: pick({
+    plain: () => "No internals yet",
+    brutal: () => "no marks. no opinion.",
+  }),
+
+  // ---- empty states that ask for setup ----
+
+  timetableEmptyBody: pick({
+    plain: () => "Add the classes that run on this day order — attendance marking needs them.",
+    brutal: () => "nothing here. add your classes or stay in the dark.",
+  }),
+
+  insightsNeedTimetable: pick({
+    plain: () => "Build your timetable first",
+    brutal: () => "no timetable, no predictions.",
+  }),
+
+  insightsNeedMarks: pick({
+    plain: () => "Add marks to project grades",
+    brutal: () => "give me marks and i'll tell you the damage.",
+  }),
 } as const;
 
 /** Resolve one line for a tone. */

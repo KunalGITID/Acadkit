@@ -8,6 +8,9 @@ import { SlotSheet } from "@/components/sheets/slot-sheet";
 import { useSubjects, useTimetable } from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
 import { formatTime } from "@/lib/dates";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { cn } from "@/lib/utils";
 import type { TimetableSlot } from "@/types";
 
@@ -28,6 +31,8 @@ const daySlideVariants = {
 };
 
 export default function Timetable() {
+  const tone = useTone();
+  const settled = useHasAnimated("timetable-slots");
   const { data: timetable, isLoading: tLoading } = useTimetable();
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { info } = useToday();
@@ -117,7 +122,7 @@ export default function Timetable() {
             <EmptyState
               icon={CalendarPlus}
               title={`Day Order ${dayOrder} is empty`}
-              description="Add the classes that run on this day order — attendance marking needs them."
+              description={say(VOICE.timetableEmptyBody, tone)}
               action={
                 <Button
                   variant="secondary"
@@ -156,7 +161,7 @@ export default function Timetable() {
                   initial={{ opacity: 0, x: -14 }}
                   animate={{ opacity: st === "past" ? 0.5 : 1, x: 0 }}
                   exit={{ opacity: 0, x: 14 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 28, delay: i * 0.04 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 28, delay: settled ? 0 : i * 0.04 }}
                   onClick={() => {
                     setEditing(slot);
                     setSheetOpen(true);
