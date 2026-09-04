@@ -188,6 +188,9 @@ const db = {
       theme_mode: null,
     },
   ],
+  // Migration 019. Empty to start: sharing is something you do, not
+  // something you arrive with.
+  shared_cards: [],
   subjects: SUBJECTS,
   timetable_slots: TIMETABLE,
   attendance: ATTENDANCE,
@@ -275,6 +278,30 @@ const server = createServer((req, res) => {
     res.writeHead(200, { "content-type": "application/json" });
     // /logout returns no body; everything else gets the session.
     return res.end(u.pathname.includes("logout") ? "" : JSON.stringify(session));
+  }
+
+  /**
+   * The one RPC the app calls. Reading someone else's card goes through
+   * a SECURITY DEFINER function in production, because no RLS policy can
+   * both allow "where code = $1" and forbid "select *" — the mock has no
+   * RLS, but it routes the same way so the client code path is identical.
+   */
+  if (u.pathname === "/rest/v1/rpc/get_shared_card") {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    return req.on("end", () => {
+      let code = null;
+      try {
+        code = raw ? JSON.parse(raw).p_code : null;
+      } catch {
+        /* malformed body behaves as no match */
+      }
+      const card = db.shared_cards.find((c) => c.code === code && !c.revoked);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify(card ? [{ payload: card.payload, created_at: card.created_at }] : [])
+      );
+    });
   }
 
   const table = u.pathname.replace(/^\/rest\/v1\//, "");

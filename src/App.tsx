@@ -27,6 +27,7 @@ const Insights = lazy(() => import("@/pages/Insights"));
 const History = lazy(() => import("@/pages/History"));
 const Widget = lazy(() => import("@/pages/Widget"));
 const Wrapped = lazy(() => import("@/pages/Wrapped"));
+const Compare = lazy(() => import("@/pages/Compare"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -120,6 +121,7 @@ export default function App() {
                   <Route path="/log" element={<AbsentLog />} />
                 <Route path="/history" element={<History />} />
                   <Route path="/wrapped" element={<Wrapped />} />
+                  <Route path="/compare" element={<Compare />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>
               </Routes>

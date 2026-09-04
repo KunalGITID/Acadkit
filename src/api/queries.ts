@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import type { SharedCard } from "@/lib/compare";
 import { supabase } from "@/lib/supabase";
 import { SEED_SUBJECTS, SEMESTER_START, SEMESTER_END } from "@/data/semester";
 import type {
@@ -643,4 +644,76 @@ export async function importData(
   }
 
   return { subjects: createdSubjects, slots: createdSlots, deadlines: createdDeadlines };
+}
+
+
+/** A row of your own share list. The payload is not needed to manage it. */
+export interface SharedRow {
+  code: string;
+  created_at: string;
+  expires_at: string;
+  revoked: boolean;
+}
+
+// ---------------------------------------------------------------------
+// Shared comparison cards
+// ---------------------------------------------------------------------
+
+/**
+ * Publish a frozen snapshot of your attendance under a random code.
+ *
+ * The payload is built by `buildSharedCard` and contains attendance
+ * only — see src/lib/compare.ts for what is deliberately left out.
+ */
+export async function createShare(
+  pin: string,
+  code: string,
+  payload: SharedCard
+): Promise<void> {
+  const { error } = await supabase.from("shared_cards").insert({
+    code,
+    device_id: pin,
+    payload,
+  });
+  if (error) throw error;
+}
+
+/** Your own live shares, newest first. */
+export async function fetchMyShares(pin: string): Promise<SharedRow[]> {
+  const { data, error } = await supabase
+    .from("shared_cards")
+    .select("code,created_at,expires_at,revoked")
+    .eq("device_id", pin)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as SharedRow[];
+}
+
+/**
+ * Stop a code working.
+ *
+ * A flag rather than a delete, so a revoked code stays taken and cannot
+ * later be handed to someone else by chance.
+ */
+export async function revokeShare(code: string): Promise<void> {
+  const { error } = await supabase
+    .from("shared_cards")
+    .update({ revoked: true })
+    .eq("code", code);
+  if (error) throw error;
+}
+
+/**
+ * Read someone else's card by its code.
+ *
+ * Goes through the `get_shared_card` function rather than the table:
+ * there is no select policy that would let one account read another's
+ * row, because any policy permissive enough to allow "where code = $1"
+ * would also allow listing every card.
+ */
+export async function fetchSharedCard(code: string): Promise<SharedCard | null> {
+  const { data, error } = await supabase.rpc("get_shared_card", { p_code: code });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return (row?.payload as SharedCard) ?? null;
 }

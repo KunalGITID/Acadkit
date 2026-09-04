@@ -317,6 +317,38 @@ export const VOICE = {
     brutal: () => "attend every single one",
   }),
 
+  // ---- compare ----
+
+  compareTitle: pick({
+    plain: () => "Compare",
+    brutal: () => "who's worse",
+  }),
+
+  compareShareTitle: pick({
+    plain: () => "Share your numbers",
+    brutal: () => "expose yourself",
+  }),
+
+  compareShareAction: pick({
+    plain: () => "Create a code",
+    brutal: () => "make a code",
+  }),
+
+  compareEnterTitle: pick({
+    plain: () => "Enter their code",
+    brutal: () => "paste theirs",
+  }),
+
+  compareEmptyTitle: pick({
+    plain: () => "Nothing to compare yet",
+    brutal: () => "no one to judge yet",
+  }),
+
+  compareEmptyBody: pick({
+    plain: () => "Swap codes with a friend to line your attendance up side by side.",
+    brutal: () => "get a code off someone. find out who's actually cooked.",
+  }),
+
   survivalTitle: pick({
     plain: () => "Days you can skip",
     brutal: () => "days you can vanish",
