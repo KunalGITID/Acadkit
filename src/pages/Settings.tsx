@@ -660,7 +660,7 @@ function ThemePicker() {
   const setThemeName = useAppStore((s) => s.setThemeName);
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {(Object.keys(THEME_META) as ThemeName[]).map((key) => {
         const meta = THEME_META[key];
         const active = themeName === key;
