@@ -29,12 +29,13 @@ import {
   useMarks,
   useSettings,
   useSubjects,
+  useTimetable,
   useUpdateDeadline,
 } from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
 import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
-import { daysUntilSemesterStart, semesterWindow } from "@/lib/calendar";
-import { formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
+import { daysUntilSemesterStart, nextWorkingDate, semesterWindow } from "@/lib/calendar";
+import { formatDate, formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
 import { deadlineLabel } from "@/lib/deadlines";
 import { deadlineTarget, describeTarget } from "@/lib/deadlineTarget";
 import { say, VOICE } from "@/lib/voice";
@@ -69,9 +70,26 @@ const stagger = {
 function TodayCard() {
   const tone = useTone();
   const markAttendance = useMarkAttendance();
-  const { date, info, slots, isNextDay } = useToday();
+  const { date, info, slots, isNextDay, declared } = useToday();
   const { data: attendance } = useAttendance();
   const { data: settings } = useSettings();
+  const { data: timetable } = useTimetable();
+
+  /**
+   * The day you come back, and what is waiting on it.
+   *
+   * A holiday here doesn't delete classes — SRM's day order rotates, so
+   * the order that would have run simply moves to the next working day.
+   * "You skipped 5 classes" would therefore be false; the true and more
+   * useful thing is when you're back and which order it'll be.
+   */
+  const returning = useMemo(() => {
+    if (info.kind !== "official-holiday" && info.kind !== "declared-holiday") return null;
+    const next = nextWorkingDate(date, declared, semesterWindow(settings));
+    if (!next) return null;
+    const classes = (timetable ?? []).filter((t) => t.day_order === next.dayOrder).length;
+    return { ...next, classes };
+  }, [info.kind, date, declared, settings, timetable]);
   const [markOpen, setMarkOpen] = useState(false);
 
   // Live clock for now/next/past styling
@@ -148,12 +166,46 @@ function TodayCard() {
         ) : info.kind === "official-holiday" || info.kind === "declared-holiday" ? (
           // A holiday is the one thing worth shouting about, so it gets
           // the colour block rather than another grey empty state.
-          <ColourBlock tone="bad" className="text-center">
-            <p className="text-xs font-bold tracking-[0.22em] opacity-80">holiday</p>
-            <p className="mt-1 text-2xl font-extrabold">{info.holidayName ?? "Holiday"}</p>
-            <p className="mt-1 text-sm font-semibold opacity-90">
-              {say(VOICE.noClassesToday, tone)}
-            </p>
+          <ColourBlock tone="bad">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-bold tracking-[0.22em] opacity-80">holiday</p>
+                <p className="mt-1 text-3xl font-extrabold leading-[1.1]">
+                  {info.holidayName ?? "Holiday"}
+                </p>
+                <p className="mt-1.5 text-sm font-semibold opacity-90">
+                  {say(VOICE.noClassesToday, tone)}
+                </p>
+              </div>
+              <PartyPopper className="h-9 w-9 shrink-0 opacity-40" strokeWidth={1.6} />
+            </div>
+
+            {/* What the block was missing: somewhere to look next. A flat
+                panel naming the holiday tells you something you already
+                knew by the time you opened the app. */}
+            {returning && (
+              <>
+                <div aria-hidden className="my-4 h-px bg-current opacity-20" />
+                {/* Two atomic chunks rather than five inline spans: with
+                    separators between every part, a wrap left a dangling
+                    "·" at the end of the line. */}
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm font-bold">
+                  <span>
+                    <span className="opacity-70">{say(VOICE.holidayBack, tone)} </span>
+                    {formatDate(returning.date, { weekday: "long", day: "numeric", month: "short" })}
+                  </span>
+                  <span>
+                    Day {returning.dayOrder}
+                    {returning.classes > 0 && (
+                      <span className="opacity-70">
+                        {" · "}
+                        {say(VOICE.holidayThen, tone, returning.classes)}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              </>
+            )}
           </ColourBlock>
         ) : info.kind === "post-semester" ? (
           <EmptyState icon={PartyPopper} title="Semester's over" description="See you next term." />

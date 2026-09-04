@@ -75,7 +75,13 @@ function ShareButton({
   }
 
   return (
-    <Button variant="secondary" size="sm" disabled={busy} onClick={onShare}>
+    <Button
+      variant="secondary"
+      size="sm"
+      className="shrink-0"
+      disabled={busy}
+      onClick={onShare}
+    >
       <Share2 className="h-4 w-4" />
       {busy ? "Rendering…" : "Share"}
     </Button>
@@ -235,28 +241,35 @@ export default function Marks() {
 
   return (
     <div className="relative space-y-4">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <div>
-            <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleMarks, tone)}</h1>
-            {say(VOICE.subMarks, tone) && (
-              <p className="mt-0.5 text-xs italic text-muted">
-                ({say(VOICE.subMarks, tone)})
-              </p>
-            )}
-          </div>
-        <Segmented
-          layoutId="marks-view"
-          options={[
-            { value: "marks", label: "Marks" },
-            { value: "calculator", label: "Calculator" },
-          ]}
-          value={view}
-          onChange={(v) =>
-            goView(v as "marks" | "calculator", v === "calculator" ? 1 : -1)
-          }
-          className="w-56"
-        />
-        <ShareButton rows={result.rows} sgpa={result.sgpa} />
+      {/* Title, switcher and Share shared one row, and on a 390px phone
+          the three didn't fit — Share was clipped off the right edge.
+          They stack until there is room for a row. */}
+      <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">
+            {say(VOICE.titleMarks, tone)}
+          </h1>
+          {say(VOICE.subMarks, tone) && (
+            <p className="mt-0.5 text-xs italic text-muted">
+              ({say(VOICE.subMarks, tone)})
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Segmented
+            layoutId="marks-view"
+            options={[
+              { value: "marks", label: "Marks" },
+              { value: "calculator", label: "Calculator" },
+            ]}
+            value={view}
+            onChange={(v) =>
+              goView(v as "marks" | "calculator", v === "calculator" ? 1 : -1)
+            }
+            className="min-w-0 flex-1 sm:w-56 sm:flex-none"
+          />
+          <ShareButton rows={result.rows} sgpa={result.sgpa} />
+        </div>
       </div>
 
       <SwipeHint id="marks" dismissed={swiped} />

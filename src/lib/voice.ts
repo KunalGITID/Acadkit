@@ -240,6 +240,18 @@ export const VOICE = {
     brutal: () => "post the receipts",
   }),
 
+  /** Label above the "when you're back" line on a holiday. */
+  holidayBack: pick({
+    plain: () => "Back",
+    brutal: () => "back inside",
+  }),
+
+  /** `n` classes waiting on the next working day. */
+  holidayThen: pick<[n: number]>({
+    plain: (n) => `${n} class${n === 1 ? "" : "es"}`,
+    brutal: (n) => `${n} class${n === 1 ? "" : "es"} waiting`,
+  }),
+
   noClassesToday: pick({
     plain: () => "No classes today — enjoy the break.",
     brutal: () => "no classes. go touch grass.",
