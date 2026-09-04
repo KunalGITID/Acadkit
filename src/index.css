@@ -186,8 +186,12 @@
     -moz-appearance: textfield;
     appearance: textfield;
   }
+  /* --brand, not --accent: OLED sets the accent to 38% grey, which leaves
+     a focus ring nearly invisible on a near-black ground — the same trap
+     that hid the brand mark in the top bar. --brand is guaranteed to
+     contrast in every theme. */
   :focus-visible {
-    outline: 2px solid hsl(var(--accent));
+    outline: 2px solid hsl(var(--brand));
     outline-offset: 2px;
     border-radius: 6px;
   }
