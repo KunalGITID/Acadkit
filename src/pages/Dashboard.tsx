@@ -492,14 +492,20 @@ function DeadlinesCard() {
                 animate="show"
                 className="flex items-center gap-3 rounded-2xl border bg-surface-2/40 p-3"
               >
+                {/* The ring stays 24px; the button around it is 40, so
+                    the thing you tap is finger-sized without the row
+                    growing a hole in the middle of it. -m-2 pulls the
+                    extra padding back out of the layout. */}
                 <button
                   aria-label={`Mark ${deadlineLabel(d, subject)} done`}
                   onClick={() => {
                     haptic([10, 40, 14]);
                     updateDeadline.mutate({ id: d.id, patch: { status: "done" } });
                   }}
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-ink/20 transition-colors hover:border-good hover:bg-good/15"
-                />
+                  className="group -m-2 flex shrink-0 items-center justify-center p-2"
+                >
+                  <span className="block h-6 w-6 rounded-full border-2 border-ink/20 transition-colors group-hover:border-good group-hover:bg-good/15" />
+                </button>
                 <button
                   className="min-w-0 flex-1 text-left"
                   onClick={() => {

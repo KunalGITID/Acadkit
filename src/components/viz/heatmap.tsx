@@ -138,25 +138,37 @@ export function AttendanceHeatmap({
               // stays inert rather than offering a toggle that does
               // nothing to the number.
               const tappable = cell.future && cell.classes > 0 && Boolean(onToggleSkip);
-              const common = {
-                title: label(cell),
-                style: { backgroundColor: cellColor(cell) },
-                className: cn(
-                  "h-3.5 w-3.5 rounded-[5px]",
-                  cell.future && "border border-dashed border-ink/25",
-                  isSkipped && "border-solid border-bad bg-bad/30",
-                  tappable && "cursor-pointer transition-transform active:scale-90"
-                ),
-              };
+              const square = (
+                <span
+                  className={cn(
+                    "block h-3.5 w-3.5 rounded-[5px]",
+                    cell.future && "border border-dashed border-ink/25",
+                    isSkipped && "border-solid border-bad bg-bad/30"
+                  )}
+                  style={{ backgroundColor: cellColor(cell) }}
+                />
+              );
+
+              // A tappable cell keeps its 14px square but gets the gap as
+              // padding, so the target is 20px rather than 14 without the
+              // grid loosening. `title` alone was not enough: it never
+              // surfaces on touch and gives a screen reader nothing, so
+              // the button carries a real label.
               return tappable ? (
                 <button
                   key={cell.date}
-                  {...common}
+                  title={label(cell)}
+                  aria-label={label(cell)}
                   aria-pressed={isSkipped}
                   onClick={() => onToggleSkip?.(cell.date)}
-                />
+                  className="-m-[3px] block cursor-pointer p-[3px] transition-transform active:scale-90"
+                >
+                  {square}
+                </button>
               ) : (
-                <div key={cell.date} {...common} />
+                <div key={cell.date} title={label(cell)}>
+                  {square}
+                </div>
               );
             })}
           </div>
