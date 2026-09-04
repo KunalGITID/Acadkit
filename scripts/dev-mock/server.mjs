@@ -181,6 +181,11 @@ const db = {
       sem_end: SEM_END,
       declared_holidays: [],
       current_day_order: 1,
+      // Migration 018. Null is the interesting case: it means this
+      // account has never picked a theme, so the app publishes whatever
+      // the device is already using rather than being reset by a default.
+      theme: null,
+      theme_mode: null,
     },
   ],
   subjects: SUBJECTS,

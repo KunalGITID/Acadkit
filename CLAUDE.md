@@ -37,7 +37,11 @@ reminders were silently absent on the last two class days.
 
 ## Architecture (v2 rebuild)
 
-AcadKit is a single-user academic PWA (React + Vite + TypeScript + Tailwind + framer-motion) for SRM KTR. There is no authentication — all data is scoped by a 4-digit PIN stored in `localStorage` (`src/lib/pin.ts`) and used as the `device_id` column on every Supabase row. Entering the same PIN on another device loads the same data; that's the entire sync model. New PINs are seeded (settings row + starter subjects) by `seedAccount` in `src/api/queries.ts`.
+AcadKit is a single-user academic PWA (React + Vite + TypeScript + Tailwind + framer-motion) for SRM KTR. Every row is scoped by a 4-digit `device_id` (`src/lib/pin.ts`), and entering the same PIN on another device loads the same data — that's the sync model.
+
+The PIN is **not** the security boundary. It used to be: RLS granted the anon role full access and the scoping was client-side, so anyone could walk 0000–9999 and read every account. Migration 015 moved it into the database — a `device_owners` table maps each `device_id` to an `auth.uid()`, and an `owns_device()` SECURITY DEFINER function backs the policies, so all 47 `device_id` queries stayed as they were while the server began enforcing them. Sign-in is email + password (`src/lib/auth.ts`, `src/pages/SignIn.tsx`).
+
+Two consequences worth knowing before touching either: policies are `to authenticated`, so anything still using the anon key gets 42501 (this is what broke the portal bookmarklet and forced the `portal-ingest` function); and signing out has to clear the persisted React Query cache, or the next account sees the last one's data (`src/hooks/useAuthReset.ts`). New PINs are seeded by `seedAccount` in `src/api/queries.ts`.
 
 ### Data flow
 
@@ -110,6 +114,17 @@ opinionated sentence in two registers, `plain` and `brutal`, resolved by
 never the person, and never lies to be funny — unrecoverable attendance
 still reads as unrecoverable.
 
+The theme follows the **account**, not the device (migration 018,
+`src/hooks/useThemeSync.ts`). localStorage still drives the first paint —
+the pre-paint script in `index.html` runs before React and is what stops
+the palette flashing — and the settings row reconciles once it lands. The
+account wins, unless it has never stored a theme (then the device
+publishes its own), or the user picked one during this session (a live
+choice outranks a stored one). It waits for `isFetchedAfterMount` rather
+than the first `data`: the query cache is persisted and `staleTime` is
+30s, so on reload the first row comes off disk and can predate what
+another device wrote.
+
 `src/lib/themes.ts` is deliberately side-effect free and owns
 `resolveTheme`. A stored theme name that no longer exists lands on
 `[data-theme]`, matches no rule, and paints the app with no tokens at
@@ -122,7 +137,7 @@ Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.d
 
 ### Supabase
 
-Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`. Migrations in `supabase/migrations/`; RLS allows the anon role full access (device_id scoping is client-side). The v2 app runs on the v1 schema unchanged — no new migrations were needed.
+Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`, `portal_snapshots`, `device_owners`. Migrations in `supabase/migrations/`; RLS is owner-scoped via `owns_device()` — see the auth note above.
 
 ### Derived-decision libraries
 

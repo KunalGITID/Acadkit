@@ -9,6 +9,7 @@ import { OfflineBanner } from "@/components/layout/offline-banner";
 import { Skeleton } from "@/components/ui/misc";
 import { useSync } from "@/hooks/useSync";
 import { useAutoMarkRunner } from "@/hooks/useAutoMark";
+import { useThemeSync } from "@/hooks/useThemeSync";
 import { cn, haptic } from "@/lib/utils";
 
 // The sheet drags in vaul, which is bigger than the whole app shell.
@@ -66,6 +67,7 @@ const pageVariants = {
 export function AppShell() {
   useSync();
   useAutoMarkRunner();
+  useThemeSync();
   const location = useLocation();
   const outlet = useOutlet();
   const direction = useTabSlideDirection(location.pathname);
