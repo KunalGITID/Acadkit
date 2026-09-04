@@ -38,6 +38,7 @@ import { deadlineLabel } from "@/lib/deadlines";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
+import { ColourBlock, HeroNumber } from "@/components/viz/hero-number";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
@@ -91,10 +92,12 @@ function TodayCard() {
   return (
     <section className="card overflow-hidden">
       <div className="border-b px-5 py-4">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted">
-          {isNextDay ? "Up next" : "Today"}
-        </p>
-        <h2 className="mt-0.5 text-lg font-extrabold">{formatDateLong(date)}</h2>
+        <HeroNumber
+          value={String(Number(date.slice(8, 10)))}
+          label={isNextDay ? "up next" : "today"}
+          caption={formatDateLong(date)}
+          tone={info?.kind.endsWith("holiday") ? "bad" : "default"}
+        />
       </div>
 
       <MarkDaySheet date={markOpen ? date : null} onClose={() => setMarkOpen(false)} />
@@ -116,11 +119,15 @@ function TodayCard() {
         ) : info.kind === "weekend" ? (
           <EmptyState icon={PartyPopper} title="It's the weekend" description="No day order today. Recharge." />
         ) : info.kind === "official-holiday" || info.kind === "declared-holiday" ? (
-          <EmptyState
-            icon={PartyPopper}
-            title={info.holidayName ?? "Holiday"}
-            description={say(VOICE.noClassesToday, tone)}
-          />
+          // A holiday is the one thing worth shouting about, so it gets
+          // the colour block rather than another grey empty state.
+          <ColourBlock tone="bad" className="text-center">
+            <p className="text-xs font-bold tracking-[0.22em] opacity-80">holiday</p>
+            <p className="mt-1 text-2xl font-extrabold">{info.holidayName ?? "Holiday"}</p>
+            <p className="mt-1 text-sm font-semibold opacity-90">
+              {say(VOICE.noClassesToday, tone)}
+            </p>
+          </ColourBlock>
         ) : info.kind === "post-semester" ? (
           <EmptyState icon={PartyPopper} title="Semester's over" description="See you next term." />
         ) : slots.length === 0 ? (
