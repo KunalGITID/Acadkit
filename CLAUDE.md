@@ -23,10 +23,17 @@ Then regenerate the iOS launch screens too: `node scripts/generate-splash.mjs`
 (writes `public/splash/` and the `<link>` tags to paste between the
 `splash:start`/`splash:end` markers in `index.html`).
 
-After editing `src/data/semester.ts` for a new semester, regenerate the
-edge function's mirror of the calendar and redeploy:
+After editing the **official holidays** in `src/data/semester.ts`,
+regenerate the edge function's copy and redeploy:
 `node scripts/gen-edge-calendar.mjs`. `src/data/semester.test.ts` fails
 the build if the two drift.
+
+Semester **dates** are not shared that way. The app reads them live from
+each device's `settings` row, and the edge function now does the same,
+generating its own day-order map. It used to import a baked map instead,
+which drifted the moment the dates were edited in the app — settings said
+the term ran to 20 Nov, the baked map stopped at the 18th, and push
+reminders were silently absent on the last two class days.
 
 ## Architecture (v2 rebuild)
 

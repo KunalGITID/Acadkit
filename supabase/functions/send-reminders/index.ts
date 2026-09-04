@@ -11,22 +11,57 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
 // --- semester calendar ---
-// Generated from src/data/semester.ts by scripts/gen-edge-calendar.mjs.
-// Never edit calendar.generated.ts by hand; edit the semester and re-run.
-import {
-  SEMESTER_START,
-  SEMESTER_END,
-  OFFICIAL_HOLIDAYS,
-  DAY_ORDER_MAP,
-} from "./calendar.generated.ts";
+//
+// The day-order map is generated per device from that device's own
+// sem_start/sem_end, mirroring generateDayOrderMap in src/lib/calendar.ts.
+//
+// It used to import a static map baked from src/data/semester.ts. That
+// map is a build-time snapshot, while the app reads the semester window
+// live from the settings row — so the moment those dates were edited in
+// the app, the two disagreed. They already had: settings said the term
+// ran to 20 Nov, the baked map stopped at the 18th, and the scheduler
+// was silently blind on the last two class days of the semester. Only
+// the holiday list stays static, since it is genuinely fixed.
+import { OFFICIAL_HOLIDAYS } from "./calendar.generated.ts";
 
-const CANONICAL = Object.keys(DAY_ORDER_MAP).sort();
+const DEFAULT_START = "2026-07-21";
+const DEFAULT_END = "2026-11-18";
 
-function effectiveMap(declared: string[]): Record<string, number> {
-  if (!declared.length) return DAY_ORDER_MAP;
+function addDays(iso: string, n: number): string {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function isWeekend(iso: string): boolean {
+  const day = new Date(iso + "T00:00:00Z").getUTCDay();
+  return day === 0 || day === 6;
+}
+
+/** Day Order 1–5 across every weekday in the window that isn't a holiday. */
+function generateDayOrderMap(start: string, end: string): Record<string, number> {
+  const map: Record<string, number> = {};
+  let order = 1;
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    if (isWeekend(d) || OFFICIAL_HOLIDAYS[d]) continue;
+    map[d] = order;
+    order = (order % 5) + 1;
+  }
+  return map;
+}
+
+/** Declared holidays drop out and shift the remaining orders forward. */
+function effectiveMap(
+  declared: string[],
+  start: string,
+  end: string
+): Record<string, number> {
+  const canonical = generateDayOrderMap(start, end);
+  if (!declared.length) return canonical;
   const set = new Set(declared);
-  const orders = CANONICAL.map((d) => DAY_ORDER_MAP[d]);
-  const working = CANONICAL.filter((d) => !set.has(d));
+  const dates = Object.keys(canonical);
+  const orders = dates.map((d) => canonical[d]);
+  const working = dates.filter((d) => !set.has(d));
   const map: Record<string, number> = {};
   working.forEach((d, i) => (map[d] = orders[i]));
   return map;
@@ -83,12 +118,12 @@ Deno.serve(async (req) => {
   const deviceIds = [...new Set((subs ?? []).map((s) => s.device_id))];
   if (deviceIds.length === 0) return new Response(JSON.stringify({ sent: 0 }));
 
-  const inSemester = date >= SEMESTER_START && date <= SEMESTER_END;
+  const inSemester = date >= semStart && date <= semEnd;
 
   for (const pin of deviceIds) {
     const [{ data: settings }, { data: subjects }, { data: timetable }, { data: attendance }, { data: deadlines }] =
       await Promise.all([
-        sb.from("settings").select("declared_holidays").eq("device_id", pin).maybeSingle(),
+        sb.from("settings").select("declared_holidays,sem_start,sem_end").eq("device_id", pin).maybeSingle(),
         sb.from("subjects").select("id,name").eq("device_id", pin),
         sb.from("timetable_slots").select("*").eq("device_id", pin),
         sb.from("attendance").select("subject_id,date,start_time,status").eq("device_id", pin),
@@ -97,7 +132,10 @@ Deno.serve(async (req) => {
 
     const subjName = new Map((subjects ?? []).map((s) => [s.id, s.name]));
     const declared = ((settings?.declared_holidays ?? []) as Array<{ date: string }>).map((h) => h.date);
-    const dayOrder = inSemester && !OFFICIAL_HOLIDAYS[date] ? effectiveMap(declared)[date] : undefined;
+    // Per device, exactly as the app reads it.
+    const semStart = (settings?.sem_start as string | null) || DEFAULT_START;
+    const semEnd = (settings?.sem_end as string | null) || DEFAULT_END;
+    const dayOrder = inSemester && !OFFICIAL_HOLIDAYS[date] ? effectiveMap(declared, semStart, semEnd)[date] : undefined;
     const todaySlots = (timetable ?? []).filter((s) => s.day_order === dayOrder);
 
     // 1) Class starting in the next ~15 min
@@ -190,10 +228,10 @@ Deno.serve(async (req) => {
     // Today's repeats of one subject spend the budget cumulatively, so
     // the day is walked rather than each class judged on its own.
     if (ist.getHours() === 8 && dayOrder && todaySlots.length) {
-      const eff = effectiveMap(declared);
+      const eff = effectiveMap(declared, semStart, semEnd);
       const remaining = new Map<string, number>();
       for (const [d, order] of Object.entries(eff)) {
-        if (d < date || d > SEMESTER_END) continue;
+        if (d < date || d > semEnd) continue;
         for (const slot of timetable ?? []) {
           if (slot.day_order !== order) continue;
           remaining.set(slot.subject_id, (remaining.get(slot.subject_id) ?? 0) + 1);

@@ -1,12 +1,19 @@
 /**
- * Generates the edge function's copy of the academic calendar from
- * src/data/semester.ts, which is the single source of truth.
+ * Generates the edge function's copy of the **official holidays** from
+ * src/data/semester.ts.
  *
  *   node scripts/gen-edge-calendar.mjs
  *
  * The Deno function can't import from src/, so the values are emitted as
- * a checked-in .ts file. Run this after editing semester.ts for a new
- * semester and redeploy; `npm run test` fails if the two ever drift.
+ * a checked-in .ts file. Run this after editing the holiday list and
+ * redeploy; `npm run test` fails if the two ever drift.
+ *
+ * The day-order map is deliberately NOT emitted any more. It used to be,
+ * and that was the bug: a build-time snapshot of the semester window,
+ * while the app reads that window live from each device's settings row.
+ * The moment the dates were edited in the app the two disagreed. The
+ * function now generates its own map from the settings it already
+ * fetches. Only the holidays are shared, because those really are fixed.
  */
 import { build } from "esbuild";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
@@ -57,28 +64,21 @@ function holidayLines(map) {
 const out = `// GENERATED FILE — DO NOT EDIT.
 //
 // Written by scripts/gen-edge-calendar.mjs from src/data/semester.ts.
-// Edit the semester there and re-run:
+// Edit the holidays there and re-run:
 //
 //   node scripts/gen-edge-calendar.mjs
 //
-// A duplicated calendar that silently drifts sends reminders on the
-// wrong days, so semester.ts owns these values and this file mirrors them.
-
-export const SEMESTER_START = ${JSON.stringify(sem.SEMESTER_START)};
-export const SEMESTER_END = ${JSON.stringify(sem.SEMESTER_END)};
+// Only the official holiday list lives here. The day-order map is
+// generated inside the function from each device's own sem_start/sem_end,
+// because a baked map drifts the moment those dates are edited in the app.
 
 export const OFFICIAL_HOLIDAYS: Record<string, string> = {
 ${holidayLines(sem.OFFICIAL_HOLIDAYS)}
-};
-
-export const DAY_ORDER_MAP: Record<string, number> = {
-${mapLines(sem.DAY_ORDER_MAP)}
 };
 `;
 
 writeFileSync(OUT, out);
 console.log(
   `Wrote ${OUT.replace(root + "/", "")}  ` +
-    `(${Object.keys(sem.DAY_ORDER_MAP).length} day orders, ` +
-    `${Object.keys(sem.OFFICIAL_HOLIDAYS).length} holidays)`
+    `(${Object.keys(sem.OFFICIAL_HOLIDAYS).length} holidays)`
 );
