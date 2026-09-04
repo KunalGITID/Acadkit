@@ -10,7 +10,7 @@ export function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-dvh flex-col border-r bg-surface/50 px-4 py-6 lg:flex">
       <div className="flex items-center gap-2.5 px-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-accent text-white shadow-pop">
+        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-brand text-brand-ink shadow-pop">
           <Sparkles className="h-[18px] w-[18px]" />
         </div>
         <span className="text-lg font-extrabold tracking-tight">AcadKit</span>

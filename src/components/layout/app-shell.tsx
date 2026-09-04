@@ -87,7 +87,7 @@ export function AppShell() {
         <header className="glass sticky top-0 z-30 border-b pt-safe-t lg:hidden">
           <div className="flex items-center justify-between px-4 py-2.5">
             <Link to="/" className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent text-white">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand text-brand-ink">
                 <Sparkles className="h-4 w-4" />
               </span>
               <span className="text-[17px] font-extrabold tracking-tight">AcadKit</span>
@@ -103,7 +103,7 @@ export function AppShell() {
                 aria-haspopup="dialog"
                 className={cn(
                   "flex h-10 w-10 items-center justify-center rounded-2xl border transition-colors",
-                  isSecondary ? "border-accent/40 bg-accent/15" : "bg-surface hover:bg-surface-2"
+                  isSecondary ? "border-accent/40 bg-accent/15" : "bg-surface-2 hover:bg-surface-2/70"
                 )}
               >
                 <LayoutGrid className="h-5 w-5 text-accent" />

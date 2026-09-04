@@ -49,7 +49,7 @@ export default function Onboarding() {
             initial={{ scale: 0, rotate: -30 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.1 }}
-            className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[28px] bg-accent text-white shadow-pop"
+            className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-[28px] bg-brand text-brand-ink shadow-pop"
           >
             <Sparkles className="h-9 w-9" />
           </motion.div>

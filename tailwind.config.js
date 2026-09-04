@@ -11,6 +11,8 @@ export default {
         line: "hsl(var(--line) / <alpha-value>)",
         ink: "hsl(var(--ink) / <alpha-value>)",
         muted: "hsl(var(--muted) / <alpha-value>)",
+        brand: "hsl(var(--brand) / <alpha-value>)",
+        "brand-ink": "hsl(var(--brand-ink) / <alpha-value>)",
         accent: "hsl(var(--accent) / <alpha-value>)",
         "accent-2": "hsl(var(--accent-2) / <alpha-value>)",
         good: "#4ade80",

@@ -60,7 +60,7 @@ export default function SignIn() {
         className="w-full max-w-sm"
       >
         <div className="mb-8 flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent text-white">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand text-brand-ink">
             <Sparkles className="h-5 w-5" />
           </span>
           <div>

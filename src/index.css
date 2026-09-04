@@ -33,6 +33,8 @@
   --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
   --line-alpha: 0.1;
   --radius-card: 1.75rem;
+  --brand: var(--accent);
+  --brand-ink: 0 0% 6%;
 }
 [data-theme="brutalist"].dark {
   --bg: 0 0% 4%;
@@ -49,6 +51,8 @@
   --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
   --line-alpha: 0.14;
   --radius-card: 1.75rem;
+  --brand: var(--accent);
+  --brand-ink: 0 0% 6%;
 }
 
 [data-theme="oled"] {
@@ -66,6 +70,10 @@
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06), 0 10px 26px -14px rgb(0 0 0 / 0.16);
   --line-alpha: 0.12;
   --radius-card: 0.875rem;
+  /* Zero saturation is the whole theme, so the mark inverts rather than
+     colouring — a 38% grey chip on a 4% ground reads as switched off. */
+  --brand: 0 0% 9%;
+  --brand-ink: 0 0% 100%;
 }
 [data-theme="oled"].dark {
   /* --bg is literal #000 — actual pixels off on OLED panels, not just "very dark". */
@@ -83,6 +91,8 @@
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 14px 34px -16px rgb(0 0 0 / 0.9);
   --line-alpha: 0.16;
   --radius-card: 0.875rem;
+  --brand: 0 0% 96%;
+  --brand-ink: 0 0% 4%;
 }
 
 @layer base {
