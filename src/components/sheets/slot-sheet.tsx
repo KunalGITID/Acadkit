@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { ArrowRight, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
@@ -19,6 +20,7 @@ interface SlotSheetProps {
 
 export function SlotSheet({ open, onClose, slot, defaultDayOrder }: SlotSheetProps) {
   const { data: subjects } = useSubjects();
+  const noSubjects = (subjects?.length ?? 0) === 0;
   const addSlot = useAddSlot();
   const updateSlot = useUpdateSlot();
   const deleteSlot = useDeleteSlot();
@@ -51,7 +53,7 @@ export function SlotSheet({ open, onClose, slot, defaultDayOrder }: SlotSheetPro
 
   function save() {
     if (!subjectId) {
-      toast.error("Pick a subject first");
+      toast.error(noSubjects ? "Add a subject in Settings first" : "Pick a subject first");
       return;
     }
     if (end <= start) {
@@ -79,15 +81,38 @@ export function SlotSheet({ open, onClose, slot, defaultDayOrder }: SlotSheetPro
       description={`Day Order ${dayOrder}`}
     >
       <div className="space-y-4">
-        <Field label="Subject">
-          <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
-            {(subjects ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {/* A class needs a subject, and on a brand-new account there are
+            none. The empty <Select> rendered as a blank grey box, and
+            submitting said "Pick a subject first" — true advice for
+            forgetting to choose, impossible advice when there is nothing
+            to choose from, and it pointed nowhere. */}
+        {noSubjects ? (
+          <Field label="Subject">
+            <Link
+              to="/settings"
+              onClick={onClose}
+              className="flex items-center justify-between gap-3 rounded-2xl border border-dashed bg-surface-2/40 px-4 py-3 text-sm font-semibold"
+            >
+              <span className="min-w-0">
+                No subjects yet — add one first
+                <span className="mt-0.5 block text-xs font-medium text-muted">
+                  Settings › Academics
+                </span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted" />
+            </Link>
+          </Field>
+        ) : (
+          <Field label="Subject">
+            <Select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+              {(subjects ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
 
         <Field label="Class type">
           <Segmented
