@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Archive, ChevronDown, GraduationCap, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useDialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { GradeBadge } from "@/components/viz/grade-badge";
@@ -88,6 +89,7 @@ function SemesterCard({
 }
 
 export default function History() {
+  const { confirm, promptText } = useDialog();
   const tone = useTone();
   const pin = useAppStore((s) => s.pin)!;
   const qc = useQueryClient();
@@ -137,7 +139,12 @@ export default function History() {
       }));
 
     const defaultLabel = `Semester ${settings?.semester ?? (archives?.length ?? 0) + 1}`;
-    const label = window.prompt("Name this semester:", defaultLabel);
+    const label = await promptText({
+      title: "Name this semester",
+      body: "Saved to your history with its SGPA and per-subject grades.",
+      defaultValue: defaultLabel,
+      confirmLabel: "Archive",
+    });
     if (label === null) return;
 
     setBusy(true);
@@ -153,11 +160,13 @@ export default function History() {
       await qc.invalidateQueries({ queryKey: ["archives", pin] });
       toast.success("Semester archived");
 
-      if (
-        window.confirm(
-          "Archived! Clear this semester's subjects, timetable, attendance & marks to start fresh? (Your history and PIN stay.)"
-        )
-      ) {
+      const startFresh = await confirm({
+        title: "Start the new semester?",
+        body: "Clears this semester's subjects, timetable, attendance and marks. Your archived history stays.",
+        confirmLabel: "Clear and start fresh",
+        destructive: true,
+      });
+      if (startFresh) {
         await clearAcademicData(pin);
         await qc.invalidateQueries();
         toast.success("Cleared — ready for the new semester");
@@ -235,10 +244,14 @@ export default function History() {
               key={a.id}
               archive={a}
               index={i}
-              onDelete={(arc) => {
-                if (window.confirm(`Delete the saved record for ${arc.label}?`)) {
-                  deleteArchive.mutate(arc.id);
-                }
+              onDelete={async (arc) => {
+                const ok = await confirm({
+                  title: `Delete ${arc.label}?`,
+                  body: "The archived record goes for good.",
+                  confirmLabel: "Delete record",
+                  destructive: true,
+                });
+                if (ok) deleteArchive.mutate(arc.id);
               }}
             />
           ))}

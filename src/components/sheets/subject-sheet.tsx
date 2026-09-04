@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { abbreviate } from "@/lib/subjectName";
+import { useDialog } from "@/components/ui/dialog";
 import { useAddSubject, useDeleteSubject, useUpdateSubject } from "@/hooks/useData";
 import { cn } from "@/lib/utils";
 import type { Subject } from "@/types";
@@ -23,6 +24,7 @@ interface SubjectSheetProps {
 }
 
 export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
+  const { confirm } = useDialog();
   const add = useAddSubject();
   const update = useUpdateSubject();
   const remove = useDeleteSubject();
@@ -135,12 +137,14 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
               size="icon"
               className="h-12 w-12 shrink-0 rounded-2xl"
               aria-label="Delete subject"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `Delete ${subject.name}? Its timetable slots, attendance and marks go with it.`
-                  )
-                ) {
+              onClick={async () => {
+                const ok = await confirm({
+                  title: `Delete ${subject.name}?`,
+                  body: "Its timetable slots, attendance and marks go with it.",
+                  confirmLabel: "Delete subject",
+                  destructive: true,
+                });
+                if (ok) {
                   remove.mutate(subject.id);
                   onClose();
                 }

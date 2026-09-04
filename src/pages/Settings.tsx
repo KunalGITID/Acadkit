@@ -17,7 +17,6 @@ import {
   Moon,
   Pencil,
   Plus,
-  RefreshCw,
   Sparkles,
   Sun,
   Trash2,
@@ -26,6 +25,7 @@ import {
   CalendarPlus,
   UserRound,
   ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,8 +36,11 @@ import { SubjectSheet } from "@/components/sheets/subject-sheet";
 import { ImportSheet } from "@/components/sheets/import-sheet";
 import { usePush } from "@/hooks/usePush";
 import { useSession } from "@/hooks/useSession";
+import { useDialog } from "@/components/ui/dialog";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
+import { syncHealth } from "@/lib/syncHealth";
+import { relativeDay } from "@/lib/dates";
 import { signOut } from "@/lib/auth";
 import {
   PENDING_MIGRATIONS_SQL,
@@ -56,6 +59,7 @@ import {
   useAttendance,
   useAutoMark,
   useClearAutoMarks,
+  usePortalSnapshots,
   useSettings,
   useSubjects,
   useUpdateSettings,
@@ -373,6 +377,7 @@ function NotificationsCard() {
 }
 
 function DataCard() {
+  const { confirm } = useDialog();
   const pin = useAppStore((s) => s.pin)!;
   const resetPin = useAppStore((s) => s.resetPin);
   const qc = useQueryClient();
@@ -498,8 +503,14 @@ function DataCard() {
         variant="secondary"
         className="w-full justify-start"
         disabled={busy !== null}
-        onClick={() => {
-          if (!window.confirm("Clear all timetable slots? Attendance history is kept.")) return;
+        onClick={async () => {
+          const ok = await confirm({
+            title: "Clear the timetable?",
+            body: "Every class slot goes. Attendance history is kept.",
+            confirmLabel: "Clear schedule",
+            destructive: true,
+          });
+          if (!ok) return;
           void run("schedule", async () => {
             await clearTimetable(pin);
             void qc.invalidateQueries({ queryKey: ["timetable", pin] });
@@ -515,13 +526,14 @@ function DataCard() {
         variant="danger"
         className="w-full justify-start"
         disabled={busy !== null}
-        onClick={() => {
-          if (
-            !window.confirm(
-              `Permanently delete ALL data for PIN ${pin} — subjects, attendance, marks, deadlines, settings? This cannot be undone.`
-            )
-          )
-            return;
+        onClick={async () => {
+          const ok = await confirm({
+            title: "Delete everything?",
+            body: `Subjects, attendance, marks, deadlines and settings for PIN ${pin}. This cannot be undone.`,
+            confirmLabel: "Delete it all",
+            destructive: true,
+          });
+          if (!ok) return;
           void run("reset", async () => {
             await deleteAllData(pin);
             qc.clear();
@@ -792,6 +804,98 @@ function CollapsibleSection({
   );
 }
 
+/**
+ * Pull everything down again, on demand.
+ *
+ * Data arrives on its own — React Query refetches on focus, realtime
+ * pushes cross-device edits, the portal sync writes from a scheduled
+ * job — but all of that is invisible, and there was no way to *ask*.
+ * Pull-to-refresh is deliberately off (the app disables overscroll so
+ * standalone iOS doesn't rubber-band), so this is the gesture's
+ * replacement.
+ *
+ * It also reports how old the portal figures are, since "refresh" and
+ * "the portal hasn't spoken in a week" are the same question asked twice
+ * — and refetching can't fix the second one.
+ */
+function RefreshCard() {
+  const tone = useTone();
+  const qc = useQueryClient();
+  const { data: snapshots } = usePortalSnapshots();
+  const [busy, setBusy] = useState(false);
+
+  const health = syncHealth(snapshots ?? []);
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+            <RefreshCw className={cn("h-5 w-5", busy && "animate-spin")} />
+          </span>
+          <div>
+            <p className="font-bold">Refresh data</p>
+            <p className="mt-0.5 text-xs text-muted">
+              Pull the latest from the server on every device.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="shrink-0"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              // refetchQueries, not invalidateQueries: invalidate marks
+              // things stale and returns immediately, so the button would
+              // finish before anything arrived.
+              //
+              // Scoped to active queries, and raced against a timeout.
+              // Unfiltered, it also awaits inactive and paused ones —
+              // a query paused offline never settles, and the button
+              // stuck on "Refreshing…" forever. A refresh that cannot
+              // fail to finish is worth more than one that reports on
+              // every cached query in the app.
+              await Promise.race([
+                qc.refetchQueries({ type: "active" }),
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error("timeout")), 10_000)
+                ),
+              ]);
+              toast.success("Up to date");
+            } catch {
+              toast.error("Couldn't reach the server", {
+                description: "You're seeing the last data this device stored.",
+              });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Refreshing…" : "Refresh"}
+        </Button>
+      </div>
+
+      <p className="text-xs font-medium text-muted">
+        {health.state === "never"
+          ? say(VOICE.syncNever, tone)
+          : health.state === "stale" && health.days !== null
+            ? say(VOICE.syncStale, tone, health.days)
+            : `Portal data synced ${relativeDay(health.asOf!)}.`}
+      </p>
+
+      {health.state !== "never" && (
+        <p className="text-[11px] text-muted">
+          Refreshing pulls what the server already has. New portal figures
+          need the sync bookmarklet while you're signed in to the portal.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function Settings() {
   const tone = useTone();
   const themeMode = useAppStore((s) => s.themeMode);
@@ -811,6 +915,7 @@ export default function Settings() {
       <div className="space-y-3">
         <SectionTitle>Account</SectionTitle>
         <AccountCard />
+        <RefreshCard />
       </div>
 
       <div className="space-y-3">

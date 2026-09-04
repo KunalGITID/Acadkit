@@ -9,6 +9,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useDialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Badge, Dot } from "@/components/ui/misc";
@@ -33,6 +34,7 @@ function monthLabel(year: number, month: number): string {
 }
 
 export default function Calendar() {
+  const { promptText } = useDialog();
   const tone = useTone();
   const { data: settings } = useSettings();
   // Depend on the two fields, not the settings object: React Query
@@ -102,9 +104,14 @@ export default function Calendar() {
     selected >= semWindow.start &&
     selected <= semWindow.end;
 
-  function declareHoliday() {
+  async function declareHoliday() {
     if (!selected) return;
-    const name = window.prompt("Name this holiday (optional):", "Declared holiday");
+    const name = await promptText({
+      title: "Name this holiday",
+      body: "Remaining day orders shift forward from here.",
+      defaultValue: "Declared holiday",
+      placeholder: "Declared holiday",
+    });
     if (name === null) return;
     updateSettings.mutate({
       declared_holidays: [...declared, { date: selected, name: name || "Declared holiday" }],

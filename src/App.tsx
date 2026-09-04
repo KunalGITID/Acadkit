@@ -7,6 +7,7 @@ import { MotionConfig } from "framer-motion";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { DialogProvider } from "@/components/ui/dialog";
 import { UpdatePrompt } from "@/components/update-prompt";
 import Onboarding from "@/pages/Onboarding";
 import SignIn from "@/pages/SignIn";
@@ -71,6 +72,7 @@ export default function App() {
         }}
       >
         <MotionConfig reducedMotion="user">
+         <DialogProvider>
           <Toaster
             position="top-center"
             // Standalone iOS draws under the status bar and the Dynamic
@@ -121,6 +123,7 @@ export default function App() {
               </Routes>
             </BrowserRouter>
           )}
+         </DialogProvider>
         </MotionConfig>
       </PersistQueryClientProvider>
     </ErrorBoundary>
