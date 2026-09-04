@@ -39,7 +39,7 @@ import { deadlineLabel } from "@/lib/deadlines";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
-import { ColourBlock, HeroNumber } from "@/components/viz/hero-number";
+import { ColourBlock } from "@/components/viz/colour-block";
 import { SwipeToAbsent } from "@/components/sheets/swipe-absent";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
@@ -96,12 +96,10 @@ function TodayCard() {
   return (
     <section className="card overflow-hidden">
       <div className="border-b px-5 py-4">
-        <HeroNumber
-          value={String(Number(date.slice(8, 10)))}
-          label={isNextDay ? "up next" : "today"}
-          caption={formatDateLong(date)}
-          tone={info?.kind.endsWith("holiday") ? "bad" : "default"}
-        />
+        <p className="text-xs font-bold uppercase tracking-widest text-muted">
+          {isNextDay ? "Up next" : "Today"}
+        </p>
+        <h2 className="mt-0.5 text-lg font-extrabold">{formatDateLong(date)}</h2>
       </div>
 
       <MarkDaySheet date={markOpen ? date : null} onClose={() => setMarkOpen(false)} />
