@@ -55,6 +55,8 @@ export default defineConfig({
         // at install time. Precaching 22 of them would add ~600 KB to
         // every install to serve images the SW is never asked for.
         globIgnores: ["**/splash/**"],
+        // Safari reads this at install time, not through the SW.
+        // Precaching it would also make Workbox claim /widget's scope.
         // Custom Web Push handlers, loaded into the generated SW
         importScripts: ["push-sw.js"],
         runtimeCaching: [

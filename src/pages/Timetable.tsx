@@ -11,6 +11,8 @@ import { formatTime } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { useSwipe } from "@/hooks/useSwipe";
+import { slideVariants } from "@/lib/slide";
+import { SwipeHint } from "@/components/ui/swipe-hint";
 import { Struck } from "@/components/ui/struck";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { fitName } from "@/lib/subjectName";
@@ -27,12 +29,6 @@ function useDaySlideDirection(day: number) {
   return direction;
 }
 
-const daySlideVariants = {
-  enter: (direction: number) => ({ opacity: 0, x: direction >= 0 ? 44 : -44 }),
-  center: { opacity: 1, x: 0 },
-  exit: (direction: number) => ({ opacity: 0, x: direction >= 0 ? -44 : 44 }),
-};
-
 export default function Timetable() {
   const tone = useTone();
   const settled = useHasAnimated("timetable-slots");
@@ -43,7 +39,9 @@ export default function Timetable() {
   const [dayOrder, setDayOrder] = useState(info.dayOrder ?? 1);
   // Days 1-5 wrap, because reaching the end and being stuck reads as
   // broken when the control right above you clearly has five options.
+  const [swiped, setSwiped] = useState(false);
   const stepDay = (delta: number) => {
+    setSwiped(true);
     haptic();
     setDayOrder((d) => ((d - 1 + delta + 5) % 5) + 1);
   };
@@ -126,13 +124,15 @@ export default function Timetable() {
         onChange={setDayOrder}
       />
 
+      <SwipeHint id="timetable" dismissed={swiped} label="swipe to change day" />
+
       <div data-swipe {...daySwipe}>
       <AnimatePresence mode="popLayout" custom={direction}>
         {slots.length === 0 ? (
           <motion.div
             key={`empty-${dayOrder}`}
             custom={direction}
-            variants={daySlideVariants}
+            variants={slideVariants}
             initial="enter"
             animate="center"
             exit="exit"
@@ -161,7 +161,7 @@ export default function Timetable() {
           <motion.div
             key={`list-${dayOrder}`}
             custom={direction}
-            variants={daySlideVariants}
+            variants={slideVariants}
             initial="enter"
             animate="center"
             exit="exit"

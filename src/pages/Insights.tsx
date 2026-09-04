@@ -37,6 +37,8 @@ import { renderSurvivalCard, shareCard } from "@/lib/shareCard";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { useSwipe } from "@/hooks/useSwipe";
+import { slideTransition, slideVariants } from "@/lib/slide";
+import { SwipeHint } from "@/components/ui/swipe-hint";
 import { cn, haptic } from "@/lib/utils";
 
 const RISK_STYLE = {
@@ -321,12 +323,19 @@ export default function Insights() {
   // expects. Ends are walls rather than wrapping: three tabs are all on
   // screen, so wrapping past the last one would look like a mis-swipe.
   const VIEWS = ["attendance", "grades", "plan"] as const;
+  const [dir, setDir] = useState(0);
+  const [swiped, setSwiped] = useState(false);
+  const goView = (next: (typeof VIEWS)[number], delta: number) => {
+    setDir(delta);
+    setView(next);
+  };
   const stepView = (delta: number) => {
     const i = VIEWS.indexOf(view);
     const next = VIEWS[i + delta];
     if (!next) return;
+    setSwiped(true);
     haptic();
-    setView(next);
+    goView(next, delta);
   };
   const viewSwipe = useSwipe(() => stepView(1), () => stepView(-1));
 
@@ -390,12 +399,26 @@ export default function Insights() {
             { value: "plan", label: say(VOICE.tabSurvival, tone) },
           ]}
           value={view}
-          onChange={setView}
+          onChange={(v) => {
+            const next = v as (typeof VIEWS)[number];
+            goView(next, VIEWS.indexOf(next) > VIEWS.indexOf(view) ? 1 : -1);
+          }}
           className="w-72"
         />
       </div>
 
-      <div data-swipe {...viewSwipe}>
+      <SwipeHint id="insights" dismissed={swiped} />
+
+      <motion.div
+        key={view}
+        custom={dir}
+        variants={slideVariants}
+        initial="enter"
+        animate="center"
+        transition={slideTransition}
+        data-swipe
+        {...viewSwipe}
+      >
       {view === "grades" ? (
         <GradesProjection report={report} />
       ) : view === "plan" ? (
@@ -492,7 +515,7 @@ export default function Insights() {
           </div>
         </>
       )}
-      </div>
+      </motion.div>
     </div>
   );
 }

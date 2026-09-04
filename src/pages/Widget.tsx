@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { CalendarCheck2 } from "lucide-react";
 import { Dot } from "@/components/ui/misc";
 import { useDeadlines, useSubjects } from "@/hooks/useData";
@@ -20,6 +20,26 @@ import { cn } from "@/lib/utils";
  */
 export default function Widget() {
   const tone = useTone();
+
+  /**
+   * Point the manifest at the widget's own while this route is open.
+   *
+   * There is one index.html, so without this iOS saves the page under
+   * the app's manifest — same name, same icon — and the home screen ends
+   * up with two identical AcadKits. iOS reads the manifest at Add to
+   * Home Screen time from whatever the live document says, so swapping
+   * the href is enough. Restored on unmount so a normal install is
+   * unaffected.
+   */
+  useEffect(() => {
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (!link) return;
+    const original = link.href;
+    link.href = "/widget.webmanifest";
+    return () => {
+      link.href = original;
+    };
+  }, []);
   const { data: deadlines } = useDeadlines();
   const { data: subjects } = useSubjects();
 

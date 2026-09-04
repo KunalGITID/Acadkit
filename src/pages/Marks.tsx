@@ -21,6 +21,8 @@ import { Segmented } from "@/components/ui/segmented";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { useSwipe } from "@/hooks/useSwipe";
+import { slideTransition, slideVariants } from "@/lib/slide";
+import { SwipeHint } from "@/components/ui/swipe-hint";
 import { computeSgpa, groupMarksBySubject, type SubjectMarks } from "@/lib/grades";
 import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
 import { computeOverallAttendance } from "@/lib/attendance";
@@ -200,9 +202,17 @@ export default function Marks() {
   const [view, setView] = useState<"marks" | "calculator">("marks");
   // The segmented control stays; this just means you don't have to
   // reach for it.
+  // Direction drives the slide, so content moves the way you pushed it.
+  const [dir, setDir] = useState(0);
+  const [swiped, setSwiped] = useState(false);
+  const goView = (next: "marks" | "calculator", delta: number) => {
+    setDir(delta);
+    setSwiped(true);
+    setView(next);
+  };
   const marksSwipe = useSwipe(
-    () => setView("calculator"),
-    () => setView("marks")
+    () => goView("calculator", 1),
+    () => goView("marks", -1)
   );
   const [sheetSubject, setSheetSubject] = useState<Subject | null>(null);
   const [sheetMark, setSheetMark] = useState<Mark | null>(null);
@@ -241,21 +251,27 @@ export default function Marks() {
             { value: "calculator", label: "Calculator" },
           ]}
           value={view}
-          onChange={setView}
+          onChange={(v) =>
+            goView(v as "marks" | "calculator", v === "calculator" ? 1 : -1)
+          }
           className="w-56"
         />
         <ShareButton rows={result.rows} sgpa={result.sgpa} />
       </div>
 
+      <SwipeHint id="marks" dismissed={swiped} />
+
       <div data-swipe {...marksSwipe}>
-      <AnimatePresence mode="popLayout" initial={false}>
+      <AnimatePresence mode="popLayout" initial={false} custom={dir}>
         {view === "marks" ? (
           <motion.div
             key="marks-view"
-            initial={{ opacity: 0, x: -44 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -44 }}
-            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            custom={dir}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={slideTransition}
             className="space-y-4"
           >
             <section className="card flex flex-col items-center gap-2 p-6 lg:flex-row lg:justify-between lg:px-10">
@@ -298,10 +314,12 @@ export default function Marks() {
         ) : (
           <motion.div
             key="calculator-view"
-            initial={{ opacity: 0, x: 44 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 44 }}
-            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            custom={dir}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={slideTransition}
           >
             <MarksCalculators rows={result.rows} />
           </motion.div>
