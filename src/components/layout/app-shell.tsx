@@ -11,6 +11,7 @@ import { useSync } from "@/hooks/useSync";
 import { useAutoMarkRunner } from "@/hooks/useAutoMark";
 import { useThemeSync } from "@/hooks/useThemeSync";
 import { useScrollReset } from "@/hooks/useScrollReset";
+import { useFreeDayWatch } from "@/hooks/useFreeDayWatch";
 import { cn, haptic } from "@/lib/utils";
 
 // The sheet drags in vaul, which is bigger than the whole app shell.
@@ -70,6 +71,7 @@ export function AppShell() {
   useAutoMarkRunner();
   useThemeSync();
   useScrollReset();
+  useFreeDayWatch();
   const location = useLocation();
   const outlet = useOutlet();
   const direction = useTabSlideDirection(location.pathname);

@@ -113,9 +113,28 @@ export default function Wrapped() {
         title: say(VOICE.wrappedTitle, tone),
         heroValue: String(data.hours),
         heroLabel: say(VOICE.wrappedHours, tone, data.hours),
+        /**
+         * Four slots, filled in priority order and truncated by the
+         * renderer. The card summarises the page, and the page now covers
+         * marks as well as attendance — a card that spent all four slots
+         * on attendance was telling half the story it claimed to.
+         *
+         * Best result outranks the streak, and the streak outranks best
+         * subject, so an account with no marks still fills the grid
+         * rather than leaving a hole.
+         */
         stats: [
           { value: String(data.attended), label: say(VOICE.wrappedAttended, tone), color: "#4ade80" },
           { value: String(data.missed), label: say(VOICE.wrappedMissed, tone), color: "#fb7185" },
+          ...(data.bestResult
+            ? [
+                {
+                  value: `${data.bestResult.obtained}/${data.bestResult.max}`,
+                  label: `best: ${data.bestResult.subject}`,
+                  color: data.bestResult.color,
+                },
+              ]
+            : []),
           ...(data.cleanStreak > 0
             ? [{ value: String(data.cleanStreak), label: "day clean streak" }]
             : []),

@@ -263,6 +263,18 @@ export const VOICE = {
   }),
 
   /** Heading on the dashboard's survival summary. */
+  /** `n` free days just disappeared from the plan. */
+  freeDaySpent: pick<[n: number]>({
+    plain: (n) => (n === 1 ? "That cost you a day off" : `That cost you ${n} days off`),
+    brutal: (n) => (n === 1 ? "there goes a day off" : `there go ${n} days off`),
+  }),
+
+  /** `n` free days remain after the loss. */
+  freeDayLeft: pick<[n: number]>({
+    plain: (n) => (n === 0 ? "No skippable days left." : `${n} skippable day${n === 1 ? "" : "s"} left.`),
+    brutal: (n) => (n === 0 ? "you have none left. attend everything." : `${n} left. spend wisely.`),
+  }),
+
   survivalTitle: pick({
     plain: () => "Days you can skip",
     brutal: () => "days you can vanish",

@@ -170,7 +170,9 @@ function SubjectMarksCard({
             <button
               key={m.id}
               onClick={() => onEdit(subject, m)}
-              className="group flex items-center gap-1.5 rounded-xl border bg-surface-2/50 px-2.5 py-1.5 text-xs font-semibold transition-colors hover:bg-surface-2"
+              // px/py rather than a fixed height so the chip still hugs
+              // its label; py-3 takes it from 30px to a tappable 42.
+              className="group flex items-center gap-1.5 rounded-xl border bg-surface-2/50 px-3 py-3 text-xs font-semibold transition-colors hover:bg-surface-2"
             >
               {m.label}
               <span className="tabular text-muted">
