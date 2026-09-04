@@ -82,7 +82,11 @@ function friendly(message: string): string {
   const m = message.toLowerCase();
   if (m.includes("invalid") && m.includes("token")) return "That code isn't right — check it and try again.";
   if (m.includes("expired")) return "That code expired. Send a new one.";
-  if (m.includes("rate") || m.includes("too many")) return "Too many attempts. Wait a minute, then try again.";
+  // Supabase's built-in SMTP allows only a couple of emails per hour on
+  // a free project, and the reset is hourly — "wait a minute" sends
+  // people back to hammer the button and burn the next allowance.
+  if (m.includes("rate") || m.includes("too many") || m.includes("security purposes"))
+    return "Email limit reached — Supabase only sends a couple per hour. Try again later, or set up custom SMTP.";
   if (m.includes("email")) return "That doesn't look like a valid email address.";
   return message;
 }
