@@ -296,6 +296,8 @@ export const VOICE = {
     plain: (n) => `${n} required`,
     brutal: (n) => `${n} mandatory`,
   }),
+
+  titleWidget: pick({ plain: () => "Due soon", brutal: () => "what's coming for you" }),
 } as const;
 
 /** Resolve one line for a tone. */

@@ -1,12 +1,10 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarCheck2, ChevronDown, GraduationCap, ShieldCheck, Siren } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronDown, GraduationCap, ShieldCheck, Siren } from "lucide-react";
 import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { AttendanceHeatmap } from "@/components/viz/heatmap";
-import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
 import { useAttendance, usePortalSnapshots, useSettings, useSubjects } from "@/hooks/useData";
 import {
   attendanceColor,
@@ -15,7 +13,7 @@ import {
   type SubjectAttendance,
 } from "@/lib/attendance";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
-import { formatDate, todayISO } from "@/lib/dates";
+import { formatDate } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
@@ -113,7 +111,6 @@ export default function Attendance() {
   const { data: attendance, isLoading: aLoading } = useAttendance();
   const { data: snapshots } = usePortalSnapshots();
   const { data: settings } = useSettings();
-  const [markDate, setMarkDate] = useState<string | null>(null);
 
   const overall = useMemo(
     () => computeOverallAttendance(subjects ?? [], attendance ?? [], snapshots ?? []),
@@ -169,9 +166,6 @@ export default function Attendance() {
             </p>
           )}
         </div>
-        <Button size="sm" onClick={() => setMarkDate(todayISO())}>
-          <CalendarCheck2 className="h-4 w-4" /> Mark today
-        </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
@@ -231,7 +225,6 @@ export default function Attendance() {
         ))}
       </div>
 
-      <MarkDaySheet date={markDate} onClose={() => setMarkDate(null)} />
     </div>
   );
 }

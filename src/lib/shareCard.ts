@@ -180,3 +180,107 @@ export async function shareCard(blob: Blob, filename: string): Promise<"shared" 
   URL.revokeObjectURL(url);
   return "saved";
 }
+
+// ---------------------------------------------------------------------
+// Survival plan card
+// ---------------------------------------------------------------------
+
+export interface SurvivalShare {
+  headline: string;
+  freeDays: string[];
+  deadline: string | null;
+  lost: string[];
+  footer: string;
+}
+
+/**
+ * The plan is more shareable than a grade. "here are the 3 days I can
+ * skip in September" is a thing people actually send each other; an SGPA
+ * is a thing people screenshot once.
+ */
+export async function renderSurvivalCard(data: SurvivalShare): Promise<Blob> {
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is unavailable on this device");
+
+  ctx.fillStyle = "#0b0b0f";
+  ctx.fillRect(0, 0, W, H);
+
+  const glow = ctx.createRadialGradient(W * 0.2, 90, 0, W * 0.2, 90, 700);
+  glow.addColorStop(0, "rgba(212,245,69,0.22)");
+  glow.addColorStop(1, "rgba(212,245,69,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  const sans = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+
+  ctx.fillStyle = "#d4f545";
+  ctx.font = `700 40px ${sans}`;
+  ctx.fillText("survival plan", 80, 140);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = `800 76px ${sans}`;
+  wrap(ctx, data.headline, 80, 250, W - 160, 84);
+
+  let y = 470;
+  if (data.deadline) {
+    ctx.fillStyle = "#facc15";
+    ctx.font = `700 34px ${sans}`;
+    wrap(ctx, data.deadline, 80, y, W - 160, 44);
+    y += 110;
+  }
+
+  if (data.freeDays.length) {
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = `600 28px ${sans}`;
+    ctx.fillText("days off left", 80, y);
+    y += 56;
+    ctx.fillStyle = "#4ade80";
+    ctx.font = `800 44px ${sans}`;
+    // Only what fits; the count in the headline carries the rest.
+    ctx.fillText(data.freeDays.slice(0, 6).join("  ·  "), 80, y);
+    y += 96;
+  }
+
+  if (data.lost.length) {
+    ctx.fillStyle = "#fb7185";
+    ctx.font = `700 30px ${sans}`;
+    wrap(ctx, `already gone: ${data.lost.join(", ")}`, 80, y, W - 160, 40);
+  }
+
+  ctx.fillStyle = "#6b7280";
+  ctx.font = `600 28px ${sans}`;
+  ctx.fillText(data.footer, 80, H - 70);
+
+  return new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("Couldn't render the image"))),
+      "image/png"
+    )
+  );
+}
+
+/** Break `text` to `maxWidth`, drawing each line `lineHeight` apart. */
+function wrap(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number
+) {
+  let line = "";
+  for (const word of text.split(" ")) {
+    const attempt = line ? `${line} ${word}` : word;
+    if (ctx.measureText(attempt).width > maxWidth && line) {
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+      line = word;
+    } else {
+      line = attempt;
+    }
+  }
+  if (line) ctx.fillText(line, x, y);
+}

@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
+  Share2,
   AlertTriangle,
   CalendarClock,
   Flame,
@@ -12,6 +14,7 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Badge, Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
@@ -30,6 +33,7 @@ import { formatDate, todayISO } from "@/lib/dates";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
 import { buildSurvivalPlan } from "@/lib/survival";
 import type { AttendanceRecord, PortalSnapshot, Subject, TimetableSlot } from "@/types";
+import { renderSurvivalCard, shareCard } from "@/lib/shareCard";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { cn } from "@/lib/utils";
@@ -183,6 +187,7 @@ function SurvivalPlan({
   effMap: Record<string, number>;
 }) {
   const tone = useTone();
+  const [sharing, setSharing] = useState(false);
 
   const plan = useMemo(() => {
     // Same shape computeOverallAttendance uses: records grouped by
@@ -210,9 +215,40 @@ function SurvivalPlan({
   return (
     <div className="space-y-4">
       <section className="card space-y-3 p-5">
-        <p className="text-sm font-bold">
-          {say(VOICE.planIntro, tone, plan.freeDays.length, plan.days.length)}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-bold">
+            {say(VOICE.planIntro, tone, plan.freeDays.length, plan.days.length)}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="shrink-0"
+            disabled={sharing}
+            onClick={async () => {
+              setSharing(true);
+              try {
+                const blob = await renderSurvivalCard({
+                  headline: say(VOICE.planIntro, tone, plan.freeDays.length, plan.days.length),
+                  freeDays: plan.freeDays.map((d) => formatDate(d)),
+                  deadline: plan.firstRequiredDate
+                    ? say(VOICE.planDeadline, tone, formatDate(plan.firstRequiredDate))
+                    : null,
+                  lost: plan.lost.map((s) => s.code),
+                  footer: `AcadKit · ${formatDate(todayISO())}`,
+                });
+                const how = await shareCard(blob, "survival-plan.png");
+                toast.success(how === "shared" ? "Shared" : "Image saved");
+              } catch (err) {
+                toast.error((err as Error)?.message ?? "Couldn't create the image");
+              } finally {
+                setSharing(false);
+              }
+            }}
+          >
+            <Share2 className="h-4 w-4" />
+            {sharing ? "Rendering…" : "Share"}
+          </Button>
+        </div>
         <p className="text-sm font-semibold text-warn-deep">
           {plan.firstRequiredDate
             ? say(VOICE.planDeadline, tone, formatDate(plan.firstRequiredDate))

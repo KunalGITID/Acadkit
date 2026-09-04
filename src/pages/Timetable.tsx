@@ -10,9 +10,10 @@ import { useToday } from "@/hooks/useToday";
 import { formatTime } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
+import { useSwipe } from "@/hooks/useSwipe";
 import { Struck } from "@/components/ui/struck";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
-import { cn } from "@/lib/utils";
+import { cn, haptic } from "@/lib/utils";
 import type { TimetableSlot } from "@/types";
 
 /** +1/-1 for which way to slide when paging between day orders. */
@@ -39,6 +40,13 @@ export default function Timetable() {
   const { info } = useToday();
 
   const [dayOrder, setDayOrder] = useState(info.dayOrder ?? 1);
+  // Days 1-5 wrap, because reaching the end and being stuck reads as
+  // broken when the control right above you clearly has five options.
+  const stepDay = (delta: number) => {
+    haptic();
+    setDayOrder((d) => ((d - 1 + delta + 5) % 5) + 1);
+  };
+  const daySwipe = useSwipe(() => stepDay(1), () => stepDay(-1));
   const direction = useDaySlideDirection(dayOrder);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<TimetableSlot | null>(null);
@@ -117,6 +125,7 @@ export default function Timetable() {
         onChange={setDayOrder}
       />
 
+      <div data-swipe {...daySwipe}>
       <AnimatePresence mode="popLayout" custom={direction}>
         {slots.length === 0 ? (
           <motion.div
@@ -228,6 +237,7 @@ export default function Timetable() {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
 
       <SlotSheet
         open={sheetOpen}

@@ -25,6 +25,7 @@ import {
   useAttendance,
   usePortalSnapshots,
   useDeadlines,
+  useMarkAttendance,
   useMarks,
   useSettings,
   useSubjects,
@@ -39,6 +40,7 @@ import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
 import { ColourBlock, HeroNumber } from "@/components/viz/hero-number";
+import { SwipeToAbsent } from "@/components/sheets/swipe-absent";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
@@ -63,6 +65,7 @@ const stagger = {
 
 function TodayCard() {
   const tone = useTone();
+  const markAttendance = useMarkAttendance();
   const { date, info, slots, isNextDay } = useToday();
   const { data: attendance } = useAttendance();
   const { data: settings } = useSettings();
@@ -156,8 +159,22 @@ function TodayCard() {
                   r.start_time === slot.start_time
               );
               return (
-                <motion.div
+                <SwipeToAbsent
                   key={slot.id}
+                  // A class that hasn't happened can't have been missed,
+                  // and one already marked absent has nothing to add.
+                  disabled={st === "upcoming" || record?.status === "absent"}
+                  onAbsent={() =>
+                    markAttendance.mutate({
+                      subject_id: slot.subject_id,
+                      date,
+                      start_time: slot.start_time,
+                      end_time: slot.end_time,
+                      status: "absent",
+                    })
+                  }
+                >
+                <motion.div
                   layout
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: st === "past" ? 0.5 : 1, y: 0 }}
@@ -199,6 +216,7 @@ function TodayCard() {
                     <Badge className="bg-accent/15 text-accent">next</Badge>
                   ) : null}
                 </motion.div>
+                </SwipeToAbsent>
               );
             })}
             {!isNextDay && (

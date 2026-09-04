@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -24,6 +24,7 @@ const Settings = lazy(() => import("@/pages/Settings"));
 const AbsentLog = lazy(() => import("@/pages/AbsentLog"));
 const Insights = lazy(() => import("@/pages/Insights"));
 const History = lazy(() => import("@/pages/History"));
+const Widget = lazy(() => import("@/pages/Widget"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -95,6 +96,16 @@ export default function App() {
           ) : (
             <BrowserRouter>
               <Routes>
+                {/* Outside AppShell on purpose: a glanceable view with a
+                    nav bar and a greeting is just the app again. */}
+                <Route
+                  path="/widget"
+                  element={
+                    <Suspense fallback={null}>
+                      <Widget />
+                    </Suspense>
+                  }
+                />
                 <Route element={<AppShell />}>
                   <Route index element={<Dashboard />} />
                   <Route path="/attendance" element={<Attendance />} />

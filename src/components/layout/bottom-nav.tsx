@@ -1,14 +1,30 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { useSwipe } from "@/hooks/useSwipe";
 import { cn, haptic } from "@/lib/utils";
 
 export function BottomNav() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+
+  // Swiping the bar itself walks the tabs, so you can change page
+  // without aiming at a 44px target one-handed.
+  const index = NAV_ITEMS.findIndex((i) => i.to === pathname);
+  const go = (delta: number) => {
+    if (index < 0) return;
+    const next = NAV_ITEMS[index + delta];
+    if (!next) return;
+    haptic();
+    navigate(next.to);
+  };
+  const swipe = useSwipe(() => go(1), () => go(-1), { threshold: 40 });
   return (
     <nav
       aria-label="Primary"
       className="glass fixed inset-x-0 bottom-0 z-30 border-t pb-safe-b lg:hidden"
+      data-swipe
+      {...swipe}
     >
       <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-2">
         {NAV_ITEMS.map((item) => {

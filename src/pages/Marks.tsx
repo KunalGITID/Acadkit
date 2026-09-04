@@ -7,6 +7,7 @@ import { Badge, Dot, Skeleton } from "@/components/ui/misc";
 import { SgpaDial } from "@/components/viz/sgpa-dial";
 import { GradeBadge } from "@/components/viz/grade-badge";
 import { AnimatedNumber } from "@/components/viz/animated-number";
+import { MarkTrend } from "@/components/viz/mark-trend";
 import { MarkSheet } from "@/components/sheets/mark-sheet";
 import { MarksCalculators } from "@/components/marks/calculators";
 import {
@@ -19,6 +20,7 @@ import {
 import { Segmented } from "@/components/ui/segmented";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
+import { useSwipe } from "@/hooks/useSwipe";
 import { computeSgpa, groupMarksBySubject, type SubjectMarks } from "@/lib/grades";
 import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
 import { computeOverallAttendance } from "@/lib/attendance";
@@ -144,6 +146,13 @@ function SubjectMarksCard({
           </span>
         </div>
         <Bar value={marks.internalObtained} max={marks.internalMax} color={subject.color_hex} />
+        {marks.internalComponents.length > 1 && (
+          <MarkTrend
+            marks={marks.internalComponents}
+            color={subject.color_hex}
+            className="mt-3"
+          />
+        )}
       </div>
 
       {/* Components */}
@@ -189,6 +198,12 @@ export default function Marks() {
   const { data: marks, isLoading: mLoading } = useMarks();
 
   const [view, setView] = useState<"marks" | "calculator">("marks");
+  // The segmented control stays; this just means you don't have to
+  // reach for it.
+  const marksSwipe = useSwipe(
+    () => setView("calculator"),
+    () => setView("marks")
+  );
   const [sheetSubject, setSheetSubject] = useState<Subject | null>(null);
   const [sheetMark, setSheetMark] = useState<Mark | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -232,6 +247,7 @@ export default function Marks() {
         <ShareButton rows={result.rows} sgpa={result.sgpa} />
       </div>
 
+      <div data-swipe {...marksSwipe}>
       <AnimatePresence mode="popLayout" initial={false}>
         {view === "marks" ? (
           <motion.div
@@ -291,6 +307,7 @@ export default function Marks() {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
 
       <MarkSheet
         open={sheetOpen}

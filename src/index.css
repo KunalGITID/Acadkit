@@ -105,6 +105,29 @@
   #root {
     min-height: 100dvh;
   }
+  /* Momentum scrolling and a settled scroll position. iOS keeps inertia
+     inside the element rather than handing it to the page, and
+     overscroll-behavior stops a list bouncing the whole view. */
+  main,
+  .scroll-area {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Anything that slides horizontally claims the horizontal axis, so the
+     browser stops waiting to see whether the gesture was a scroll —
+     that wait is what makes a swipe feel a frame behind the finger. */
+  [data-swipe] {
+    touch-action: pan-y;
+  }
+
+  /* Scroll position no longer jumps when a list grows above the
+     viewport — marking a class, or a sync landing mid-scroll. */
+  html {
+    scroll-behavior: smooth;
+    overflow-anchor: auto;
+  }
+
   /* Long-pressing a control in a native app doesn't offer to copy it or
      preview a link, and a tab bar isn't text to be selected. Content
      stays selectable — only chrome opts out. */
