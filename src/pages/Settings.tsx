@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   CalendarRange,
   CalendarX2,
@@ -25,6 +25,7 @@ import {
   Wand2,
   CalendarPlus,
   UserRound,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -647,9 +648,13 @@ function AutoMarkCard() {
             on ? "bg-good" : "bg-surface-2"
           )}
         >
+          {/* left-0 is load-bearing: an absolute box with `left: auto`
+              falls back to its static position, which here resolves to
+              24px — the translate then lands the knob outside the
+              track entirely. */}
           <span
             className={cn(
-              "absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform",
+              "absolute left-0 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform",
               on ? "translate-x-6" : "translate-x-1"
             )}
           />
@@ -722,6 +727,64 @@ function AccountCard() {
   );
 }
 
+/**
+ * A section that starts folded away.
+ *
+ * Semester dates, subjects and the data tools are things you touch once
+ * a term, but they sat permanently expanded between the settings you
+ * actually reach for. Collapsed by default; the open state lives in
+ * component state only, so Settings always opens the same shape rather
+ * than however you left it three weeks ago.
+ */
+function CollapsibleSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="space-y-3">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          haptic();
+          setOpen((o) => !o);
+        }}
+        className="flex w-full items-center justify-between px-1 py-1 text-left"
+      >
+        <span className="text-xs font-bold uppercase tracking-widest text-muted">{title}</span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 text-muted transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 32 }}
+            // Children have shadows and rings that would be clipped
+            // mid-animation; overflow only hides while moving.
+            className="space-y-3 overflow-hidden"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function Settings() {
   const themeMode = useAppStore((s) => s.themeMode);
   const setThemeMode = useAppStore((s) => s.setThemeMode);
@@ -769,17 +832,15 @@ export default function Settings() {
         <NotificationsCard />
       </div>
 
-      <div className="space-y-3">
-        <SectionTitle>Academics</SectionTitle>
+      <CollapsibleSection title="Academics">
         <SemesterDatesCard />
         <AutoMarkCard />
         <SubjectsCard />
-      </div>
+      </CollapsibleSection>
 
-      <div className="space-y-3">
-        <SectionTitle>Data management</SectionTitle>
+      <CollapsibleSection title="Data management">
         <DataCard />
-      </div>
+      </CollapsibleSection>
 
       <p className="pb-4 pt-2 text-center text-xs text-muted">
         AcadKit 2.0 — built for SRM KTR's day-order life. Internals /60, externals /40, 75% or bust.
