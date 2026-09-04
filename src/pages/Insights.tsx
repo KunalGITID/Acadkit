@@ -36,7 +36,8 @@ import type { AttendanceRecord, PortalSnapshot, Subject, TimetableSlot } from "@
 import { renderSurvivalCard, shareCard } from "@/lib/shareCard";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
-import { cn } from "@/lib/utils";
+import { useSwipe } from "@/hooks/useSwipe";
+import { cn, haptic } from "@/lib/utils";
 
 const RISK_STYLE = {
   safe: { text: "text-good-deep", bg: "bg-good/12" },
@@ -316,6 +317,18 @@ export default function Insights() {
   const { data: settings } = useSettings();
   const { data: snapshots } = usePortalSnapshots();
   const [view, setView] = useState<"attendance" | "grades" | "plan">("attendance");
+  // Same order as the segmented control, so a swipe lands where the eye
+  // expects. Ends are walls rather than wrapping: three tabs are all on
+  // screen, so wrapping past the last one would look like a mis-swipe.
+  const VIEWS = ["attendance", "grades", "plan"] as const;
+  const stepView = (delta: number) => {
+    const i = VIEWS.indexOf(view);
+    const next = VIEWS[i + delta];
+    if (!next) return;
+    haptic();
+    setView(next);
+  };
+  const viewSwipe = useSwipe(() => stepView(1), () => stepView(-1));
 
   const declared = useMemo(
     () => settings?.declared_holidays ?? [],
@@ -382,6 +395,7 @@ export default function Insights() {
         />
       </div>
 
+      <div data-swipe {...viewSwipe}>
       {view === "grades" ? (
         <GradesProjection report={report} />
       ) : view === "plan" ? (
@@ -478,6 +492,7 @@ export default function Insights() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
