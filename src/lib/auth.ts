@@ -1,31 +1,37 @@
 import { supabase } from "@/lib/supabase";
 
 /**
- * Sign-in is an emailed 6-digit code, not a magic link.
+ * Email + password, and deliberately no email delivery anywhere in the
+ * flow.
  *
- * In an installed iOS PWA a magic link (or an OAuth redirect) opens in
- * Safari and usually never returns to the PWA — you end up signed in on
- * the wrong surface and still signed out in the app. A code you read
- * from Mail and type into the app never leaves it.
+ * The first attempt used an emailed code. It broke on contact with
+ * reality: Supabase's built-in SMTP allows a couple of sends per hour,
+ * the default template ships a magic link rather than a token, and the
+ * token length is a project setting the client can't know. Every one of
+ * those is a way to be locked out of your own app by configuration.
  *
- * Sessions persist and refresh silently, so this is a one-time cost per
- * device. After the first sign-in the app opens straight to your data,
- * which is fewer taps than typing a PIN every launch.
+ * A password needs no delivery, has no rate limit, survives being an
+ * installed PWA (no redirect out to Safari), and autofills from the
+ * keychain — which on a phone is a Face ID tap, faster than typing a
+ * PIN. Requires "Confirm email" OFF in Supabase, or sign-up tries to
+ * send a confirmation and puts the email problem straight back.
  */
 
-export async function sendCode(email: string): Promise<void> {
-  const { error } = await supabase.auth.signInWithOtp({
+/** Supabase's own floor is 6; this is a nudge, not a policy. */
+export const MIN_PASSWORD = 8;
+
+export async function signUp(email: string, password: string): Promise<void> {
+  const { error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
-    options: { shouldCreateUser: true },
+    password,
   });
   if (error) throw new Error(friendly(error.message));
 }
 
-export async function verifyCode(email: string, code: string): Promise<void> {
-  const { error } = await supabase.auth.verifyOtp({
+export async function signIn(email: string, password: string): Promise<void> {
+  const { error } = await supabase.auth.signInWithPassword({
     email: email.trim().toLowerCase(),
-    token: code.trim(),
-    type: "email",
+    password,
   });
   if (error) throw new Error(friendly(error.message));
 }
@@ -35,11 +41,10 @@ export async function signOut(): Promise<void> {
 }
 
 /**
- * PINs the signed-in user owns, newest claim last.
+ * PINs the signed-in user owns, oldest claim first.
  *
- * Under the 015 policies this is the authoritative list — a PIN you
- * haven't claimed returns no rows from every other table, so this is
- * what the app can actually open.
+ * Under the 015 policies this is authoritative — a PIN you haven't
+ * claimed reads back empty from every other table.
  */
 export async function ownedDevices(): Promise<string[]> {
   const { data, error } = await supabase
@@ -56,8 +61,8 @@ export type ClaimResult = "claimed" | "already-yours" | "taken";
  * Claim a PIN for the signed-in user.
  *
  * The primary key on device_id does the enforcing: claiming a PIN
- * somebody else owns fails as a duplicate rather than reassigning it.
- * That makes this safe to call optimistically.
+ * someone else owns fails as a duplicate rather than reassigning it, so
+ * this is safe to call optimistically.
  */
 export async function claimDevice(pin: string): Promise<ClaimResult> {
   const { data: session } = await supabase.auth.getUser();
@@ -69,7 +74,6 @@ export async function claimDevice(pin: string): Promise<ClaimResult> {
     .insert({ device_id: pin, user_id: userId });
 
   if (!error) return "claimed";
-  // 23505 = unique violation: the PIN is already claimed by someone.
   if (error.code === "23505") {
     const mine = await ownedDevices();
     return mine.includes(pin) ? "already-yours" : "taken";
@@ -80,13 +84,14 @@ export async function claimDevice(pin: string): Promise<ClaimResult> {
 /** Supabase's auth errors are terse; these are the ones users actually hit. */
 function friendly(message: string): string {
   const m = message.toLowerCase();
-  if (m.includes("invalid") && m.includes("token")) return "That code isn't right — check it and try again.";
-  if (m.includes("expired")) return "That code expired. Send a new one.";
-  // Supabase's built-in SMTP allows only a couple of emails per hour on
-  // a free project, and the reset is hourly — "wait a minute" sends
-  // people back to hammer the button and burn the next allowance.
+  if (m.includes("invalid login")) return "Wrong email or password.";
+  if (m.includes("already registered") || m.includes("already been registered"))
+    return "That email already has an account — sign in instead.";
+  if (m.includes("password") && m.includes("least"))
+    return `Password needs at least ${MIN_PASSWORD} characters.`;
   if (m.includes("rate") || m.includes("too many") || m.includes("security purposes"))
-    return "Email limit reached — Supabase only sends a couple per hour. Try again later, or set up custom SMTP.";
-  if (m.includes("email")) return "That doesn't look like a valid email address.";
+    return "Too many attempts. Give it a minute.";
+  // Only reachable if "Confirm email" is still on in the dashboard.
+  if (m.includes("confirm")) return "Turn off “Confirm email” in Supabase → Authentication → Providers.";
   return message;
 }
