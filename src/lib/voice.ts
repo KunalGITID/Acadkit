@@ -309,6 +309,42 @@ export const VOICE = {
     plain: () => "Never synced from the portal — these are only classes you marked by hand.",
     brutal: () => "never synced. you're grading your own homework.",
   }),
+
+  // ---- calendar ----
+
+  holidayDeclared: pick({
+    plain: () => "Holiday declared — remaining day orders shift forward",
+    brutal: () => "holiday declared. the rota shuffles along.",
+  }),
+  holidayRemoved: pick({
+    plain: () => "Holiday removed — day orders restored",
+    brutal: () => "holiday revoked. back to work.",
+  }),
+  holidayPromptTitle: pick({
+    plain: () => "Name this holiday",
+    brutal: () => "what are we calling this one?",
+  }),
+
+  // ---- history ----
+
+  historyEmptyTitle: pick({
+    plain: () => "No past semesters yet",
+    brutal: () => "no history. spotless record, technically.",
+  }),
+  historyEmptyBody: pick({
+    plain: () =>
+      "When a semester ends, archive it here — its SGPA and per-subject brief are saved, and your CGPA builds up automatically.",
+    brutal: () =>
+      "archive a semester when it ends and its sgpa is preserved forever, whether you want that or not.",
+  }),
+  semesterArchived: pick({
+    plain: () => "Semester archived",
+    brutal: () => "filed away. it happened.",
+  }),
+  semesterCleared: pick({
+    plain: () => "Cleared — ready for the new semester",
+    brutal: () => "wiped. fresh start, same you.",
+  }),
 } as const;
 
 /** Resolve one line for a tone. */

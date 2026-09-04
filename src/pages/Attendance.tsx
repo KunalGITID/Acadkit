@@ -14,7 +14,6 @@ import {
 } from "@/lib/attendance";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
 import { relativeDay } from "@/lib/dates";
-import { fitName } from "@/lib/subjectName";
 import { syncHealth } from "@/lib/syncHealth";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
@@ -48,7 +47,7 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 truncate font-bold">
             <Dot color={stats.subject.color_hex} />
-            <span className="truncate">{fitName(stats.subject)}</span>
+            <span className="truncate">{stats.subject.name}</span>
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted">
             {stats.total === 0

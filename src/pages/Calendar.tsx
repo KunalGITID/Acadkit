@@ -34,8 +34,8 @@ function monthLabel(year: number, month: number): string {
 }
 
 export default function Calendar() {
-  const { promptText } = useDialog();
   const tone = useTone();
+  const { promptText } = useDialog();
   const { data: settings } = useSettings();
   // Depend on the two fields, not the settings object: React Query
   // hands back a new object on every refetch, so listing `settings`
@@ -107,7 +107,7 @@ export default function Calendar() {
   async function declareHoliday() {
     if (!selected) return;
     const name = await promptText({
-      title: "Name this holiday",
+      title: say(VOICE.holidayPromptTitle, tone),
       body: "Remaining day orders shift forward from here.",
       defaultValue: "Declared holiday",
       placeholder: "Declared holiday",
@@ -116,7 +116,7 @@ export default function Calendar() {
     updateSettings.mutate({
       declared_holidays: [...declared, { date: selected, name: name || "Declared holiday" }],
     });
-    toast.success("Holiday declared — remaining day orders shift forward");
+    toast.success(say(VOICE.holidayDeclared, tone));
     setSelected(null);
   }
 
@@ -125,7 +125,7 @@ export default function Calendar() {
     updateSettings.mutate({
       declared_holidays: declared.filter((h) => h.date !== selected),
     });
-    toast.success("Holiday removed — day orders restored");
+    toast.success(say(VOICE.holidayRemoved, tone));
     setSelected(null);
   }
 

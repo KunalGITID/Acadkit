@@ -15,7 +15,6 @@ import { slideVariants } from "@/lib/slide";
 import { SwipeHint } from "@/components/ui/swipe-hint";
 import { Struck } from "@/components/ui/struck";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
-import { fitName } from "@/lib/subjectName";
 import { cn, haptic } from "@/lib/utils";
 import type { TimetableSlot } from "@/types";
 
@@ -212,7 +211,7 @@ export default function Timetable() {
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 truncate font-bold">
                       <Dot color={subject?.color_hex ?? "#888"} />
-                      <span className="truncate">{subject ? fitName(subject) : "Unknown subject"}</span>
+                      <span className="truncate">{subject?.name ?? "Unknown subject"}</span>
                     </p>
                     <p className="mt-0.5 text-xs font-medium text-muted">
                       {formatTime(slot.start_time)} – {formatTime(slot.end_time)}

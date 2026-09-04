@@ -89,8 +89,8 @@ function SemesterCard({
 }
 
 export default function History() {
-  const { confirm, promptText } = useDialog();
   const tone = useTone();
+  const { confirm, promptText } = useDialog();
   const pin = useAppStore((s) => s.pin)!;
   const qc = useQueryClient();
   const { data: archives, isLoading } = useArchives();
@@ -158,7 +158,7 @@ export default function History() {
         sem_end: settings?.sem_end ?? null,
       });
       await qc.invalidateQueries({ queryKey: ["archives", pin] });
-      toast.success("Semester archived");
+      toast.success(say(VOICE.semesterArchived, tone));
 
       const startFresh = await confirm({
         title: "Start the new semester?",
@@ -169,7 +169,7 @@ export default function History() {
       if (startFresh) {
         await clearAcademicData(pin);
         await qc.invalidateQueries();
-        toast.success("Cleared — ready for the new semester");
+        toast.success(say(VOICE.semesterCleared, tone));
       }
     } catch (err) {
       toast.error("Couldn't archive", {
@@ -232,8 +232,8 @@ export default function History() {
         <section className="card">
           <EmptyState
             icon={GraduationCap}
-            title="No past semesters yet"
-            description="When a semester ends, archive it here — its SGPA and per-subject brief are saved, and your CGPA builds up automatically."
+            title={say(VOICE.historyEmptyTitle, tone)}
+            description={say(VOICE.historyEmptyBody, tone)}
             className="py-8"
           />
         </section>

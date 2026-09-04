@@ -1,15 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CalendarRange,
-  CalendarX2,
   Check,
-  Contrast,
-  Zap,
-  Copy,
-  Download,
-  ExternalLink,
   Loader2,
   Bell,
   BellOff,
@@ -17,14 +11,12 @@ import {
   Moon,
   Pencil,
   Plus,
-  Sparkles,
   Sun,
-  Trash2,
-  Upload,
   Wand2,
-  CalendarPlus,
   UserRound,
   ChevronDown,
+  ArrowUpRight,
+  LayoutGrid,
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,26 +25,17 @@ import { Field, Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Dot } from "@/components/ui/misc";
 import { SubjectSheet } from "@/components/sheets/subject-sheet";
-import { ImportSheet } from "@/components/sheets/import-sheet";
 import { usePush } from "@/hooks/usePush";
 import { useSession } from "@/hooks/useSession";
-import { useDialog } from "@/components/ui/dialog";
+import { SetupCard } from "@/components/settings/setup-card";
+import { DataCard } from "@/components/settings/data-card";
+import { ThemePicker } from "@/components/settings/theme-picker";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { syncHealth } from "@/lib/syncHealth";
 import { relativeDay } from "@/lib/dates";
 import { signOut } from "@/lib/auth";
 import {
-  PENDING_MIGRATIONS_SQL,
-  clearTimetable,
-  deleteAllData,
-  exportAllData,
-  fetchSettings,
-  fetchSubjects,
-  fetchTimetable,
-  missingMigrations,
-  sqlEditorUrl,
-  type AcadkitExport,
   updateSettings as apiUpdateSettings,
 } from "@/api/queries";
 import {
@@ -64,94 +47,16 @@ import {
   useSubjects,
   useUpdateSettings,
 } from "@/hooks/useData";
-import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
+import { semesterWindow } from "@/lib/calendar";
 import { describePending } from "@/lib/autoMark";
-import { buildIcs, countEvents } from "@/lib/ics";
 import { usePendingAutoMarks } from "@/hooks/useAutoMark";
 import { cn, haptic } from "@/lib/utils";
-import { useAppStore, type ColorMode, type ThemeName } from "@/store/app";
+import { useAppStore, type ColorMode } from "@/store/app";
 import type { Subject } from "@/types";
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <p className="px-1 text-xs font-bold uppercase tracking-widest text-muted">{children}</p>
-  );
-}
-
-function SetupCard() {
-  const qc = useQueryClient();
-  const [checking, setChecking] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const { data: missing } = useQuery({
-    queryKey: ["migrations"],
-    queryFn: missingMigrations,
-    staleTime: Infinity,
-  });
-
-  if (!missing || missing.length === 0) return null;
-
-  async function recheck() {
-    setChecking(true);
-    const still = await qc.fetchQuery({ queryKey: ["migrations"], queryFn: missingMigrations });
-    setChecking(false);
-    if (still.length === 0) {
-      toast.success("All set — every feature is enabled! 🎉");
-      // Pick up the now-saveable fields everywhere
-      void qc.invalidateQueries();
-    } else {
-      toast.error("Not yet — paste the SQL and hit Run, then re-check.");
-    }
-  }
-
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="card space-y-3 border-accent/30 bg-gradient-to-br from-[hsl(var(--accent)/0.08)] to-transparent p-5"
-    >
-      <div>
-        <p className="flex items-center gap-2 font-bold">
-          <Sparkles className="h-4 w-4 text-accent" /> Finish setup — 30 seconds, one paste
-        </p>
-        <p className="mt-1 text-xs text-muted">
-          One SQL snippet unlocks: {missing.join(" · ")}. Copy it, open your project's SQL
-          editor, paste, press <span className="font-bold">Run</span>, then re-check here.
-        </p>
-      </div>
-
-      <pre className="overflow-x-auto rounded-2xl border bg-surface-2/60 p-3 font-mono text-[10.5px] leading-relaxed text-muted scrollbar-none">
-        {PENDING_MIGRATIONS_SQL}
-      </pre>
-
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <Button
-          variant="primary"
-          size="sm"
-          className="h-10"
-          onClick={() => {
-            void navigator.clipboard.writeText(PENDING_MIGRATIONS_SQL);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-            toast.success("SQL copied — paste it in the editor");
-          }}
-        >
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          Copy SQL
-        </Button>
-        <a
-          href={sqlEditorUrl()}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-surface-2 px-3.5 text-[13px] font-semibold text-ink transition-colors hover:bg-surface-2/70"
-        >
-          <ExternalLink className="h-4 w-4" /> Open SQL editor
-        </a>
-        <Button variant="outline" size="sm" className="h-10" onClick={recheck} disabled={checking}>
-          {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          I ran it — re-check
-        </Button>
-      </div>
-    </motion.section>
   );
 }
 
@@ -376,260 +281,6 @@ function NotificationsCard() {
   );
 }
 
-function DataCard() {
-  const { confirm } = useDialog();
-  const pin = useAppStore((s) => s.pin)!;
-  const resetPin = useAppStore((s) => s.resetPin);
-  const qc = useQueryClient();
-  const [busy, setBusy] = useState<string | null>(null);
-  const [pendingImport, setPendingImport] = useState<AcadkitExport | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-
-  async function run(name: string, fn: () => Promise<void>) {
-    setBusy(name);
-    try {
-      await fn();
-    } catch (err) {
-      toast.error("Something went wrong", {
-        description: err instanceof Error ? err.message : undefined,
-      });
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-picking the same file
-    if (!file) return;
-    try {
-      const parsed = JSON.parse(await file.text()) as AcadkitExport;
-      setPendingImport(parsed);
-    } catch {
-      toast.error("Couldn't read that file — is it valid JSON?");
-    }
-  }
-
-  return (
-    <section className="card space-y-2.5 p-5">
-      <p className="font-bold">Data</p>
-
-      <Button
-        variant="secondary"
-        className="w-full justify-start"
-        disabled={busy !== null}
-        onClick={() =>
-          run("export", async () => {
-            const data = await exportAllData(pin);
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `acadkit-export-${pin}-${new Date().toISOString().slice(0, 10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            toast.success("Export downloaded");
-          })
-        }
-      >
-        {busy === "export" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-        Export everything as JSON
-      </Button>
-
-      <Button
-        variant="secondary"
-        className="w-full justify-start"
-        disabled={busy !== null}
-        onClick={() =>
-          run("ics", async () => {
-            const [subjects, timetable, settings] = await Promise.all([
-              fetchSubjects(pin),
-              fetchTimetable(pin),
-              fetchSettings(pin),
-            ]);
-            if (!timetable.length) {
-              toast.error("Add a timetable first");
-              return;
-            }
-            const window = semesterWindow(settings);
-            const effMap = buildEffectiveMap(settings?.declared_holidays ?? [], window);
-            // Only what's ahead: nobody wants past classes replayed
-            // into their calendar.
-            const ics = buildIcs({
-              subjects,
-              timetable,
-              effMap,
-              from: new Date().toISOString().slice(0, 10),
-            });
-            const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `acadkit-timetable-${pin}.ics`;
-            a.click();
-            URL.revokeObjectURL(url);
-            toast.success(`${countEvents(ics)} classes exported`);
-          })
-        }
-      >
-        {busy === "ics" ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <CalendarPlus className="h-4 w-4" />
-        )}
-        Add timetable to my calendar
-      </Button>
-
-      <input
-        ref={fileInput}
-        type="file"
-        accept="application/json,.json"
-        className="hidden"
-        onChange={onFile}
-      />
-      <Button
-        variant="secondary"
-        className="w-full justify-start"
-        disabled={busy !== null}
-        onClick={() => fileInput.current?.click()}
-      >
-        <Upload className="h-4 w-4" />
-        Import from a file
-      </Button>
-
-      <ImportSheet data={pendingImport} onClose={() => setPendingImport(null)} />
-
-      <Button
-        variant="secondary"
-        className="w-full justify-start"
-        disabled={busy !== null}
-        onClick={async () => {
-          const ok = await confirm({
-            title: "Clear the timetable?",
-            body: "Every class slot goes. Attendance history is kept.",
-            confirmLabel: "Clear schedule",
-            destructive: true,
-          });
-          if (!ok) return;
-          void run("schedule", async () => {
-            await clearTimetable(pin);
-            void qc.invalidateQueries({ queryKey: ["timetable", pin] });
-            toast.success("Schedule cleared");
-          });
-        }}
-      >
-        {busy === "schedule" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CalendarX2 className="h-4 w-4" />}
-        Clear schedule only
-      </Button>
-
-      <Button
-        variant="danger"
-        className="w-full justify-start"
-        disabled={busy !== null}
-        onClick={async () => {
-          const ok = await confirm({
-            title: "Delete everything?",
-            body: `Subjects, attendance, marks, deadlines and settings for PIN ${pin}. This cannot be undone.`,
-            confirmLabel: "Delete it all",
-            destructive: true,
-          });
-          if (!ok) return;
-          void run("reset", async () => {
-            await deleteAllData(pin);
-            qc.clear();
-            resetPin();
-            toast.success("Everything wiped — fresh start");
-          });
-        }}
-      >
-        {busy === "reset" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-        Reset all data
-      </Button>
-    </section>
-  );
-}
-
-const THEME_META: Record<
-  ThemeName,
-  {
-    label: string;
-    tagline: string;
-    xFactor: string;
-    icon: typeof Sparkles;
-    swatch: { bg: string; accent: string; accent2: string };
-  }
-> = {
-  brutalist: {
-    label: "Brutalist",
-    tagline: "Colour-blocked and loud",
-    xFactor: "Oversized display numerals, flat blocks, a floating pill nav",
-    icon: Zap,
-    swatch: { bg: "hsl(0 0% 4%)", accent: "hsl(72 89% 60%)", accent2: "hsl(6 78% 62%)" },
-  },
-  oled: {
-    label: "OLED",
-    tagline: "True black, zero color",
-    xFactor: "Pure #000 in dark mode — pixels off, not just dark",
-    icon: Contrast,
-    swatch: { bg: "hsl(0 0% 0%)", accent: "hsl(0 0% 38%)", accent2: "hsl(0 0% 58%)" },
-  },
-};
-
-function ThemePicker() {
-  const themeName = useAppStore((s) => s.themeName);
-  const setThemeName = useAppStore((s) => s.setThemeName);
-
-  return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {(Object.keys(THEME_META) as ThemeName[]).map((key) => {
-        const meta = THEME_META[key];
-        const active = themeName === key;
-        return (
-          <button
-            key={key}
-            onClick={() => {
-              haptic();
-              setThemeName(key);
-            }}
-            className={cn(
-              "flex flex-col gap-3 rounded-3xl border p-4 text-left transition-all",
-              active ? "border-accent bg-accent/[0.06] shadow-pop" : "hover:bg-surface-2/60"
-            )}
-          >
-            <div
-              className="flex h-16 items-center justify-center gap-2 rounded-2xl"
-              style={{ background: meta.swatch.bg }}
-            >
-              <span
-                className="h-3.5 w-3.5 rounded-full"
-                style={{ background: meta.swatch.accent }}
-              />
-              <span
-                className="h-3.5 w-3.5 rounded-full"
-                style={{ background: meta.swatch.accent2 }}
-              />
-            </div>
-            <div>
-              <p className="flex items-center gap-1.5 font-bold">
-                <meta.icon className="h-4 w-4 text-accent" />
-                {meta.label}
-                {active && <Check className="ml-auto h-4 w-4 text-accent" />}
-              </p>
-              <p className="mt-0.5 text-xs font-semibold text-muted">{meta.tagline}</p>
-              <p className="mt-1.5 text-[11px] leading-snug text-muted/80">{meta.xFactor}</p>
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * Auto-marking is opt-in and reversible, and says exactly how many rows
- * it would write before it writes any of them. Inventing attendance
- * silently would be worse than the daily friction it removes.
- */
 function AutoMarkCard() {
   const { data: settings } = useSettings();
   const update = useUpdateSettings();
@@ -896,6 +547,46 @@ function RefreshCard() {
   );
 }
 
+/**
+ * The deadlines view, and how to get it onto a home screen.
+ *
+ * /widget existed with nothing linking to it, so the only way in was
+ * typing the URL — which is no way to ship a feature. It lives here
+ * rather than in the nav because it isn't a page you visit inside the
+ * app; it's a page you leave the app to install.
+ */
+function WidgetCard() {
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+          <LayoutGrid className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-bold">Deadlines widget</p>
+          <p className="mt-0.5 text-xs text-muted">
+            A stripped-down page showing only what's due. Add it to your home
+            screen and it installs as its own icon, called “Due”.
+          </p>
+        </div>
+      </div>
+
+      <a
+        href="/widget"
+        className="flex items-center justify-between rounded-2xl border bg-surface-2/40 px-4 py-3 text-sm font-bold transition-transform active:scale-[0.99]"
+      >
+        Open the widget
+        <ArrowUpRight className="h-4 w-4 text-muted" />
+      </a>
+
+      <p className="text-[11px] text-muted">
+        On iPhone: open it, then Share → Add to Home Screen. It opens straight
+        to your deadlines, without the rest of the app.
+      </p>
+    </section>
+  );
+}
+
 export default function Settings() {
   const tone = useTone();
   const themeMode = useAppStore((s) => s.themeMode);
@@ -938,6 +629,11 @@ export default function Settings() {
             <span className="flex items-center gap-1"><Moon className="h-3.5 w-3.5" /> dark</span>
           </p>
         </section>
+      </div>
+
+      <div className="space-y-3">
+        <SectionTitle>Home screen</SectionTitle>
+        <WidgetCard />
       </div>
 
       <div className="space-y-3">
