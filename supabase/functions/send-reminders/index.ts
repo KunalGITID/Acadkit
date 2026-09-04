@@ -124,14 +124,47 @@ Deno.serve(async (req) => {
     const [{ data: settings }, { data: subjects }, { data: timetable }, { data: attendance }, { data: deadlines }, { data: snapshots }] =
       await Promise.all([
         sb.from("settings").select("declared_holidays,sem_start,sem_end").eq("device_id", pin).maybeSingle(),
-        sb.from("subjects").select("id,name,code").eq("device_id", pin),
+        sb.from("subjects").select("id,name,code,short_name").eq("device_id", pin),
         sb.from("timetable_slots").select("*").eq("device_id", pin),
         sb.from("attendance").select("subject_id,date,start_time,status").eq("device_id", pin),
-        sb.from("deadlines").select("id,title,due_date,status").eq("device_id", pin),
+        sb.from("deadlines").select("id,type,subject_id,due_date,status").eq("device_id", pin),
         sb.from("portal_snapshots").select("subject_code,conducted,absent,as_of").eq("device_id", pin),
       ]);
 
     const subjName = new Map((subjects ?? []).map((s) => [s.id, s.name]));
+
+    /**
+     * What a deadline is called, matching deadlineLabel in
+     * src/lib/deadlines.ts.
+     *
+     * This used to send the `title` column, which is written for storage
+     * rather than display — a row saved by the app reads "21CSC201J Lab",
+     * and rows predating the title-less redesign carry whatever was typed
+     * years ago. So the notification named the deadline one way and the
+     * screen it opened named it another. Derive it from the same two
+     * fields the app uses instead.
+     */
+    const DEADLINE_TYPE_LABEL: Record<string, string> = {
+      assignment: "Assignment",
+      exam: "Exam",
+      lab: "Lab",
+      other: "Other",
+    };
+    const subjShort = new Map(
+      (subjects ?? []).map((s) => [s.id, (s.short_name as string | null)?.trim() || null])
+    );
+    /**
+     * "Data Structures & Algorithms lab due", or just "Lab due" when the
+     * deadline was never assigned a subject — naming the type twice
+     * ("Lab lab due") is the trap here.
+     */
+    const deadlineHeadline = (d: { type: string; subject_id: string | null }) => {
+      const type = DEADLINE_TYPE_LABEL[d.type] ?? "Deadline";
+      const name = (subjName.get(d.subject_id ?? "") as string | undefined)?.trim();
+      if (!name) return `${type} due`;
+      const label = subjShort.get(d.subject_id ?? "") || name;
+      return `${label} ${type.toLowerCase()} due`;
+    };
 
     /**
      * Attendance per subject, matching computeSubjectAttendance in
@@ -206,7 +239,7 @@ Deno.serve(async (req) => {
           ref: `mark|${date}`,
           title: "Mark today's attendance",
           body: `${unmarked} class${unmarked > 1 ? "es" : ""} still unmarked from today.`,
-          url: "/",
+          url: "/attendance",
         });
       }
     }
@@ -223,9 +256,11 @@ Deno.serve(async (req) => {
             device_id: pin,
             kind: "deadline",
             ref: `${d.id}|${date}`,
-            title: `Due soon: ${d.title}`,
-            body: "Deadline within 24 hours.",
-            url: "/",
+            title: deadlineHeadline(d),
+            // "within 24 hours" is the window that selected this row, not
+            // news. The hour is the part you act on.
+            body: hrs <= 12 ? "Due today." : "Due tomorrow.",
+            url: "/calendar",
           });
         }
       }
