@@ -178,7 +178,11 @@ export const VOICE = {
       if (!safe) {
         if (needed <= 0) return "cooked";
         if (needed === 1) return "one class from safe";
-        if (needed > 40) return "mathematically doomed";
+        // No "doomed" here, however large the number gets. This view
+        // knows how many classes you need but not how many remain, so
+        // it cannot tell brutal apart from impossible — and claiming
+        // impossible when it isn't would be the one lie this voice
+        // doesn't get to tell. The survival plan does know, and says so.
         return `${needed} straight to survive`;
       }
       if (budget === 0) return "barely safe (0 bunks left)";
@@ -256,6 +260,41 @@ export const VOICE = {
   absentEmptyBody: pick({
     plain: () => "No absents on record. Keep it that way!",
     brutal: () => "no absences on record. either you're good or you're not marking.",
+  }),
+
+  // ---- survival schedule ----
+
+  tabSurvival: pick({ plain: () => "Plan", brutal: () => "survival" }),
+
+  planIntro: pick<[free: number, total: number]>({
+    plain: (free, total) =>
+      `${free} of the next ${total} class days can be missed without dropping a subject.`,
+    brutal: (free, total) =>
+      free === 0
+        ? `zero free days out of ${total}. every single one counts now.`
+        : `${free} days off left out of ${total}. spend them wisely.`,
+  }),
+
+  planDeadline: pick<[date: string]>({
+    plain: (date) => `From ${date}, every class matters.`,
+    brutal: (date) => `after ${date} you attend everything. no exceptions.`,
+  }),
+
+  planNoDeadline: pick({
+    plain: () => "Nothing is mandatory yet.",
+    brutal: () => "nothing mandatory yet. enjoy it.",
+  }),
+
+  planLost: pick<[n: number]>({
+    plain: (n) => `${n} subject${n === 1 ? "" : "s"} can no longer reach 75%.`,
+    brutal: (n) =>
+      `${n} subject${n === 1 ? " is" : "s are"} already gone — attending won't save ${n === 1 ? "it" : "them"}.`,
+  }),
+
+  dayFree: pick({ plain: () => "Free", brutal: () => "skip it" }),
+  dayRequired: pick<[n: number]>({
+    plain: (n) => `${n} required`,
+    brutal: (n) => `${n} mandatory`,
   }),
 } as const;
 
