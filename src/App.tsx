@@ -9,6 +9,9 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { UpdatePrompt } from "@/components/update-prompt";
 import Onboarding from "@/pages/Onboarding";
+import SignIn from "@/pages/SignIn";
+import { useSession } from "@/hooks/useSession";
+import { useAutoDevice } from "@/hooks/useAutoDevice";
 import { useAppStore } from "@/store/app";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -42,6 +45,8 @@ const persister = createSyncStoragePersister({
 
 export default function App() {
   const pin = useAppStore((s) => s.pin);
+  const { session, loading } = useSession();
+  useAutoDevice(!!session);
 
   return (
     <ErrorBoundary>
@@ -67,7 +72,14 @@ export default function App() {
             }}
           />
           <UpdatePrompt />
-          {!pin ? (
+          {/* Order matters: hold the splash until the stored session has
+              been read, or every launch flashes a sign-in screen at
+              someone who is already signed in. */}
+          {loading ? (
+            <div className="min-h-dvh" />
+          ) : !session ? (
+            <SignIn />
+          ) : !pin ? (
             <Onboarding />
           ) : (
             <BrowserRouter>

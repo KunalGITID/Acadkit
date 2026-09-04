@@ -4,6 +4,7 @@ import { ArrowRight, KeyRound, Loader2, Sparkles, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { accountExists, ensureSettings, seedAccount } from "@/api/queries";
+import { claimDevice } from "@/lib/auth";
 import { generatePin, isValidPin } from "@/lib/pin";
 import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
@@ -71,6 +72,7 @@ export default function Onboarding() {
       let pin = generatePin();
       for (let i = 0; i < 5 && (await accountExists(pin)); i++) pin = generatePin();
       await seedAccount(pin);
+      await claimDevice(pin);
       setPin(pin);
       toast.success(`Your sync PIN is ${pin}`, {
         description: "Find it anytime in Settings — it links all your devices.",
@@ -89,6 +91,15 @@ export default function Onboarding() {
     setBusy(true);
     try {
       if (await accountExists(pin)) {
+        // Claiming is what actually grants access: under the 015
+        // policies an unclaimed PIN reads back empty.
+        const claim = await claimDevice(pin);
+        if (claim === "taken") {
+          toast.error(`PIN ${pin} belongs to another account`, {
+            description: "Sign in with that account, or create a fresh space.",
+          });
+          return;
+        }
         await ensureSettings(pin);
         setPin(pin);
         toast.success("Synced — your data is here");

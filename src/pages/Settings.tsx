@@ -24,6 +24,7 @@ import {
   Upload,
   Wand2,
   CalendarPlus,
+  UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,8 @@ import { Dot } from "@/components/ui/misc";
 import { SubjectSheet } from "@/components/sheets/subject-sheet";
 import { ImportSheet } from "@/components/sheets/import-sheet";
 import { usePush } from "@/hooks/usePush";
+import { useSession } from "@/hooks/useSession";
+import { signOut } from "@/lib/auth";
 import {
   PENDING_MIGRATIONS_SQL,
   accountExists,
@@ -787,6 +790,41 @@ function AutoMarkCard() {
   );
 }
 
+/** Who you're signed in as, and the way out. */
+function AccountCard() {
+  const { session } = useSession();
+  const [busy, setBusy] = useState(false);
+  const email = session?.user?.email ?? "";
+
+  return (
+    <section className="card flex items-center justify-between gap-4 p-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+          <UserRound className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-bold">Signed in</p>
+          <p className="truncate text-xs text-muted">{email || "—"}</p>
+        </div>
+      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          // Only the session goes. The PIN and its data stay put, so
+          // signing back in returns you to exactly the same place.
+          await signOut();
+          setBusy(false);
+        }}
+      >
+        Sign out
+      </Button>
+    </section>
+  );
+}
+
 export default function Settings() {
   const themeMode = useAppStore((s) => s.themeMode);
   const setThemeMode = useAppStore((s) => s.setThemeMode);
@@ -800,6 +838,11 @@ export default function Settings() {
       <div className="space-y-3">
         <SectionTitle>Profile</SectionTitle>
         <ProfileCard />
+      </div>
+
+      <div className="space-y-3">
+        <SectionTitle>Account</SectionTitle>
+        <AccountCard />
       </div>
 
       <div className="space-y-3">
