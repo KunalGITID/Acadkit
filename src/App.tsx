@@ -12,6 +12,7 @@ import Onboarding from "@/pages/Onboarding";
 import SignIn from "@/pages/SignIn";
 import { useSession } from "@/hooks/useSession";
 import { useAutoDevice } from "@/hooks/useAutoDevice";
+import { RQ_CACHE_KEY, useAuthReset } from "@/hooks/useAuthReset";
 import { useAppStore } from "@/store/app";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -40,8 +41,17 @@ const queryClient = new QueryClient({
 // without their fn); they pause in-session and flush on reconnect.
 const persister = createSyncStoragePersister({
   storage: window.localStorage,
-  key: "acadkit:rq-cache",
+  key: RQ_CACHE_KEY,
 });
+
+/**
+ * useAuthReset needs the query client, so it has to run inside the
+ * provider rather than in App's own body.
+ */
+function AuthReset() {
+  useAuthReset();
+  return null;
+}
 
 export default function App() {
   const pin = useAppStore((s) => s.pin);
@@ -71,6 +81,7 @@ export default function App() {
               className: "!rounded-2xl !border !bg-surface !text-ink !shadow-card",
             }}
           />
+          <AuthReset />
           <UpdatePrompt />
           {/* Order matters: hold the splash until the stored session has
               been read, or every launch flashes a sign-in screen at
