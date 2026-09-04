@@ -235,6 +235,16 @@ export const VOICE = {
     brutal: () => "no data. nothing to roast. mark something.",
   }),
 
+  wrappedBestResult: pick({
+    plain: () => "Your best result",
+    brutal: () => "your one good day",
+  }),
+
+  wrappedTotalMarks: pick({
+    plain: () => "marks banked so far",
+    brutal: () => "marks scraped together",
+  }),
+
   wrappedShare: pick({
     plain: () => "Share",
     brutal: () => "post the receipts",
@@ -250,6 +260,31 @@ export const VOICE = {
   holidayThen: pick<[n: number]>({
     plain: (n) => `${n} class${n === 1 ? "" : "es"}`,
     brutal: (n) => `${n} class${n === 1 ? "" : "es"} waiting`,
+  }),
+
+  /** Heading on the dashboard's survival summary. */
+  survivalTitle: pick({
+    plain: () => "Days you can skip",
+    brutal: () => "days you can vanish",
+  }),
+
+  /** `n` free days remain in the whole plan. */
+  survivalFree: pick<[n: number]>({
+    plain: (n) => `${n} free day${n === 1 ? "" : "s"} left this semester`,
+    brutal: (n) =>
+      n === 0 ? "none. every class counts now." : `${n} day${n === 1 ? "" : "s"} of freedom left`,
+  }),
+
+  /** From this date on, every miss costs a subject. */
+  survivalCrunch: pick<[when: string]>({
+    plain: (when) => `From ${when}, missing costs you a subject`,
+    brutal: (when) => `after ${when} every miss costs you a subject`,
+  }),
+
+  /** Nothing is required — the plan has no crunch date. */
+  survivalClear: pick({
+    plain: () => "Nothing is compulsory from here.",
+    brutal: () => "nothing's compulsory. enjoy it while it lasts.",
   }),
 
   noClassesToday: pick({

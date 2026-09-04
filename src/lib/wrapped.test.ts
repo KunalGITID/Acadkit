@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildWrapped, MINUTES_PER_CLASS } from "@/lib/wrapped";
 import type { SubjectAttendance } from "@/lib/attendance";
-import type { AttendanceRecord, Subject } from "@/types";
+import type { AttendanceRecord, Mark, Subject } from "@/types";
 
 const subject = (
   name: string,
@@ -157,5 +157,72 @@ describe("buildWrapped", () => {
       const w = buildWrapped([subject("OS", 0, 1)], [rec("2025-01-01", "absent")], EFF);
       expect(w.worstDayOrder).toBeNull();
     });
+  });
+});
+
+const mark = (subjectId: string, label: string, obtained: number, max: number): Mark =>
+  ({ subject_id: subjectId, label, marks_obtained: obtained, max_marks: max }) as Mark;
+
+const SUBJECTS = [
+  { id: "OS", name: "Operating Systems", color_hex: "#f00" },
+  { id: "DSA", name: "Data Structures", color_hex: "#00f" },
+] as Subject[];
+
+describe("marks in the recap", () => {
+  it("has nothing to say before anything is graded", () => {
+    const w = buildWrapped([subject("OS", 5, 5)], [], EFF, [], SUBJECTS);
+    expect(w.bestResult).toBeNull();
+    expect(w.marksTotal).toBeNull();
+    expect(w.componentsGraded).toBe(0);
+  });
+
+  it("crowns the best percentage, not the biggest raw mark", () => {
+    // 45/50 is the larger number; 19/20 is the better result.
+    const w = buildWrapped(
+      [subject("OS", 5, 5)],
+      [],
+      EFF,
+      [mark("OS", "CT1", 45, 50), mark("DSA", "Quiz", 19, 20)],
+      SUBJECTS
+    );
+    expect(w.bestResult?.label).toBe("Quiz");
+    expect(w.bestResult?.subject).toBe("Data Structures");
+    expect(w.bestResult?.percentage).toBe(95);
+  });
+
+  it("totals every graded component", () => {
+    const w = buildWrapped(
+      [subject("OS", 5, 5)],
+      [],
+      EFF,
+      [mark("OS", "CT1", 45, 50), mark("DSA", "Quiz", 19, 20)],
+      SUBJECTS
+    );
+    expect(w.marksTotal).toEqual({ obtained: 64, max: 70, percentage: (64 / 70) * 100 });
+    expect(w.componentsGraded).toBe(2);
+  });
+
+  it("skips an ungraded row rather than scoring it zero", () => {
+    // A row with no denominator is missing data. Counting it would drag
+    // the total down and invent a result that was never sat.
+    const w = buildWrapped(
+      [subject("OS", 5, 5)],
+      [],
+      EFF,
+      [mark("OS", "CT1", 45, 50), mark("OS", "Lab record", 0, 0)],
+      SUBJECTS
+    );
+    expect(w.componentsGraded).toBe(1);
+    expect(w.marksTotal).toEqual({ obtained: 45, max: 50, percentage: 90 });
+  });
+
+  it("survives a mark whose subject was deleted", () => {
+    const w = buildWrapped([subject("OS", 5, 5)], [], EFF, [mark("gone", "CT1", 9, 10)], []);
+    expect(w.bestResult?.subject).toBe("Unknown subject");
+  });
+
+  it("is not empty when marks exist but no class was ever marked", () => {
+    const w = buildWrapped([subject("OS", 0, 0)], [], EFF, [mark("OS", "CT1", 9, 10)], SUBJECTS);
+    expect(w.empty).toBe(false);
   });
 });

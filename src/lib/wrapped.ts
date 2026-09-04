@@ -1,5 +1,5 @@
 import type { SubjectAttendance } from "@/lib/attendance";
-import type { AttendanceRecord } from "@/types";
+import type { AttendanceRecord, Mark, Subject } from "@/types";
 
 /**
  * The semester, counted up.
@@ -25,6 +25,17 @@ export interface SubjectHighlight {
   percentage: number;
 }
 
+export interface BestResult {
+  /** Subject the result belongs to. */
+  subject: string;
+  color: string;
+  /** The component's own name, e.g. "CT1". */
+  label: string;
+  obtained: number;
+  max: number;
+  percentage: number;
+}
+
 export interface Wrapped {
   /** Classes sat through, from the portal-aware totals. */
   attended: number;
@@ -41,6 +52,12 @@ export interface Wrapped {
   worstDayOrder: { dayOrder: number; missed: number } | null;
   /** Days with at least one class marked. */
   daysMarked: number;
+  /** Your single best component result. Null until something is graded. */
+  bestResult: BestResult | null;
+  /** Every internal component summed. Null when nothing is graded. */
+  marksTotal: { obtained: number; max: number; percentage: number } | null;
+  /** Components graded so far. */
+  componentsGraded: number;
   /** True when there is too little recorded to say anything. */
   empty: boolean;
 }
@@ -48,7 +65,9 @@ export interface Wrapped {
 export function buildWrapped(
   subjects: SubjectAttendance[],
   records: AttendanceRecord[],
-  effMap: Record<string, number>
+  effMap: Record<string, number>,
+  marks: Mark[] = [],
+  allSubjects: Subject[] = []
 ): Wrapped {
   const withData = subjects.filter((s) => s.total > 0 && s.percentage !== null);
   const attended = withData.reduce((n, s) => n + s.attended, 0);
@@ -75,7 +94,51 @@ export function buildWrapped(
     cleanStreak,
     worstDayOrder: worstDayOrder(records, effMap),
     daysMarked,
-    empty: total === 0,
+    ...marksSummary(marks, allSubjects),
+    empty: total === 0 && marks.length === 0,
+  };
+}
+
+/**
+ * The marks side of the recap.
+ *
+ * "Best result" is the single component you scored highest on as a
+ * percentage, not the highest raw mark — 19/20 beats 45/50, and a recap
+ * that crowned the 45 would just be finding the biggest test.
+ *
+ * Components with no denominator are skipped rather than counted as
+ * zero: an ungraded row is missing data, and folding it into the total
+ * would quietly drag every percentage down.
+ */
+function marksSummary(
+  marks: Mark[],
+  subjects: Subject[]
+): Pick<Wrapped, "bestResult" | "marksTotal" | "componentsGraded"> {
+  const graded = marks.filter((m) => Number(m.max_marks) > 0);
+  if (!graded.length) {
+    return { bestResult: null, marksTotal: null, componentsGraded: 0 };
+  }
+
+  const byId = new Map(subjects.map((s) => [s.id, s]));
+  const pct = (m: Mark) => (Number(m.marks_obtained) / Number(m.max_marks)) * 100;
+
+  const best = graded.reduce((a, b) => (pct(b) > pct(a) ? b : a));
+  const subject = byId.get(best.subject_id);
+
+  const obtained = graded.reduce((n, m) => n + Number(m.marks_obtained), 0);
+  const max = graded.reduce((n, m) => n + Number(m.max_marks), 0);
+
+  return {
+    bestResult: {
+      subject: subject?.name ?? "Unknown subject",
+      color: subject?.color_hex ?? "#888",
+      label: best.label,
+      obtained: Number(best.marks_obtained),
+      max: Number(best.max_marks),
+      percentage: pct(best),
+    },
+    marksTotal: { obtained, max, percentage: (obtained / max) * 100 },
+    componentsGraded: graded.length,
   };
 }
 

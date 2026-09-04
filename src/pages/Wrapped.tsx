@@ -68,8 +68,8 @@ export default function Wrapped() {
   );
 
   const data = useMemo(
-    () => buildWrapped(overall.subjects, attendance ?? [], effMap),
-    [overall.subjects, attendance, effMap]
+    () => buildWrapped(overall.subjects, attendance ?? [], effMap, marks ?? [], subjects ?? []),
+    [overall.subjects, attendance, effMap, marks, subjects]
   );
   const sgpa = useMemo(
     () => computeSgpa(subjects ?? [], groupMarksBySubject(marks ?? [])).sgpa,
@@ -355,6 +355,52 @@ function buildSlides(
         </p>
       ),
   });
+
+  if (data.bestResult) {
+    slides.push({
+      id: "best-result",
+      render: () => {
+        const r = data.bestResult!;
+        return (
+          <>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-muted">
+              {say(VOICE.wrappedBestResult, tone)}
+            </p>
+            <p className="mt-3 text-6xl font-extrabold tabular">
+              {r.obtained}
+              <span className="text-2xl text-muted">/{r.max}</span>
+            </p>
+            <p className="mt-2 flex items-start gap-2.5 text-xl font-extrabold">
+              <span
+                aria-hidden
+                className="mt-2 h-3 w-3 shrink-0 rounded-full"
+                style={{ background: r.color }}
+              />
+              <span className="line-clamp-2">{r.subject}</span>
+            </p>
+            <p className="mt-1 text-xs font-medium text-muted">
+              {r.label} · {Math.round(r.percentage)}%
+            </p>
+          </>
+        );
+      },
+    });
+  }
+
+  if (data.marksTotal) {
+    slides.push({
+      id: "marks-total",
+      render: () => (
+        <Big
+          value={data.marksTotal!.obtained}
+          label={say(VOICE.wrappedTotalMarks, tone)}
+          detail={`out of ${data.marksTotal!.max} across ${data.componentsGraded} component${
+            data.componentsGraded === 1 ? "" : "s"
+          }`}
+        />
+      ),
+    });
+  }
 
   if (sgpa !== null) {
     slides.push({

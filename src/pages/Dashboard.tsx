@@ -45,6 +45,7 @@ import { ColourBlock } from "@/components/viz/colour-block";
 import { SwipeToAbsent } from "@/components/sheets/swipe-absent";
 import { LiveClassCard } from "@/components/viz/live-class";
 import { ExamCountdown } from "@/components/viz/exam-countdown";
+import { SurvivalCard } from "@/components/viz/survival-card";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
@@ -584,6 +585,7 @@ export default function Dashboard() {
         </div>
         <div className="space-y-4 lg:col-span-2">
           <AttendanceHealthCard />
+          <SurvivalCard />
           <MarksSummaryCard />
           <DeadlinesCard />
         </div>
