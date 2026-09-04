@@ -145,9 +145,23 @@ free of React:
 
 ### Portal sync (bookmarklet)
 
-`scripts/portal-sync/` builds a bookmarklet that scrapes SRM Academia and
-writes into Supabase directly over PostgREST — it runs inside the page you
-already logged into, so no SRM credentials are stored anywhere.
+`scripts/portal-sync/` builds a bookmarklet that scrapes the SRM portal
+and posts the rows to the **portal-ingest** edge function — it runs inside
+the page you already logged into, so no SRM credentials are stored
+anywhere.
+
+It used to write straight to PostgREST with the anon key. Owner-scoped
+RLS (migration 015) left anon with no policies, so those writes began
+failing with 42501. Embedding a Supabase refresh token instead would put
+a full-account credential in a bookmarklet URL — visible in the browser's
+bookmark manager, and synced across devices — so the write moved
+server-side. The built file carries `INGEST_SECRET`, which grants exactly
+one thing: submit portal data for one `device_id`.
+
+```bash
+supabase secrets set INGEST_SECRET="<long random string>"
+supabase functions deploy portal-ingest --no-verify-jwt
+```
 
 ```bash
 node scripts/portal-sync/build.mjs --pin 1234   # → scripts/portal-sync/dist/install.html
@@ -216,7 +230,8 @@ left alone.
 
 ### Offline preview — `npm run dev:mock`
 
-`scripts/dev-mock/server.mjs` speaks enough PostgREST for the app and seeds
+`scripts/dev-mock/server.mjs` speaks enough PostgREST **and Supabase
+auth** for the app, and seeds
 a full semester under PIN **1234** (6 subjects, a week of hand-marked
 classes, portal snapshots on 4 of them dated a week back so the "portal
 totals as of…" badge shows). It starts Vite pointed at itself, so the UI

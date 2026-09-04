@@ -159,7 +159,16 @@ SUBJECTS.forEach((s, i) => {
   });
 });
 
+const DEVICE_OWNERS = [
+  {
+    device_id: PIN,
+    user_id: "00000000-0000-4000-8000-000000000000",
+    claimed_at: new Date().toISOString(),
+  },
+];
+
 const db = {
+  device_owners: DEVICE_OWNERS,
   settings: [
     {
       id: uid("set", 0),
@@ -233,6 +242,36 @@ const server = createServer((req, res) => {
   if (req.method === "OPTIONS") return res.writeHead(204).end();
 
   const u = new URL(req.url, "http://x");
+
+  // ---- auth ----
+  // The app gates on a Supabase session now, so the mock has to hand one
+  // out or the preview never gets past the sign-in screen. It accepts
+  // any credentials on purpose: this server exists to exercise the UI
+  // offline, and asking for a real password to look at a mock semester
+  // would defeat the point. Nothing here is a security boundary — it
+  // listens on localhost and serves fabricated data.
+  if (u.pathname.startsWith("/auth/v1/")) {
+    const session = {
+      access_token: "mock-access-token",
+      refresh_token: "mock-refresh-token",
+      token_type: "bearer",
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: {
+        id: "00000000-0000-4000-8000-000000000000",
+        aud: "authenticated",
+        role: "authenticated",
+        email: "you@localhost.mock",
+        app_metadata: {},
+        user_metadata: {},
+        created_at: new Date().toISOString(),
+      },
+    };
+    res.writeHead(200, { "content-type": "application/json" });
+    // /logout returns no body; everything else gets the session.
+    return res.end(u.pathname.includes("logout") ? "" : JSON.stringify(session));
+  }
+
   const table = u.pathname.replace(/^\/rest\/v1\//, "");
   if (!(table in db)) {
     res.writeHead(404, { "content-type": "application/json" });
