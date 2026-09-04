@@ -5,6 +5,7 @@ import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { AttendanceHeatmap } from "@/components/viz/heatmap";
+import { BunkWallet } from "@/components/viz/bunk-wallet";
 import { useAttendance, usePortalSnapshots, useSettings, useSubjects } from "@/hooks/useData";
 import {
   attendanceColor,
@@ -221,6 +222,8 @@ export default function Attendance() {
           )}
         </section>
       </div>
+
+      <BunkWallet stats={overall.subjects} />
 
       {/* Per subject */}
       <div className="space-y-3">

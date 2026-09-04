@@ -83,6 +83,52 @@ export const VOICE = {
     brutal: (until) => `${until} of freedom`,
   }),
 
+  /** Heading on the skip wallet. */
+  walletTitle: pick({
+    plain: () => "Skip budget",
+    brutal: () => "bunk wallet",
+  }),
+
+  /** Shown alone when the balance is zero — there is no number to lead with. */
+  walletBroke: pick({
+    plain: () => "No classes to spare",
+    brutal: () => "broke. attend everything.",
+  }),
+
+  /**
+   * The unit beside the balance, with no number in it. The count is
+   * rendered separately so it can animate, so a sentence carrying its own
+   * copy of the number would print it twice.
+   */
+  walletUnit: pick<[n: number]>({
+    plain: (n) => `class${n === 1 ? "" : "es"} to spare`,
+    brutal: (n) => `free skip${n === 1 ? "" : "s"} in the bank`,
+  }),
+
+  /** `n` is the number of classes already missed. */
+  walletSpent: pick<[n: number]>({
+    plain: (n) => `${n} already missed`,
+    brutal: (n) => `${n} already burned`,
+  }),
+
+  /** Heading over the subjects that are below 75%. */
+  walletDebt: pick({
+    plain: () => "Overdrawn",
+    brutal: () => "in debt",
+  }),
+
+  /** `n` is classes needed to climb back to 75%. */
+  walletOwed: pick<[n: number]>({
+    plain: (n) => `${n} straight to recover`,
+    brutal: (n) => `${n} in a row. no misses.`,
+  }),
+
+  /** Shown when nothing has been marked yet. */
+  walletEmpty: pick({
+    plain: () => "Mark some classes to see what you can spare.",
+    brutal: () => "no data. no budget. mark something.",
+  }),
+
   noClassesToday: pick({
     plain: () => "No classes today — enjoy the break.",
     brutal: () => "no classes. go touch grass.",
