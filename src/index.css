@@ -115,14 +115,17 @@
   #root {
     min-height: 100dvh;
   }
-  /* Momentum scrolling and a settled scroll position. iOS keeps inertia
-     inside the element rather than handing it to the page, and
-     overscroll-behavior stops a list bouncing the whole view. */
-  main,
-  .scroll-area {
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
-  }
+  /* `main` is NOT the scroll container — the document is. It only looks
+     like one because `overflow-x: hidden` forces the other axis to
+     `auto`, and that accident used to carry `overscroll-behavior-y:
+     contain`. The combination is a trap: a scroll container with nothing
+     to scroll, told not to pass the gesture on. A finger dragging inside
+     it moved nothing, on every page. (A mouse wheel chains regardless,
+     which is why it only ever showed up on touch.)
+
+     Momentum scrolling went with it: `-webkit-overflow-scrolling` only
+     means anything on an element that actually scrolls, and the page
+     already has inertia of its own. */
 
   /* Anything that slides horizontally claims the horizontal axis, so the
      browser stops waiting to see whether the gesture was a scroll —
