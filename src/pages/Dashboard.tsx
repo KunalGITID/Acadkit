@@ -43,6 +43,7 @@ import { Struck } from "@/components/ui/struck";
 import { ColourBlock } from "@/components/viz/colour-block";
 import { SwipeToAbsent } from "@/components/sheets/swipe-absent";
 import { LiveClassCard } from "@/components/viz/live-class";
+import { ExamCountdown } from "@/components/viz/exam-countdown";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
@@ -516,6 +517,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="space-y-4 lg:col-span-3">
+          <ExamCountdown />
           <TodayCard />
         </div>
         <div className="space-y-4 lg:col-span-2">

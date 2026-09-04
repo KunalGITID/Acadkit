@@ -129,6 +129,34 @@ export const VOICE = {
     brutal: () => "no data. no budget. mark something.",
   }),
 
+  /** Label above the exam countdown. */
+  examLabel: pick({
+    plain: () => "Next exam",
+    brutal: () => "incoming",
+  }),
+
+  /** Said when the exam is today. */
+  examToday: pick({
+    plain: () => "It's today. Good luck.",
+    brutal: () => "it's today. no notes left to make.",
+  }),
+
+  /** The exam has no mark total, so no target can be computed. */
+  examNoMaxMarks: pick({
+    plain: () => "Add the marks it's out of to get a target.",
+    brutal: () => "no max marks, no target. add them.",
+  }),
+
+  /**
+   * The exam has a mark total, but the subject has nothing recorded yet.
+   * A different problem from the one above, and saying "add max marks"
+   * here sends you to fix something that isn't broken.
+   */
+  examNoPace: pick({
+    plain: () => "No marks in this subject yet — nothing to aim from.",
+    brutal: () => "no marks yet. nothing to aim at.",
+  }),
+
   noClassesToday: pick({
     plain: () => "No classes today — enjoy the break.",
     brutal: () => "no classes. go touch grass.",
