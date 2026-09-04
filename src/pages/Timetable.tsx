@@ -143,8 +143,6 @@ export default function Timetable() {
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className="relative space-y-3"
           >
-            {/* timeline rail */}
-            <div aria-hidden className="absolute bottom-6 left-[21px] top-6 w-px bg-line/10" />
             {slots.map((slot, i) => {
               const subject = subjects?.find((s) => s.id === slot.subject_id);
               const isLab = slot.slot_type === "lab";

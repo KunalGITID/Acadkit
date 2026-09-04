@@ -206,6 +206,22 @@
     -webkit-appearance: none;
     margin: 0;
   }
+  /* iOS styles date/time fields natively: it gives them an intrinsic
+     width they refuse to shrink below, and centres the value. Dropped
+     into a narrow grid cell they overflow and their rounded edges
+     overlap the neighbour. Make them behave like ordinary text fields. */
+  input[type="date"],
+  input[type="time"] {
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 0;
+    max-width: 100%;
+  }
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value {
+    text-align: left;
+    margin: 0;
+  }
   input[type="number"] {
     -moz-appearance: textfield;
     appearance: textfield;

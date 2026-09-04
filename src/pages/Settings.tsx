@@ -242,7 +242,10 @@ function SemesterDatesCard() {
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      {/* iOS renders date fields natively and won't shrink them below
+          their intrinsic width, so two across overflow and overlap on a
+          phone. Side by side only once there's room. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Classes start">
           <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
         </Field>
