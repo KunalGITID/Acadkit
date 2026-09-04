@@ -6,10 +6,10 @@ import {
   CalendarX2,
   Check,
   Contrast,
+  Zap,
   Copy,
   Download,
   ExternalLink,
-  Flower2,
   Loader2,
   Bell,
   BellOff,
@@ -19,7 +19,6 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
-  SquareTerminal,
   Sun,
   Trash2,
   Upload,
@@ -640,26 +639,12 @@ const THEME_META: Record<
     swatch: { bg: string; accent: string; accent2: string };
   }
 > = {
-  sakura: {
-    label: "Sakura",
-    tagline: "Warm study-café paper",
-    xFactor: "Every stat renders in warm serif numerals",
-    icon: Flower2,
-    swatch: { bg: "hsl(336 30% 10%)", accent: "hsl(340 88% 68%)", accent2: "hsl(30 92% 62%)" },
-  },
-  terminal: {
-    label: "Terminal",
-    tagline: "Quiet phosphor console",
-    xFactor: "Squared-off cards, monospace numerals throughout",
-    icon: SquareTerminal,
-    swatch: { bg: "hsl(160 35% 5%)", accent: "hsl(140 100% 52%)", accent2: "hsl(184 100% 52%)" },
-  },
-  aurora: {
-    label: "Aurora",
-    tagline: "Quiet glass, one soft corner",
-    xFactor: "Frosted glass cards over a still gradient bloom",
-    icon: Sparkles,
-    swatch: { bg: "hsl(252 48% 7%)", accent: "hsl(266 92% 68%)", accent2: "hsl(186 90% 55%)" },
+  acid: {
+    label: "Acid",
+    tagline: "Colour-blocked and loud",
+    xFactor: "Oversized display numerals, flat blocks, a floating pill nav",
+    icon: Zap,
+    swatch: { bg: "hsl(0 0% 4%)", accent: "hsl(72 89% 60%)", accent2: "hsl(6 78% 62%)" },
   },
   oled: {
     label: "OLED",

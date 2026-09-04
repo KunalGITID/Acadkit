@@ -44,7 +44,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Chakra+Petch:wght@600;700&display=swap"
       rel="stylesheet"
     />
     <title>AcadKit</title>
@@ -54,16 +54,12 @@
       (function () {
         try {
           var BG_HEX = {
-            "sakura-light": "#f9f4f0",
-            "sakura-dark": "#170c11",
-            "terminal-light": "#f5f5ef",
-            "terminal-dark": "#070e0b",
-            "aurora-light": "#f8f8fc",
-            "aurora-dark": "#0b0817",
+            "acid-light": "#f7f7f7",
+            "acid-dark": "#0a0a0a",
             "oled-light": "#ffffff",
             "oled-dark": "#000000",
           };
-          var name = localStorage.getItem("acadkit:theme-name") || "sakura";
+          var name = localStorage.getItem("acadkit:theme-name") || "acid";
           var mode =
             localStorage.getItem("acadkit:theme-mode") ||
             localStorage.getItem("acadkit:theme") || // legacy key

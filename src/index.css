@@ -10,111 +10,47 @@
  * no animation, no overlays, nothing that fights the content.
  */
 
-/* ---------- Sakura — warm study-café paper ---------- */
-[data-theme="sakura"] {
-  --bg: 28 45% 96%;
-  --surface: 30 60% 99%;
-  --surface-2: 26 40% 92%;
-  --line: 20 30% 15%;
-  --ink: 20 35% 14%;
-  --muted: 24 14% 46%;
-  --accent: 340 78% 60%;
-  --accent-2: 32 88% 56%;
-  --good-deep: 142 60% 30%;
-  --warn-deep: 35 85% 34%;
-  --bad-deep: 350 72% 42%;
-  --shadow-card: 0 1px 2px rgb(60 20 30 / 0.05), 0 10px 26px -14px rgb(60 20 30 / 0.16);
-  --line-alpha: 0.08;
-}
-[data-theme="sakura"].dark {
-  --bg: 336 30% 7%;
-  --surface: 332 24% 11%;
-  --surface-2: 330 20% 16%;
-  --line: 0 0% 100%;
-  --ink: 20 30% 95%;
-  --muted: 330 12% 66%;
-  --accent: 340 88% 68%;
-  --accent-2: 30 92% 62%;
-  --good-deep: 142 62% 54%;
-  --warn-deep: 40 90% 58%;
-  --bad-deep: 350 85% 68%;
-  --shadow-card: 0 1px 0 rgb(255 220 230 / 0.04) inset, 0 14px 34px -16px rgb(0 0 0 / 0.65);
-  --line-alpha: 0.09;
-}
-
-/* ---------- Terminal — quiet phosphor console ---------- */
-[data-theme="terminal"] {
-  --bg: 66 25% 95%;
-  --surface: 66 30% 98%;
-  --surface-2: 68 22% 90%;
-  --line: 150 65% 18%;
-  --ink: 152 60% 14%;
-  --muted: 145 16% 40%;
-  --accent: 150 72% 30%;
-  --accent-2: 190 72% 33%;
-  --good-deep: 142 65% 28%;
-  --warn-deep: 35 80% 34%;
-  --bad-deep: 350 68% 40%;
-  --shadow-card: 0 1px 2px rgb(10 40 20 / 0.05), 0 8px 22px -12px rgb(10 40 20 / 0.14);
-  --line-alpha: 0.12;
-  --radius-card: 0.625rem;
-}
-[data-theme="terminal"].dark {
-  --bg: 160 35% 4%;
-  --surface: 158 28% 7%;
-  --surface-2: 156 24% 11%;
-  --line: 140 100% 60%;
-  --ink: 140 85% 90%;
-  --muted: 140 18% 55%;
-  --accent: 140 100% 52%;
-  --accent-2: 184 100% 52%;
-  --good-deep: 142 90% 52%;
-  --warn-deep: 46 100% 55%;
-  --bad-deep: 4 90% 58%;
-  --shadow-card: 0 0 0 1px hsl(140 100% 50% / 0.06) inset, 0 14px 34px -16px rgb(0 0 0 / 0.7);
-  --line-alpha: 0.16;
-  --radius-card: 0.625rem;
-}
-
-/* ---------- Aurora — quiet glass, one soft gradient corner ---------- */
-[data-theme="aurora"] {
-  --bg: 250 45% 98%;
+/* ---------- Acid — colour-blocked, oversized, loud ---------- */
+/*
+ * The one theme that changes the app's shape, not just its palette:
+ * bigger squircles, flat colour instead of shadow, a floating pill nav,
+ * and stat numbers set in a squared-off display face at display size.
+ * See the @layer components block below for the structural half.
+ */
+[data-theme="acid"] {
+  --bg: 0 0% 97%;
   --surface: 0 0% 100%;
-  --surface-2: 250 32% 94%;
-  --line: 250 30% 15%;
-  --ink: 250 35% 15%;
-  --muted: 250 12% 46%;
-  --accent: 262 78% 58%;
-  --accent-2: 186 80% 42%;
-  --good-deep: 150 62% 32%;
-  --warn-deep: 38 85% 38%;
-  --bad-deep: 345 72% 45%;
-  --shadow-card: 0 1px 2px rgb(40 20 70 / 0.05), 0 10px 26px -14px rgb(40 20 70 / 0.14);
-  --line-alpha: 0.07;
-  --wash-1: 266 85% 78%;
-  --wash-2: 186 80% 75%;
-  --wash-alpha: 0.14;
-}
-[data-theme="aurora"].dark {
-  --bg: 252 48% 6%;
-  --surface: 252 36% 10%;
-  --surface-2: 252 30% 15%;
-  --line: 0 0% 100%;
-  --ink: 250 32% 96%;
-  --muted: 250 16% 68%;
-  --accent: 266 92% 68%;
-  --accent-2: 186 90% 55%;
-  --good-deep: 150 70% 55%;
-  --warn-deep: 45 90% 60%;
-  --bad-deep: 338 85% 66%;
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 16px 40px -18px rgb(20 0 40 / 0.7);
+  --surface-2: 0 0% 93%;
+  --line: 0 0% 0%;
+  --ink: 0 0% 6%;
+  --muted: 0 0% 45%;
+  --accent: 72 89% 56%;
+  --accent-2: 6 78% 60%;
+  --good-deep: 142 62% 32%;
+  --warn-deep: 35 85% 34%;
+  --bad-deep: 6 78% 52%;
+  /* Flat by design — the colour blocks do the separating, not depth. */
+  --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
   --line-alpha: 0.1;
-  --wash-1: 266 92% 62%;
-  --wash-2: 186 90% 55%;
-  --wash-alpha: 0.22;
+  --radius-card: 1.75rem;
+}
+[data-theme="acid"].dark {
+  --bg: 0 0% 4%;
+  --surface: 0 0% 8%;
+  --surface-2: 0 0% 14%;
+  --line: 0 0% 100%;
+  --ink: 0 0% 98%;
+  --muted: 0 0% 60%;
+  --accent: 72 89% 60%;
+  --accent-2: 6 78% 62%;
+  --good-deep: 142 70% 58%;
+  --warn-deep: 45 90% 62%;
+  --bad-deep: 6 82% 64%;
+  --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
+  --line-alpha: 0.14;
+  --radius-card: 1.75rem;
 }
 
-/* ---------- OLED — true-black, zero-saturation minimalism ---------- */
 [data-theme="oled"] {
   --bg: 0 0% 100%;
   --surface: 0 0% 100%;
@@ -156,15 +92,6 @@
   html {
     -webkit-text-size-adjust: 100%;
     background-color: hsl(var(--bg));
-  }
-  /* Aurora only: one static, subtle gradient bloom from the top corners.
-     No animation — it's a backdrop for the theme's glass cards, not a
-     focal point in its own right. */
-  html[data-theme="aurora"] {
-    background-image:
-      radial-gradient(60% 50% at 12% -8%, hsl(var(--wash-1) / var(--wash-alpha)), transparent 60%),
-      radial-gradient(55% 45% at 100% 0%, hsl(var(--wash-2) / var(--wash-alpha)), transparent 60%);
-    background-repeat: no-repeat;
   }
   body {
     @apply text-ink font-sans antialiased;
@@ -259,27 +186,57 @@
     display: none;
   }
 
-  /* Sakura x-factor: every stat number (SGPA, attendance %, …) renders in
-     warm serif oldstyle numerals instead of the app's default geometric
-     sans — a quiet editorial/stationery touch, free on every .tabular
-     number already in the app. No motion, no texture. */
-  [data-theme="sakura"] .tabular {
-    font-family: ui-serif, Georgia, "Times New Roman", serif;
-    font-variant-numeric: oldstyle-nums;
+  /* ---- Acid: the structural half of the theme ---- */
+
+  /* Stat numbers become the page's largest element, in a squared-off
+     display face. Every .tabular number in the app inherits this. */
+  [data-theme="acid"] .tabular {
+    font-family: "Chakra Petch", "Plus Jakarta Sans", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
-  /* Terminal x-factor: tighter, squared-off card corners (--radius-card
-     above) instead of the app's default soft rounding — a plain-text
-     console feel from shape alone. Numbers already render in JetBrains
-     Mono via .tabular; nothing extra is added on top. */
+  /* Page titles become the loudest thing on screen: oversized, lowercase
+     and set in the display face, the way the reference treats its day
+     numbers. clamp() keeps it from swallowing a small phone. */
+  [data-theme="acid"] h1 {
+    font-family: "Chakra Petch", "Plus Jakarta Sans", system-ui, sans-serif;
+    text-transform: lowercase;
+    font-size: clamp(2.25rem, 8vw, 3.5rem);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+  }
 
-  /* Aurora x-factor: cards go translucent/frosted so the static corner
-     wash above shows through — glass with something to actually be
-     glass over, instead of a flat color pretending to blur. */
-  [data-theme="aurora"] .card {
-    background: hsl(var(--surface) / 0.72);
-    backdrop-filter: blur(18px) saturate(1.5);
-    -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  /* Section labels: wide-tracked lowercase instead of tight uppercase. */
+  [data-theme="acid"] .uppercase {
+    text-transform: lowercase;
+    letter-spacing: 0.22em;
+  }
+
+  /* Cards are colour blocks, not raised surfaces — no shadow, a real
+     border, and a radius big enough to read as a squircle. */
+  [data-theme="acid"] .card {
+    border-width: 1.5px;
+    box-shadow: none;
+  }
+
+  /* The bottom bar detaches into a floating pill. */
+  [data-theme="acid"] nav[aria-label="Primary"].glass {
+    inset-inline: 0.75rem;
+    bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+    border: 1.5px solid hsl(var(--line) / 0.14);
+    border-radius: 9999px;
+    padding-bottom: 0;
+    background: hsl(var(--surface) / 0.92);
+  }
+  /* …and its active indicator from a soft rectangle to a solid disc. */
+  [data-theme="acid"] nav[aria-label="Primary"] [data-nav-pill] {
+    border-radius: 9999px;
+    background: hsl(var(--accent));
+  }
+  [data-theme="acid"] nav[aria-label="Primary"] a[aria-current="page"] svg,
+  [data-theme="acid"] nav[aria-label="Primary"] a[aria-current="page"] span {
+    color: hsl(0 0% 6%);
   }
 
   /* OLED x-factor: there isn't one, deliberately — zero saturation everywhere

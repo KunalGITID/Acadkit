@@ -24,6 +24,7 @@ export function BottomNav() {
               {active && (
                 <motion.span
                   layoutId="bottom-nav-pill"
+                  data-nav-pill
                   className="absolute inset-0 rounded-2xl bg-accent/12"
                   transition={{ type: "spring", stiffness: 450, damping: 35 }}
                 />
