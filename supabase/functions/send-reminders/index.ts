@@ -121,16 +121,51 @@ Deno.serve(async (req) => {
   const inSemester = date >= semStart && date <= semEnd;
 
   for (const pin of deviceIds) {
-    const [{ data: settings }, { data: subjects }, { data: timetable }, { data: attendance }, { data: deadlines }] =
+    const [{ data: settings }, { data: subjects }, { data: timetable }, { data: attendance }, { data: deadlines }, { data: snapshots }] =
       await Promise.all([
         sb.from("settings").select("declared_holidays,sem_start,sem_end").eq("device_id", pin).maybeSingle(),
-        sb.from("subjects").select("id,name").eq("device_id", pin),
+        sb.from("subjects").select("id,name,code").eq("device_id", pin),
         sb.from("timetable_slots").select("*").eq("device_id", pin),
         sb.from("attendance").select("subject_id,date,start_time,status").eq("device_id", pin),
         sb.from("deadlines").select("id,title,due_date,status").eq("device_id", pin),
+        sb.from("portal_snapshots").select("subject_code,conducted,absent,as_of").eq("device_id", pin),
       ]);
 
     const subjName = new Map((subjects ?? []).map((s) => [s.id, s.name]));
+
+    /**
+     * Attendance per subject, matching computeSubjectAttendance in
+     * src/lib/attendance.ts.
+     *
+     * This used to count attendance rows only and ignore
+     * portal_snapshots, so its numbers disagreed with the app's for
+     * anyone syncing from the portal — the app treats the snapshot as
+     * the baseline and layers hand-marked classes dated after `as_of` on
+     * top. A push saying "below 75%" with a different percentage than
+     * the screen is worse than no push.
+     */
+    const snapByCode = new Map(
+      (snapshots ?? []).map((s) => [String(s.subject_code).trim().toUpperCase(), s])
+    );
+    function heldFor(subjectId: string, code: string | null) {
+      const rows = (attendance ?? []).filter(
+        (a) => a.subject_id === subjectId && (a.status === "present" || a.status === "absent")
+      );
+      const snap = code ? snapByCode.get(code.trim().toUpperCase()) : undefined;
+      if (snap && Number(snap.conducted) > 0) {
+        const since = rows.filter((a) => a.date > snap.as_of);
+        return {
+          attended:
+            Number(snap.conducted) - Number(snap.absent) +
+            since.filter((a) => a.status === "present").length,
+          total: Number(snap.conducted) + since.length,
+        };
+      }
+      return {
+        attended: rows.filter((a) => a.status === "present").length,
+        total: rows.length,
+      };
+    }
     const declared = ((settings?.declared_holidays ?? []) as Array<{ date: string }>).map((h) => h.date);
     // Per device, exactly as the app reads it.
     const semStart = (settings?.sem_start as string | null) || DEFAULT_START;
@@ -198,22 +233,15 @@ Deno.serve(async (req) => {
 
     // 4) Low-attendance alert (once/day at 08:00)
     if (ist.getHours() === 8) {
-      const bySub = new Map<string, { p: number; t: number }>();
-      for (const a of attendance ?? []) {
-        if (a.status !== "present" && a.status !== "absent") continue;
-        const e = bySub.get(a.subject_id) ?? { p: 0, t: 0 };
-        if (a.status === "present") e.p++;
-        e.t++;
-        bySub.set(a.subject_id, e);
-      }
-      for (const [sid, { p, t }] of bySub) {
-        if (t >= 4 && p / t < 0.75) {
+      for (const subject of subjects ?? []) {
+        const { attended, total } = heldFor(subject.id, subject.code as string | null);
+        if (total >= 4 && attended / total < 0.75) {
           msgs.push({
             device_id: pin,
             kind: "low_attendance",
-            ref: `low|${sid}|${date}`,
-            title: `${subjName.get(sid) ?? "A subject"} below 75%`,
-            body: `You're at ${Math.round((p / t) * 100)}% — attend the next few to recover.`,
+            ref: `low|${subject.id}|${date}`,
+            title: `${subject.name ?? "A subject"} below 75%`,
+            body: `You're at ${Math.round((attended / total) * 100)}% — attend the next few to recover.`,
             url: "/attendance",
           });
         }
@@ -238,19 +266,17 @@ Deno.serve(async (req) => {
         }
       }
 
-      const held = new Map<string, { p: number; t: number }>();
-      for (const a of attendance ?? []) {
-        if (a.status !== "present" && a.status !== "absent") continue;
-        const e = held.get(a.subject_id) ?? { p: 0, t: 0 };
-        if (a.status === "present") e.p++;
-        e.t++;
-        held.set(a.subject_id, e);
-      }
+      const codeById = new Map(
+        (subjects ?? []).map((s) => [s.id, (s.code as string | null) ?? null])
+      );
 
       const spent = new Map<string, number>();
       const mustAttend: string[] = [];
       for (const slot of todaySlots) {
-        const { p = 0, t = 0 } = held.get(slot.subject_id) ?? {};
+        const { attended: p, total: t } = heldFor(
+          slot.subject_id,
+          codeById.get(slot.subject_id) ?? null
+        );
         const rem = remaining.get(slot.subject_id) ?? 0;
         const budget = Math.floor(p + rem - 0.75 * (t + rem));
         const used = (spent.get(slot.subject_id) ?? 0) + 1;

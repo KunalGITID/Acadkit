@@ -1,3 +1,4 @@
+import { MIN } from "@/lib/projections";
 import type { Subject, TimetableSlot } from "@/types";
 
 /**
@@ -24,7 +25,9 @@ import type { Subject, TimetableSlot } from "@/types";
  * you could have spent on subjects that are still winnable.
  */
 
-export const MIN = 0.75;
+// One definition of the threshold, in projections.ts. Two constants
+// that happen to agree are a coin-flip away from not agreeing.
+export { MIN } from "@/lib/projections";
 
 export interface SubjectState {
   subject: Subject;
