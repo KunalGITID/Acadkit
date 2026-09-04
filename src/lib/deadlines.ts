@@ -1,3 +1,4 @@
+import { fitName } from "@/lib/subjectName";
 import type { Deadline, DeadlineType, Subject } from "@/types";
 
 /**
@@ -23,9 +24,12 @@ export const DEADLINE_TYPE_LABEL: Record<DeadlineType, string> = {
 /** What a deadline row leads with: its subject, or its type if unassigned. */
 export function deadlineLabel(
   deadline: Pick<Deadline, "type">,
-  subject?: Pick<Subject, "name"> | null
+  subject?: Pick<Subject, "name" | "short_name"> | null
 ): string {
-  return subject?.name?.trim() || DEADLINE_TYPE_LABEL[deadline.type];
+  if (!subject?.name?.trim()) return DEADLINE_TYPE_LABEL[deadline.type];
+  // These rows sit beside a date and a badge, so a seventy-character
+  // portal name would be an ellipsis either way.
+  return fitName(subject);
 }
 
 /**

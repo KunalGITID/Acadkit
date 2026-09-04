@@ -5,6 +5,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
+import { abbreviate } from "@/lib/subjectName";
 import { useAddSubject, useDeleteSubject, useUpdateSubject } from "@/hooks/useData";
 import { cn } from "@/lib/utils";
 import type { Subject } from "@/types";
@@ -27,6 +28,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
   const remove = useDeleteSubject();
 
   const [name, setName] = useState("");
+  const [shortNameInput, setShortNameInput] = useState("");
   const [code, setCode] = useState("");
   const [credits, setCredits] = useState("3");
   const [color, setColor] = useState(PALETTE[0]);
@@ -35,6 +37,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
   useEffect(() => {
     if (!open) return;
     setName(subject?.name ?? "");
+    setShortNameInput(subject?.short_name ?? "");
     setCode(subject?.code ?? "");
     setCredits(String(subject?.credits ?? 3));
     setColor(subject?.color_hex ?? PALETTE[0]);
@@ -54,6 +57,8 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
       faculty: subject?.faculty ?? null,
       color_hex: color,
       internal_only: internalOnly,
+      // Blank means "derive it", not "call it nothing".
+      short_name: shortNameInput.trim() || null,
     };
     if (subject) update.mutate({ id: subject.id, patch: payload });
     else add.mutate(payload);
@@ -70,6 +75,14 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
       <div className="space-y-4">
         <Field label="Name">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Operating Systems" />
+        </Field>
+        <Field label="Short name (optional)">
+          <Input
+            value={shortNameInput}
+            onChange={(e) => setShortNameInput(e.target.value)}
+            placeholder={name ? abbreviate(name) : "auto"}
+            maxLength={12}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Code">

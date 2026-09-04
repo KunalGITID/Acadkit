@@ -13,7 +13,7 @@ import {
   type SubjectAttendance,
 } from "@/lib/attendance";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
-import { formatDate } from "@/lib/dates";
+import { relativeDay } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
@@ -161,8 +161,7 @@ export default function Attendance() {
           </div>
           {overall.portalAsOf && (
             <p className="mt-0.5 text-[11px] font-medium text-muted">
-              Portal totals as of {formatDate(overall.portalAsOf)} · classes marked since are
-              counted on top
+              Synced {relativeDay(overall.portalAsOf)} · classes marked since are counted on top
             </p>
           )}
         </div>

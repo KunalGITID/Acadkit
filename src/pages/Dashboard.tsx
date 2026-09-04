@@ -43,6 +43,7 @@ import { ColourBlock, HeroNumber } from "@/components/viz/hero-number";
 import { SwipeToAbsent } from "@/components/sheets/swipe-absent";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
+import { fitName } from "@/lib/subjectName";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
 import type { Deadline } from "@/types";
@@ -189,7 +190,7 @@ function TodayCard() {
                     <Dot color={subject?.color_hex ?? "#888"} />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold">
-                        {subject?.name ?? "Unknown subject"}
+                        {subject ? fitName(subject) : "Unknown subject"}
                       </p>
                       <p className="truncate text-xs font-medium text-muted">
                         {slot.slot_type === "lab" ? "Lab · " : ""}

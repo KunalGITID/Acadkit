@@ -9,6 +9,8 @@ export interface Subject {
   type: SubjectType;
   faculty: string | null;
   color_hex: string;
+  /** Overrides the derived abbreviation in tight lists (migration 016). */
+  short_name?: string | null;
   /** No end-sem exam — internals make the full /100 (migration 008). */
   internal_only?: boolean | null;
   created_at?: string;

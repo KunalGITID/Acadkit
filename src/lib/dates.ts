@@ -65,3 +65,21 @@ export function formatTime(time: string): string {
 export function formatTimeRange(start: string, end: string): string {
   return `${formatTime(start)} – ${formatTime(end)}`;
 }
+
+/**
+ * "today" / "yesterday" / "3 days ago" for a YYYY-MM-DD date.
+ *
+ * Portal data lands silently through the edge function, so a bare date
+ * left you doing the subtraction to work out whether the numbers on
+ * screen were fresh. Beyond a week it gives the date back, because
+ * "37 days ago" is harder to place than the date itself.
+ */
+export function relativeDay(iso: string, from: Date = new Date()): string {
+  const days = Math.round(
+    (parseISODate(toISODate(from)).getTime() - parseISODate(iso).getTime()) / 86_400_000
+  );
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days <= 7) return `${days} days ago`;
+  return `on ${formatDate(iso)}`;
+}

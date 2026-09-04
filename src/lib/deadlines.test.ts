@@ -8,8 +8,22 @@ const DSA = {
 } as Subject;
 
 describe("deadlineLabel", () => {
-  it("leads with the subject when there is one", () => {
-    expect(deadlineLabel({ type: "lab" }, DSA)).toBe("Data Structures & Algorithms");
+  it("leads with the subject, abbreviated when it wouldn't fit the row", () => {
+    // 28 characters sits beside a date and a badge, so the full name
+    // would truncate to an ellipsis anyway.
+    expect(deadlineLabel({ type: "lab" }, DSA)).toBe("DSA");
+  });
+
+  it("keeps a short subject name intact", () => {
+    expect(deadlineLabel({ type: "lab" }, { name: "Operating Systems" } as Subject)).toBe(
+      "Operating Systems"
+    );
+  });
+
+  it("prefers an explicit short name", () => {
+    expect(
+      deadlineLabel({ type: "lab" }, { name: "Whatever", short_name: "OS" } as Subject)
+    ).toBe("OS");
   });
 
   it("falls back to the type when the deadline has no subject", () => {
