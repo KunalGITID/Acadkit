@@ -35,6 +35,8 @@ import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
 import { daysUntilSemesterStart, semesterWindow } from "@/lib/calendar";
 import { formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
 import { deadlineLabel } from "@/lib/deadlines";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
 import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
@@ -50,6 +52,7 @@ const stagger = {
 };
 
 function TodayCard() {
+  const tone = useTone();
   const { date, info, slots, isNextDay } = useToday();
   const { data: attendance } = useAttendance();
   const { data: settings } = useSettings();
@@ -107,7 +110,7 @@ function TodayCard() {
           <EmptyState
             icon={PartyPopper}
             title={info.holidayName ?? "Holiday"}
-            description="No classes today — enjoy the break."
+            description={say(VOICE.noClassesToday, tone)}
           />
         ) : info.kind === "post-semester" ? (
           <EmptyState icon={PartyPopper} title="Semester's over" description="See you next term." />
@@ -195,6 +198,7 @@ function TodayCard() {
 }
 
 function AttendanceHealthCard() {
+  const tone = useTone();
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { data: attendance, isLoading: aLoading } = useAttendance();
   const { data: snapshots } = usePortalSnapshots();
@@ -233,17 +237,17 @@ function AttendanceHealthCard() {
           </div>
           {pct === null ? (
             <p className="mt-1.5 text-sm font-semibold text-muted">
-              Nothing marked yet — start with today's classes.
+              {say(VOICE.nothingMarked, tone)}
             </p>
           ) : overall.below75.length === 0 ? (
             <p className="mt-1.5 text-sm font-semibold text-good-deep">
-              All subjects are at or above 75%. Keep it up.
+              {say(VOICE.attendanceHealthy, tone)}
             </p>
           ) : (
             <div className="mt-1.5 space-y-1">
               <p className="flex items-center gap-1.5 text-sm font-bold text-bad-deep">
                 <AlertTriangle className="h-4 w-4" />
-                {overall.below75.length} subject{overall.below75.length > 1 ? "s" : ""} below 75%
+                {say(VOICE.attendanceBelow, tone, overall.below75.length)}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {overall.below75.slice(0, 3).map((s) => (
@@ -316,6 +320,7 @@ function MarksSummaryCard() {
 }
 
 function DeadlinesCard() {
+  const tone = useTone();
   const { data: deadlines, isLoading } = useDeadlines();
   const { data: subjects } = useSubjects();
   const updateDeadline = useUpdateDeadline();
@@ -350,8 +355,8 @@ function DeadlinesCard() {
       {upcoming.length === 0 ? (
         <EmptyState
           icon={CalendarCheck2}
-          title="Nothing due"
-          description="Add assignments and exams so they can't sneak up on you."
+          title={say(VOICE.deadlinesEmptyTitle, tone)}
+          description={say(VOICE.deadlinesEmptyBody, tone)}
           className="py-6"
         />
       ) : (
@@ -420,15 +425,9 @@ export default function Dashboard() {
   const localName = useAppStore((s) => s.name);
   const name = (settings?.name || localName || "").trim();
 
+  const tone = useTone();
   const hour = new Date().getHours();
-  const greeting =
-    hour < 5
-      ? "Burning the midnight oil"
-      : hour < 12
-        ? "Good morning"
-        : hour < 17
-          ? "Good afternoon"
-          : "Good evening";
+  const greeting = say(VOICE.greeting, tone, hour, name);
 
   return (
     <div className="space-y-4">
@@ -439,7 +438,6 @@ export default function Dashboard() {
       >
         <h1 className="min-w-0 line-clamp-2 text-2xl font-extrabold tracking-tight lg:text-3xl">
           {greeting}
-          {name ? `, ${name}` : ""}
         </h1>
         <DayOrderChip />
       </motion.div>

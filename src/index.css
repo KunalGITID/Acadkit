@@ -10,14 +10,14 @@
  * no animation, no overlays, nothing that fights the content.
  */
 
-/* ---------- Acid — colour-blocked, oversized, loud ---------- */
+/* ---------- Brutalist — colour-blocked, oversized, loud ---------- */
 /*
  * The one theme that changes the app's shape, not just its palette:
  * bigger squircles, flat colour instead of shadow, a floating pill nav,
  * and stat numbers set in a squared-off display face at display size.
  * See the @layer components block below for the structural half.
  */
-[data-theme="acid"] {
+[data-theme="brutalist"] {
   --bg: 0 0% 97%;
   --surface: 0 0% 100%;
   --surface-2: 0 0% 93%;
@@ -34,7 +34,7 @@
   --line-alpha: 0.1;
   --radius-card: 1.75rem;
 }
-[data-theme="acid"].dark {
+[data-theme="brutalist"].dark {
   --bg: 0 0% 4%;
   --surface: 0 0% 8%;
   --surface-2: 0 0% 14%;
@@ -186,11 +186,11 @@
     display: none;
   }
 
-  /* ---- Acid: the structural half of the theme ---- */
+  /* ---- Brutalist: the structural half of the theme ---- */
 
   /* Stat numbers become the page's largest element, in a squared-off
      display face. Every .tabular number in the app inherits this. */
-  [data-theme="acid"] .tabular {
+  [data-theme="brutalist"] .tabular {
     font-family: "Chakra Petch", "Plus Jakarta Sans", system-ui, sans-serif;
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -199,7 +199,7 @@
   /* Page titles become the loudest thing on screen: oversized, lowercase
      and set in the display face, the way the reference treats its day
      numbers. clamp() keeps it from swallowing a small phone. */
-  [data-theme="acid"] h1 {
+  [data-theme="brutalist"] h1 {
     font-family: "Chakra Petch", "Plus Jakarta Sans", system-ui, sans-serif;
     text-transform: lowercase;
     font-size: clamp(2.25rem, 8vw, 3.5rem);
@@ -208,20 +208,20 @@
   }
 
   /* Section labels: wide-tracked lowercase instead of tight uppercase. */
-  [data-theme="acid"] .uppercase {
+  [data-theme="brutalist"] .uppercase {
     text-transform: lowercase;
     letter-spacing: 0.22em;
   }
 
   /* Cards are colour blocks, not raised surfaces — no shadow, a real
      border, and a radius big enough to read as a squircle. */
-  [data-theme="acid"] .card {
+  [data-theme="brutalist"] .card {
     border-width: 1.5px;
     box-shadow: none;
   }
 
   /* The bottom bar detaches into a floating pill. */
-  [data-theme="acid"] nav[aria-label="Primary"].glass {
+  [data-theme="brutalist"] nav[aria-label="Primary"].glass {
     inset-inline: 0.75rem;
     bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
     border: 1.5px solid hsl(var(--line) / 0.14);
@@ -230,12 +230,12 @@
     background: hsl(var(--surface) / 0.92);
   }
   /* …and its active indicator from a soft rectangle to a solid disc. */
-  [data-theme="acid"] nav[aria-label="Primary"] [data-nav-pill] {
+  [data-theme="brutalist"] nav[aria-label="Primary"] [data-nav-pill] {
     border-radius: 9999px;
     background: hsl(var(--accent));
   }
-  [data-theme="acid"] nav[aria-label="Primary"] a[aria-current="page"] svg,
-  [data-theme="acid"] nav[aria-label="Primary"] a[aria-current="page"] span {
+  [data-theme="brutalist"] nav[aria-label="Primary"] a[aria-current="page"] svg,
+  [data-theme="brutalist"] nav[aria-label="Primary"] a[aria-current="page"] span {
     color: hsl(0 0% 6%);
   }
 

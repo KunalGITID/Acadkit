@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { getStoredPin, storePin, clearPin } from "@/lib/pin";
+import { resolveTheme, type ThemeName } from "@/lib/themes";
 
-export type ThemeName = "acid" | "oled";
+export type { ThemeName } from "@/lib/themes";
+export { DEFAULT_THEME, isThemeName, THEME_NAMES } from "@/lib/themes";
 export type ColorMode = "light" | "dark" | "system";
 
 const THEME_KEY = "acadkit:theme-name";
@@ -15,8 +17,8 @@ function resolveDark(mode: ColorMode): boolean {
 
 // Mirrors each theme's --bg in src/index.css — keep in sync.
 const BG_HEX: Record<string, string> = {
-  "acid-light": "#f7f7f7",
-  "acid-dark": "#0a0a0a",
+  "brutalist-light": "#f7f7f7",
+  "brutalist-dark": "#0a0a0a",
   "oled-light": "#ffffff",
   "oled-dark": "#000000",
 };
@@ -45,7 +47,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   pin: getStoredPin(),
-  themeName: (localStorage.getItem(THEME_KEY) as ThemeName) || "acid",
+  themeName: resolveTheme(localStorage.getItem(THEME_KEY)),
   themeMode:
     (localStorage.getItem(MODE_KEY) as ColorMode) ||
     (localStorage.getItem(LEGACY_MODE_KEY) as ColorMode) ||

@@ -639,8 +639,8 @@ const THEME_META: Record<
     swatch: { bg: string; accent: string; accent2: string };
   }
 > = {
-  acid: {
-    label: "Acid",
+  brutalist: {
+    label: "Brutalist",
     tagline: "Colour-blocked and loud",
     xFactor: "Oversized display numerals, flat blocks, a floating pill nav",
     icon: Zap,

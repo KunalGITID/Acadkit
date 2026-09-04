@@ -54,12 +54,16 @@
       (function () {
         try {
           var BG_HEX = {
-            "acid-light": "#f7f7f7",
-            "acid-dark": "#0a0a0a",
+            "brutalist-light": "#f7f7f7",
+            "brutalist-dark": "#0a0a0a",
             "oled-light": "#ffffff",
             "oled-dark": "#000000",
           };
-          var name = localStorage.getItem("acadkit:theme-name") || "acid";
+          // Retired theme names (sakura, terminal, aurora) must not reach
+          // [data-theme], or no rule matches and the app paints untokenised.
+          var THEMES = ["brutalist", "oled"];
+          var stored = localStorage.getItem("acadkit:theme-name");
+          var name = THEMES.indexOf(stored) === -1 ? "brutalist" : stored;
           var mode =
             localStorage.getItem("acadkit:theme-mode") ||
             localStorage.getItem("acadkit:theme") || // legacy key

@@ -87,6 +87,28 @@ rather than a page in a browser that happens to be hidden:
   tokens (`env(safe-area-inset-*)`), with `viewport-fit=cover` and a
   `black-translucent` status bar.
 
+### Themes and voice
+
+Two themes, `[data-theme]` on `<html>` with `.dark` for mode
+(`src/store/app.ts`). **Brutalist** is the default and changes the design
+language, not just the palette: Chakra Petch display numerals, oversized
+lowercase page titles, 28px squircles with a real border and no shadow, a
+floating pill bottom bar, wide-tracked lowercase labels. **OLED** is the
+quiet true-black option. All of it rides per-theme tokens plus a
+`@layer components` block — no component is forked for a theme.
+
+Brutalist also changes how the app *talks*. `src/lib/voice.ts` holds every
+opinionated sentence in two registers, `plain` and `brutal`, resolved by
+`useTone()` from the active theme. The brutal copy roasts the numbers,
+never the person, and never lies to be funny — unrecoverable attendance
+still reads as unrecoverable.
+
+`src/lib/themes.ts` is deliberately side-effect free and owns
+`resolveTheme`. A stored theme name that no longer exists lands on
+`[data-theme]`, matches no rule, and paints the app with no tokens at
+all — so retiring a theme means migrating everyone still carrying it.
+Both the store and the pre-paint script in `index.html` validate.
+
 ### Design system
 
 Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.dark` class strategy — applied pre-paint by an inline script in `index.html`), mapped in `tailwind.config.js` (`bg`, `surface`, `ink`, `muted`, `accent`, `good/warn/bad`…). Fonts: Plus Jakarta Sans + JetBrains Mono.
