@@ -1,68 +1,15 @@
-import { useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, KeyRound, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Loader2, Sparkles, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { accountExists, ensureSettings, seedAccount } from "@/api/queries";
+import { accountExists, seedAccount } from "@/api/queries";
 import { claimDevice } from "@/lib/auth";
-import { generatePin, isValidPin } from "@/lib/pin";
+import { generatePin } from "@/lib/pin";
 import { useAppStore } from "@/store/app";
-import { cn } from "@/lib/utils";
-
-type Mode = "choose" | "enter";
-
-/** Four single-digit boxes with auto-advance. */
-function PinBoxes({
-  value,
-  onChange,
-  onComplete,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  onComplete: (pin: string) => void;
-}) {
-  const inputs = useRef<Array<HTMLInputElement | null>>([]);
-
-  function handleChange(i: number, ch: string) {
-    const digit = ch.replace(/\D/g, "").slice(-1);
-    const next = (value.slice(0, i) + (digit || "") + value.slice(i + 1)).slice(0, 4);
-    onChange(next);
-    if (digit && i < 3) inputs.current[i + 1]?.focus();
-    if (digit && i === 3 && isValidPin(next)) onComplete(next);
-  }
-
-  function handleKeyDown(i: number, e: React.KeyboardEvent) {
-    if (e.key === "Backspace" && !value[i] && i > 0) inputs.current[i - 1]?.focus();
-  }
-
-  return (
-    <div className="flex justify-center gap-3">
-      {[0, 1, 2, 3].map((i) => (
-        <input
-          key={i}
-          ref={(el) => {
-            inputs.current[i] = el;
-          }}
-          inputMode="numeric"
-          autoComplete="off"
-          aria-label={`PIN digit ${i + 1}`}
-          value={value[i] ?? ""}
-          onChange={(e) => handleChange(i, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(i, e)}
-          className={cn(
-            "h-16 w-14 rounded-2xl border-2 bg-surface text-center font-mono text-2xl font-bold",
-            "border-line/10 focus:border-accent transition-colors"
-          )}
-        />
-      ))}
-    </div>
-  );
-}
 
 export default function Onboarding() {
   const setPin = useAppStore((s) => s.setPin);
-  const [mode, setMode] = useState<Mode>("choose");
-  const [pinInput, setPinInput] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function createFresh() {
@@ -81,36 +28,6 @@ export default function Onboarding() {
     } catch (err) {
       toast.error("Couldn't set things up", {
         description: err instanceof Error ? err.message : "Check your connection and retry.",
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function syncExisting(pin: string) {
-    setBusy(true);
-    try {
-      if (await accountExists(pin)) {
-        // Claiming is what actually grants access: under the 015
-        // policies an unclaimed PIN reads back empty.
-        const claim = await claimDevice(pin);
-        if (claim === "taken") {
-          toast.error(`PIN ${pin} belongs to another account`, {
-            description: "Sign in with that account, or create a fresh space.",
-          });
-          return;
-        }
-        await ensureSettings(pin);
-        setPin(pin);
-        toast.success("Synced — your data is here");
-      } else {
-        toast.error(`No data found for PIN ${pin}`, {
-          description: "Double-check the digits, or create a fresh space instead.",
-        });
-      }
-    } catch (err) {
-      toast.error("Couldn't reach the server", {
-        description: err instanceof Error ? err.message : undefined,
       });
     } finally {
       setBusy(false);
@@ -138,70 +55,18 @@ export default function Onboarding() {
             Welcome to <span className="accent-gradient-text">AcadKit</span>
           </h1>
           <p className="mt-2 text-[15px] text-muted">
-            Attendance, marks, SGPA and your day-order timetable — synced to every device with one
-            4-digit PIN.
+            Attendance, marks, SGPA and your day-order timetable — on every device you
+            sign in to.
           </p>
         </div>
 
-        <AnimatePresence mode="wait">
-          {mode === "choose" ? (
-            <motion.div
-              key="choose"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-3"
-            >
-              <Button size="lg" className="h-14 w-full" onClick={createFresh} disabled={busy}>
-                {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />}
-                Start fresh
-              </Button>
-              <Button
-                variant="secondary"
-                size="lg"
-                className="h-14 w-full"
-                onClick={() => setMode("enter")}
-                disabled={busy}
-              >
-                <KeyRound className="h-5 w-5" />
-                I have a PIN
-              </Button>
-              <p className="pt-2 text-center text-xs text-muted">
-                Starting fresh seeds your SRM subjects and generates your PIN.
-              </p>
-            </motion.div>
-          ) : (
-            <motion.div
-              key="enter"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="space-y-5"
-            >
-              <PinBoxes value={pinInput} onChange={setPinInput} onComplete={syncExisting} />
-              <Button
-                size="lg"
-                className="h-14 w-full"
-                disabled={!isValidPin(pinInput) || busy}
-                onClick={() => syncExisting(pinInput)}
-              >
-                {busy ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <ArrowRight className="h-5 w-5" />
-                )}
-                Sync my data
-              </Button>
-              <button
-                onClick={() => setMode("choose")}
-                className="mx-auto block text-sm font-semibold text-muted hover:text-ink"
-                disabled={busy}
-              >
-                ← Back
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <Button size="lg" className="h-14 w-full" onClick={createFresh} disabled={busy}>
+          {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />}
+          Set up my semester
+        </Button>
+        <p className="pt-3 text-center text-xs text-muted">
+          Seeds your SRM subjects so there's something to edit rather than a blank app.
+        </p>
       </motion.div>
     </div>
   );

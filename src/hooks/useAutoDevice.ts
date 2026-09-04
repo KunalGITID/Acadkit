@@ -3,12 +3,17 @@ import { ownedDevices } from "@/lib/auth";
 import { useAppStore } from "@/store/app";
 
 /**
- * Skip onboarding when the account already owns exactly one PIN.
+ * Reconcile the local PIN against what the account actually owns.
  *
- * This is what makes signing in *faster* than the PIN-only flow it
- * replaces: after the one-time sign-in, a new device opens straight to
- * your data instead of asking you to remember four digits. With more
- * than one claimed PIN it stays out of the way and lets you choose.
+ * The PIN is an internal partition key now, not something you manage —
+ * there is no UI left to type or change one. That makes a stale value a
+ * trap: a device carrying a PIN this account doesn't own would show an
+ * empty app with no way to fix it. So this doesn't merely fill an empty
+ * slot, it replaces a PIN that isn't ours.
+ *
+ * Only ever acts on a successful lookup. Offline, or mid-outage, the
+ * stored PIN is left alone rather than cleared — showing cached data
+ * beats showing nothing.
  */
 export function useAutoDevice(enabled: boolean): void {
   const pin = useAppStore((s) => s.pin);
@@ -16,14 +21,17 @@ export function useAutoDevice(enabled: boolean): void {
   const tried = useRef(false);
 
   useEffect(() => {
-    if (!enabled || pin || tried.current) return;
+    if (!enabled || tried.current) return;
     tried.current = true;
+
     void ownedDevices()
       .then((devices) => {
-        if (devices.length === 1) setPin(devices[0]);
+        if (!devices.length) return; // nothing claimed yet — onboarding handles it
+        // Multiple claims can only exist from before the PIN UI was
+        // removed, so the oldest wins rather than asking a question the
+        // app no longer has a screen for.
+        if (!pin || !devices.includes(pin)) setPin(devices[0]);
       })
-      // Offline, or the table isn't there yet — fall through to
-      // onboarding rather than blocking on it.
       .catch(() => {});
   }, [enabled, pin, setPin]);
 }

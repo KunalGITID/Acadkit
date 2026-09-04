@@ -35,13 +35,11 @@ import { SubjectSheet } from "@/components/sheets/subject-sheet";
 import { ImportSheet } from "@/components/sheets/import-sheet";
 import { usePush } from "@/hooks/usePush";
 import { useSession } from "@/hooks/useSession";
-import { claimDevice, signOut } from "@/lib/auth";
+import { signOut } from "@/lib/auth";
 import {
   PENDING_MIGRATIONS_SQL,
-  accountExists,
   clearTimetable,
   deleteAllData,
-  ensureSettings,
   exportAllData,
   fetchSettings,
   fetchSubjects,
@@ -60,7 +58,6 @@ import {
   useUpdateSettings,
 } from "@/hooks/useData";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
-import { isValidPin } from "@/lib/pin";
 import { describePending } from "@/lib/autoMark";
 import { buildIcs, countEvents } from "@/lib/ics";
 import { usePendingAutoMarks } from "@/hooks/useAutoMark";
@@ -259,117 +256,6 @@ function SemesterDatesCard() {
         {saved ? <Check className="h-4 w-4" /> : null}
         {saved ? "Saved" : "Save semester dates"}
       </Button>
-    </section>
-  );
-}
-
-function PinCard() {
-  const pin = useAppStore((s) => s.pin)!;
-  const [copied, setCopied] = useState(false);
-
-  return (
-    <section className="card overflow-hidden">
-      <div className="bg-gradient-to-br from-[hsl(var(--accent)/0.12)] to-[hsl(var(--accent-2)/0.10)] p-6 text-center">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted">Your sync PIN</p>
-        <div className="mt-3 flex justify-center gap-2.5">
-          {pin.split("").map((digit, i) => (
-            <motion.span
-              key={i}
-              initial={{ opacity: 0, y: 12, rotateX: 60 }}
-              animate={{ opacity: 1, y: 0, rotateX: 0 }}
-              transition={{ delay: i * 0.07, type: "spring", stiffness: 260, damping: 20 }}
-              className="flex h-14 w-12 items-center justify-center rounded-2xl border bg-surface font-mono text-2xl font-bold shadow-card"
-            >
-              {digit}
-            </motion.span>
-          ))}
-        </div>
-        <p className="mx-auto mt-4 max-w-xs text-xs text-muted">
-          Enter this PIN on any phone or laptop and your entire AcadKit follows you there.
-        </p>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="mt-4"
-          onClick={() => {
-            void navigator.clipboard.writeText(pin);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-            toast.success("PIN copied");
-          }}
-        >
-          {copied ? <Check className="h-4 w-4 text-good-deep" /> : <Copy className="h-4 w-4" />}
-          {copied ? "Copied" : "Copy PIN"}
-        </Button>
-      </div>
-    </section>
-  );
-}
-
-function SyncCard() {
-  const setPin = useAppStore((s) => s.setPin);
-  const qc = useQueryClient();
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function sync() {
-    if (!isValidPin(input)) {
-      toast.error("PINs are exactly 4 digits");
-      return;
-    }
-    setBusy(true);
-    try {
-      // Claim before looking. Once policies are owner-scoped, an
-      // unclaimed PIN reads back empty whether or not it holds data, so
-      // checking first would report "no data" for a PIN that is simply
-      // not yours yet.
-      const claim = await claimDevice(input);
-      if (claim === "taken") {
-        toast.error(`PIN ${input} belongs to another account`, {
-          description: "Sign in with that account to reach its data.",
-        });
-        return;
-      }
-      if (await accountExists(input)) {
-        await ensureSettings(input);
-        setPin(input);
-        qc.clear();
-        toast.success(`Switched to PIN ${input} — data loaded`);
-        setInput("");
-      } else {
-        toast.error(`No data found for PIN ${input}`);
-      }
-    } catch (err) {
-      toast.error("Couldn't reach the server", {
-        description: err instanceof Error ? err.message : undefined,
-      });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="card space-y-3 p-5">
-      <div>
-        <p className="font-bold">Sync this device to another PIN</p>
-        <p className="mt-0.5 text-xs text-muted">
-          Replaces what this device shows with that PIN's data. Nothing is deleted.
-        </p>
-      </div>
-      <div className="flex gap-2.5">
-        <Input
-          inputMode="numeric"
-          maxLength={4}
-          placeholder="••••"
-          value={input}
-          onChange={(e) => setInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
-          className="text-center font-mono text-lg tracking-[0.5em]"
-        />
-        <Button onClick={sync} disabled={busy || !isValidPin(input)} className="h-12 shrink-0">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Sync
-        </Button>
-      </div>
     </section>
   );
 }
@@ -854,12 +740,6 @@ export default function Settings() {
       <div className="space-y-3">
         <SectionTitle>Account</SectionTitle>
         <AccountCard />
-      </div>
-
-      <div className="space-y-3">
-        <SectionTitle>Cross-device sync</SectionTitle>
-        <PinCard />
-        <SyncCard />
       </div>
 
       <div className="space-y-3">

@@ -1,14 +1,11 @@
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Copy, Sparkles } from "lucide-react";
-import { toast } from "sonner";
+import { Sparkles } from "lucide-react";
 import { NAV_ITEMS, SECONDARY_NAV, SETTINGS_ITEM } from "@/components/layout/nav-items";
 import { DayOrderChip } from "@/components/layout/day-order-chip";
-import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
-  const pin = useAppStore((s) => s.pin);
 
   return (
     <aside className="sticky top-0 hidden h-dvh flex-col border-r bg-surface/50 px-4 py-6 lg:flex">
@@ -48,22 +45,6 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {pin && (
-        <button
-          onClick={() => {
-            void navigator.clipboard.writeText(pin);
-            toast.success("Sync PIN copied");
-          }}
-          className="group mx-1 flex items-center justify-between rounded-2xl border bg-surface-2/50 px-4 py-3 text-left transition-colors hover:bg-surface-2"
-          title="Copy sync PIN"
-        >
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Sync PIN</p>
-            <p className="font-mono text-lg font-bold tracking-[0.3em]">{pin}</p>
-          </div>
-          <Copy className="h-4 w-4 text-muted transition-colors group-hover:text-ink" />
-        </button>
-      )}
     </aside>
   );
 }
