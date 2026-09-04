@@ -16,8 +16,8 @@
   "use strict";
 
   var CFG = {
-    url: "__SUPABASE_URL__",
-    key: "__SUPABASE_ANON_KEY__",
+    ingest: "__INGEST_URL__",
+    secret: "__INGEST_SECRET__",
     pin: "__PIN__",
   };
 
@@ -432,146 +432,57 @@
     return step(0);
   }
 
-  // ---------- supabase (PostgREST) ----------
+  // ---------- write (via the portal-ingest edge function) ----------
 
-  function rest(path, opts) {
-    opts = opts || {};
-    var headersObj = {
-      apikey: CFG.key,
-      Authorization: "Bearer " + CFG.key,
-      "Content-Type": "application/json",
-    };
-    if (opts.prefer) headersObj.Prefer = opts.prefer;
-    return fetch(CFG.url.replace(/\/$/, "") + "/rest/v1/" + path, {
-      method: opts.method || "GET",
-      headers: headersObj,
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    }).then(function (res) {
-      if (!res.ok) {
-        return res.text().then(function (txt) {
-          throw new Error("HTTP " + res.status + " — " + (txt || res.statusText));
-        });
-      }
-      return res.status === 204 ? null : res.json().catch(function () { return null; });
-    });
-  }
-
-  var q = encodeURIComponent;
-
+  /**
+   * The bookmarklet used to write straight to PostgREST with the anon
+   * key. Once RLS became owner-scoped, anon lost every policy and those
+   * writes began failing with 42501.
+   *
+   * It posts to an edge function now, which writes with the service
+   * role. The embedded secret grants exactly one capability — submit
+   * portal data for one device_id — instead of the full-account access
+   * a Supabase refresh token would have meant. That matters here more
+   * than usual: a bookmarklet's URL is visible in the browser's
+   * bookmark manager and syncs between devices.
+   */
   function push(attendance, marks, log) {
-    var pin = CFG.pin;
-    return rest("subjects?device_id=eq." + q(pin) + "&select=id,code").then(function (subjects) {
-      var byCode = {};
-      (subjects || []).forEach(function (s) {
-        byCode[norm(s.code).toUpperCase()] = s.id;
-      });
-
-      var unknown = {};
-      var stamp = today();
-
-      var snapshots = attendance.map(function (a) {
-        return {
-          device_id: pin,
-          subject_code: a.subject_code,
-          conducted: a.conducted,
-          absent: a.absent,
-          percentage: a.percentage,
-          as_of: stamp,
-          synced_at: new Date().toISOString(),
-        };
-      });
-
-      var markRows = [];
-      marks.forEach(function (m) {
-        var id = byCode[m.subject_code];
-        if (!id) {
-          unknown[m.subject_code] = true;
-          return;
-        }
-        markRows.push({
-          device_id: pin,
-          subject_id: id,
-          component_type: m.component_type,
-          label: m.label,
-          marks_obtained: m.marks_obtained,
-          max_marks: m.max_marks,
-          is_external: false,
-          source: "portal",
+    return fetch(CFG.ingest, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-ingest-secret": CFG.secret,
+      },
+      body: JSON.stringify({
+        device_id: CFG.pin,
+        attendance: attendance,
+        marks: marks,
+      }),
+    })
+      .then(function (res) {
+        return res.text().then(function (txt) {
+          var body;
+          try { body = JSON.parse(txt); } catch (e) { body = { error: txt }; }
+          if (!res.ok) {
+            throw new Error(
+              res.status === 401
+                ? "Rejected — rebuild the bookmarklet (node scripts/portal-sync/build.mjs --pin <PIN>)"
+                : "HTTP " + res.status + " — " + (body.error || res.statusText)
+            );
+          }
+          return body;
         });
-      });
-
-      var steps = [];
-
-      if (snapshots.length) {
-        steps.push(
-          rest("portal_snapshots?on_conflict=device_id,subject_code", {
-            method: "POST",
-            body: snapshots,
-            prefer: "resolution=merge-duplicates,return=minimal",
-          }).then(function () {
-            log("Attendance: " + snapshots.length + " subjects saved.");
-          })
-        );
-      }
-
-      if (markRows.length) {
-        // Reconcile client-side instead of upserting: the portal-marks
-        // unique index is partial, which PostgREST can't target, and this
-        // way rows typed in by hand are never touched.
-        steps.push(
-          rest(
-            "marks?device_id=eq." + q(pin) + "&source=eq.portal&select=id,subject_id,label"
-          ).then(function (existing) {
-            var seen = {};
-            (existing || []).forEach(function (e) {
-              seen[e.subject_id + "|" + norm(e.label).toLowerCase()] = e.id;
-            });
-            var inserts = [];
-            var patches = [];
-            markRows.forEach(function (row) {
-              var id = seen[row.subject_id + "|" + norm(row.label).toLowerCase()];
-              if (id) {
-                patches.push(
-                  rest("marks?id=eq." + q(id), {
-                    method: "PATCH",
-                    body: {
-                      marks_obtained: row.marks_obtained,
-                      max_marks: row.max_marks,
-                      component_type: row.component_type,
-                    },
-                    prefer: "return=minimal",
-                  })
-                );
-              } else {
-                inserts.push(row);
-              }
-            });
-            var work = patches.slice();
-            if (inserts.length) {
-              work.push(
-                rest("marks", {
-                  method: "POST",
-                  body: inserts,
-                  prefer: "return=minimal",
-                })
-              );
-            }
-            return Promise.all(work).then(function () {
-              log(
-                "Marks: " + inserts.length + " added, " + patches.length + " updated."
-              );
-            });
-          })
-        );
-      }
-
-      return Promise.all(steps).then(function () {
-        var codes = Object.keys(unknown);
-        if (codes.length) {
-          log("Marks skipped — no matching subject in AcadKit: " + codes.join(", "));
+      })
+      .then(function (result) {
+        if (result.snapshots) log("Attendance: " + result.snapshots + " subjects saved.");
+        if (result.marksAdded || result.marksUpdated) {
+          log("Marks: " + result.marksAdded + " added, " + result.marksUpdated + " updated.");
         }
+        if (!result.snapshots && !result.marksAdded && !result.marksUpdated) {
+          log("Nothing to save from this page.");
+        }
+        log("Open AcadKit — it refreshes on its own.");
       });
-    });
   }
 
   // ---------- diagnostics ----------

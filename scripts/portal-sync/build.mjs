@@ -5,7 +5,7 @@
  *
  * Reads Supabase credentials from .env.local (or the environment), inlines
  * them along with your PIN, minifies, and writes an install page you drag
- * to the bookmarks bar. The output embeds your anon key and PIN, so it is
+ * to the bookmarks bar. The output embeds the ingest secret and PIN, so it is
  * gitignored — treat it like the AcadKit URL itself.
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
@@ -35,9 +35,13 @@ function env() {
 
 const e = env();
 const diagOnly = process.argv.includes("--diagnostics");
+// The bookmarklet no longer writes to PostgREST — it posts to the
+// portal-ingest edge function, so what it needs embedded is that
+// function's URL and its ingest secret, not the anon key.
 const url = diagOnly ? "" : e.VITE_SUPABASE_URL;
-const key = diagOnly ? "" : e.VITE_SUPABASE_ANON_KEY;
+const secret = diagOnly ? "" : (arg("secret") || e.INGEST_SECRET);
 const pin = diagOnly ? "" : arg("pin");
+const ingest = url ? `${url.replace(/\/$/, "")}/functions/v1/portal-ingest` : "";
 
 // A diagnostics build reports what it sees and writes nothing, so it needs
 // no credentials — it is the safe first step on a portal whose markup the
@@ -45,7 +49,7 @@ const pin = diagOnly ? "" : arg("pin");
 if (!diagOnly) {
   const missing = [
     !url && "VITE_SUPABASE_URL (.env.local)",
-    !key && "VITE_SUPABASE_ANON_KEY (.env.local)",
+    !secret && "INGEST_SECRET (.env.local) or --secret <value>",
     !pin && "--pin <your 4-digit AcadKit PIN>",
   ].filter(Boolean);
 
@@ -64,8 +68,8 @@ if (!diagOnly) {
 }
 
 const source = readFileSync(resolve(here, "portal-sync.js"), "utf8")
-  .replace("__SUPABASE_URL__", url)
-  .replace("__SUPABASE_ANON_KEY__", key)
+  .replace("__INGEST_URL__", ingest)
+  .replace("__INGEST_SECRET__", secret)
   .replace("__PIN__", pin)
   .replace("__DIAG_ONLY__", String(diagOnly));
 
@@ -133,7 +137,7 @@ describes the page you run it on.</p>
 <li>Open the portal, then pick that bookmark from the address bar.</li>
 </ol>
 <textarea readonly onclick="this.select()">${esc(href)}</textarea>
-<div class="warn">This file has your Supabase anon key and PIN baked in &mdash; anyone with it can read and write your AcadKit data. Keep it off shared machines; it is gitignored for that reason.</div>
+<div class="warn">This file has an ingest secret and your PIN baked in. That pair can submit portal data for this PIN &mdash; it cannot read your data or reach any other account &mdash; but keep it off shared machines. It is gitignored for that reason.</div>
 `;
 
 const name = diagOnly ? "diagnostics.html" : "install.html";
