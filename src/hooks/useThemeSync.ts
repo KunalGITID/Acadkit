@@ -70,6 +70,23 @@ export function useThemeSync() {
    */
   const reconciled = useRef(false);
 
+  /**
+   * The last theme this hook actually published.
+   *
+   * Publishing invalidates `settings`, which refetches, which hands the
+   * effect a new object and runs it again — so the write is only self-
+   * limiting if the row comes back carrying what was just written. When
+   * it doesn't (a rejected patch, a filter that matched no row, a column
+   * the server drops) the condition below stays true forever and the app
+   * hammers the database for as long as the page is open: one theme tap
+   * measured 24 writes and 47 refetches in a second and a half, still
+   * climbing.
+   *
+   * Retrying an unchanged write can only produce the same answer, so one
+   * attempt per distinct pair is the most that can ever be useful.
+   */
+  const published = useRef<string | null>(null);
+
   useEffect(() => {
     if (!settings) return;
 
@@ -92,7 +109,11 @@ export function useThemeSync() {
     }
 
     if (settings.theme !== themeName || settings.theme_mode !== themeMode) {
-      update.mutate({ theme: themeName, theme_mode: themeMode });
+      const pair = `${themeName}|${themeMode}`;
+      if (published.current !== pair) {
+        published.current = pair;
+        update.mutate({ theme: themeName, theme_mode: themeMode });
+      }
     }
     // `update` is a stable mutation object; including it would re-run this
     // on every render.
