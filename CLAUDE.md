@@ -144,6 +144,18 @@ number. That changed some answers — 25/25 on one CT used to report "O
 is safe", and now reports what O costs across the 75 marks still
 unplayed, which is the honest version.
 
+**Rounding has a direction.** A mark you must reach rounds up
+(`ceilHalf` — 10.4 needed means 10.5); a mark you already hold rounds
+down (`floorHalf` — banking 42.4 and printing 42.5 hands you half a
+mark you did not earn). Totals out of 100 use `floorTotal`, because
+grade thresholds are integers and `Math.floor(total) >= min` is true
+exactly when `total >= min` — so a floored total can never contradict
+the grade printed beside it, and a rounded one demonstrably can (70.6
+rounds to 71 and sat next to a B+). `gradeForTotal` carries a 1e-9
+boundary epsilon so an exact 81 arriving as 80.99999999999967 out of
+the scaling maths is still an A+, and `floorTotal` absorbs the same
+error by the same amount so the two always agree.
+
 `subjects.target_grade` is the grade you're chasing *in that subject*,
 which is not always what the target SGPA implies — being weak in one
 subject and aiming A there while targeting 9.0 overall is the normal

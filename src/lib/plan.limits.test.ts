@@ -12,8 +12,15 @@
  * someone's Insights card is wrong, whatever the scenario tests say.
  */
 import { describe, expect, it } from "vitest";
-import { GRADE_TABLE, type Grade } from "@/lib/grades";
-import { gradeForTargetSgpa, solveSubjectPlan, type SubjectPlan } from "@/lib/plan";
+import { GRADE_TABLE, gradeForTotal, type Grade } from "@/lib/grades";
+import {
+  ceilHalf,
+  floorHalf,
+  floorTotal,
+  gradeForTargetSgpa,
+  solveSubjectPlan,
+  type SubjectPlan,
+} from "@/lib/plan";
 import type { Assessment, Mark, PlannedComponent, Subject } from "@/types";
 
 const GRADES: Grade[] = ["O", "A+", "A", "B+", "B", "C"];
@@ -386,5 +393,54 @@ describe("gradeForTargetSgpa across the whole scale", () => {
     for (const t of [NaN, -5, 99, Infinity, -Infinity]) {
       expect(GRADES).toContain(gradeForTargetSgpa(t));
     }
+  });
+});
+
+describe("rounding must never contradict the grade beside it", () => {
+  it("floors a total, so the number and the grade always agree", () => {
+    // The bug: the card rounded for display but graded the exact value,
+    // so every threshold had a half-mark band where it printed a total
+    // sitting *on* the next grade next to the grade below — 70.6 shown
+    // as "71/100 · B+", 49.6 as "50/100 · F".
+    // Stepped as integers over ten, so the loop tests the property
+    // rather than the drift of repeated += 0.1.
+    for (let i = 0; i <= 1000; i++) {
+      const total = i / 10;
+      const shown = floorTotal(total);
+      expect(gradeForTotal(shown).grade, `${total} → ${shown}`).toBe(
+        gradeForTotal(total).grade
+      );
+      expect(shown).toBeLessThanOrEqual(total + 1e-9);
+    }
+  });
+
+  it("rounds a mark you must reach up and a mark you hold down", () => {
+    expect(ceilHalf(10.4)).toBe(10.5); // 10 would not be enough
+    expect(floorHalf(10.4)).toBe(10); // you have not earned 10.5
+    expect(ceilHalf(42.36)).toBe(42.5);
+    expect(floorHalf(42.36)).toBe(42);
+    for (const n of [0, 0.25, 7, 12.5, 59.9]) {
+      expect(floorHalf(n)).toBeLessThanOrEqual(n + 1e-9);
+      expect(ceilHalf(n)).toBeGreaterThanOrEqual(n - 1e-9);
+      expect(Object.is(floorHalf(n), -0)).toBe(false);
+    }
+  });
+
+  it("keeps component keys unique, since they become React keys", () => {
+    // A plan can carry duplicates: jsonb edited by hand, or a row
+    // duplicated in the editor.
+    const dupe = subj({
+      internal: 60,
+      complete: false,
+      components: [
+        { key: "same", label: "CT-1", type: "CT", max: 15 },
+        { key: "same", label: "CT-2", type: "CT", max: 15 },
+        { key: "same", label: "CT-3", type: "CT", max: 15 },
+      ],
+    });
+    const keys = solveSubjectPlan(dupe, [], "A").components.map((c) => c.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys).toContain("same");
+    expect(keys).toContain("same#2");
   });
 });

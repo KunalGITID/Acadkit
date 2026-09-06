@@ -171,4 +171,22 @@ describe("SubjectBudgetCard", () => {
     expect(t).toContain("A 69%"); // 66 of 95
     expect(t).not.toContain("A 66/95");
   });
+
+  it("never prints a total that contradicts the grade next to it", () => {
+    // 42.36 banked at a 70.6% pace: the exact value is a B+, but the
+    // rounded one reads 71, which is where an A starts.
+    const oneBigCT: Subject = {
+      ...SUBJECT,
+      assessment: {
+        internal: 60,
+        complete: true,
+        components: [{ key: "c", label: "CT-1", type: "CT", max: 60 }],
+      },
+    };
+    const t = text(renderFor(oneBigCT, [mark("CT-1", 42.36, 60)]));
+    expect(t).toContain("At your pace 70/100 B+");
+    expect(t).not.toContain("71/100 B+");
+    // And what is banked is floored too, not rounded up to 42.5.
+    expect(t).toContain("42 banked");
+  });
 });

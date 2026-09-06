@@ -3,7 +3,7 @@ import { Check, Lock, TriangleAlert } from "lucide-react";
 import { useUpdateSubject } from "@/hooks/useData";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { listEntry } from "@/lib/enter";
-import { ceilHalf, type SolvedComponent } from "@/lib/plan";
+import { ceilHalf, floorHalf, floorTotal, type SolvedComponent } from "@/lib/plan";
 import { GRADE_COLORS, GRADE_TABLE } from "@/lib/grades";
 import type { SubjectGradeProjection } from "@/lib/projections";
 import { Dot } from "@/components/ui/misc";
@@ -12,10 +12,18 @@ import type { Grade } from "@/types";
 
 const TARGETABLE = GRADE_TABLE.filter((g) => g.grade !== "F");
 
-/** Marks read better as 12 than 12.0, but 10.5 has to keep its half. */
-function marks(n: number): string {
-  const v = ceilHalf(n);
+function fmt(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
+/** A mark you have to reach: rounds up, because 10.4 needs an 10.5. */
+function need(n: number): string {
+  return fmt(ceilHalf(n));
+}
+
+/** A mark you already hold: rounds down, so it is never overstated. */
+function have(n: number): string {
+  return fmt(floorHalf(n));
 }
 
 function pct(rate: number): string {
@@ -100,18 +108,18 @@ function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
       <span className="shrink-0 font-bold tabular">
         {graded ? (
           <span className="text-muted">
-            {marks(c.obtained!)}<span className="font-semibold">/{marks(c.max)}</span>
+            {have(c.obtained!)}<span className="font-semibold">/{have(c.max)}</span>
           </span>
         ) : status === "locked" ? (
           <span className="text-good-deep">anything</span>
         ) : impossible ? (
           <span className="text-bad-deep">
-            {marks(c.required!)}/{marks(c.max)}
+            {need(c.required!)}/{have(c.max)}
           </span>
         ) : (
           <span className="text-accent">
-            {marks(c.required!)}
-            <span className="font-semibold text-muted">/{marks(c.max)}</span>
+            {need(c.required!)}
+            <span className="font-semibold text-muted">/{have(c.max)}</span>
           </span>
         )}
       </span>
@@ -132,7 +140,7 @@ function Bracket({ p }: { p: SubjectGradeProjection }) {
         <div key={c.label} className="rounded-xl bg-surface-2/40 px-2 py-2 text-center">
           <p className="text-[9px] font-bold uppercase tracking-wider text-muted">{c.label}</p>
           <p className={cn("mt-0.5 text-sm font-extrabold tabular", c.cls)}>
-            {Math.round(c.value)}
+            {floorTotal(c.value)}
             <span className="text-[10px] font-bold text-muted">/100</span>
           </p>
           <p className="text-[10px] font-bold" style={{ color: GRADE_COLORS[c.grade] }}>
@@ -168,7 +176,7 @@ function GradeRates({ p }: { p: SubjectGradeProjection }) {
             : g.rate === null
               ? "—"
               : lone
-                ? `${marks(g.needed)}/${marks(lone.max)}`
+                ? `${need(g.needed)}/${have(lone.max)}`
                 : pct(g.rate);
         return (
           <span
@@ -177,8 +185,8 @@ function GradeRates({ p }: { p: SubjectGradeProjection }) {
               g.secured
                 ? `${g.grade} holds even at zero from here`
                 : !g.achievable
-                  ? `${g.grade} needs ${marks(g.needed)} marks and only ${marks(p.pool)} are left`
-                  : `${g.grade} needs ${marks(g.needed)} of the ${marks(p.pool)} marks left`
+                  ? `${g.grade} needs ${need(g.needed)} marks and only ${have(p.pool)} are left`
+                  : `${g.grade} needs ${need(g.needed)} of the ${have(p.pool)} marks left`
             }
             className={cn(
               "rounded-lg px-2 py-1 text-[11px] font-bold tabular",
@@ -202,7 +210,7 @@ function Verdict({ p }: { p: SubjectGradeProjection }) {
   if (plan.status === "final")
     return (
       <>
-        Finished at <b className="tabular">{Math.round(plan.banked)}/100</b> — that's{" "}
+        Finished at <b className="tabular">{floorTotal(plan.banked)}/100</b> — that's{" "}
         <b style={{ color: GRADE_COLORS[plan.floorGrade] }}>{plan.floorGrade}</b>.
       </>
     );
@@ -211,15 +219,15 @@ function Verdict({ p }: { p: SubjectGradeProjection }) {
     return (
       <>
         <b>{targetGrade}</b> is banked — it holds even scoring zero on everything left. You have{" "}
-        <b className="tabular">{marks(plan.slack ?? 0)}</b> marks of slack.
+        <b className="tabular">{have(plan.slack ?? 0)}</b> marks of slack.
       </>
     );
 
   if (plan.status === "out-of-reach")
     return (
       <>
-        <b>{targetGrade}</b> needs <b className="tabular">{marks(plan.needed)}</b> marks and only{" "}
-        <b className="tabular">{marks(plan.pool)}</b> are left.{" "}
+        <b>{targetGrade}</b> needs <b className="tabular">{need(plan.needed)}</b> marks and only{" "}
+        <b className="tabular">{have(plan.pool)}</b> are left.{" "}
         {plan.bestReachable ? (
           <>
             Best still reachable is <b style={{ color: GRADE_COLORS[plan.bestReachable] }}>{plan.bestReachable}</b>.
@@ -240,8 +248,8 @@ function Verdict({ p }: { p: SubjectGradeProjection }) {
 
   return (
     <>
-      <b>{targetGrade}</b> needs <b className="tabular">{marks(plan.needed)}</b> of the{" "}
-      <b className="tabular">{marks(plan.pool)}</b> marks left — <b className="text-accent">{rate}</b>{" "}
+      <b>{targetGrade}</b> needs <b className="tabular">{need(plan.needed)}</b> of the{" "}
+      <b className="tabular">{have(plan.pool)}</b> marks left — <b className="text-accent">{rate}</b>{" "}
       of everything from here.{" "}
       {plan.paceRate !== null && (
         <span className="text-muted">
@@ -278,8 +286,8 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
             <span className="line-clamp-2">{p.subject.name}</span>
           </p>
           <p className="mt-0.5 text-xs font-medium text-muted">
-            {split} · <b className="tabular">{marks(p.banked)}</b> banked,{" "}
-            <b className="tabular">{marks(p.pool)}</b> to play for
+            {split} · <b className="tabular">{have(p.banked)}</b> banked,{" "}
+            <b className="tabular">{have(p.pool)}</b> to play for
           </p>
         </div>
         <TargetPicker p={p} />

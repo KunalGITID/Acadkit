@@ -44,6 +44,30 @@ export type { Assessment, PlannedComponent };
 
 export const DEFAULT_INTERNAL_WEIGHT = 60;
 
+/**
+ * Rounding has a direction, and it is not the same in both places.
+ *
+ * A number you must *reach* rounds up — 12.1 needed means 12 is not
+ * enough. A number you already *hold* rounds down — banking 42.4 and
+ * calling it 42.5 hands you half a mark you did not earn, and the same
+ * mistake at a grade boundary reads as a grade you do not have.
+ *
+ * Totals out of 100 use `floorTotal` for the same reason: grade
+ * thresholds are integers, so `Math.floor(total) >= min` is true
+ * exactly when `total >= min`. Flooring can therefore never disagree
+ * with the grade printed beside it, and rounding demonstrably can —
+ * 70.6 rounds to 71 and sits next to a B+.
+ */
+export function floorHalf(n: number): number {
+  const v = Math.floor(n * 2 + 1e-9) / 2;
+  return v === 0 ? 0 : v;
+}
+
+/** A /100 total, floored so it can never contradict its own grade. */
+export function floorTotal(n: number): number {
+  return Math.floor(n + 1e-9);
+}
+
 /** Marks are awarded in halves; 12.1 needed means 12 is not enough. */
 export function ceilHalf(n: number): number {
   const v = Math.ceil(n * 2 - 1e-9) / 2;
@@ -409,6 +433,17 @@ export function budgetFor(subject: Subject, marks: Mark[]): SubjectBudget {
       required: null,
       requiredPct: null,
     });
+  }
+
+  // Keys become React keys downstream, and a plan can carry duplicates
+  // — jsonb edited by hand, or a row copied in the editor. Deduping
+  // here rather than in the card keeps every consumer safe.
+  const seenKeys = new Set<string>();
+  for (const c of components) {
+    let key = c.key;
+    for (let i = 2; seenKeys.has(key); i++) key = `${c.key}#${i}`;
+    c.key = key;
+    seenKeys.add(key);
   }
 
   // ---- the budget ----
