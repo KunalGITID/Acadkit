@@ -1,3 +1,4 @@
+import { STAGGER_CAP } from "@/lib/enter";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -64,7 +65,9 @@ const stagger = {
       type: "spring" as const,
       stiffness: 260,
       damping: 26,
-      delay: i < 0 ? 0 : i * 0.06,
+      // Capped for the same reason as listEntry: an uncapped stagger
+      // makes a long list feel like the app is thinking.
+      delay: i < 0 ? 0 : Math.min(i, STAGGER_CAP) * 0.06,
     },
   }),
 };

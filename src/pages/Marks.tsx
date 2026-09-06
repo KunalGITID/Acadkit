@@ -1,3 +1,5 @@
+import { listEntry } from "@/lib/enter";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
@@ -115,15 +117,14 @@ function SubjectMarksCard({
   onAdd: (subject: Subject) => void;
   onEdit: (subject: Subject, mark: Mark) => void;
 }) {
+  const settled = useHasAnimated("marks-subjects");
   const tone = useTone();
   const audit = subject.credits === 0;
 
   return (
     <motion.section
       layout
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.04 }}
+      {...listEntry(index, settled)}
       className="card p-5"
     >
       <div className="flex items-start justify-between gap-3">

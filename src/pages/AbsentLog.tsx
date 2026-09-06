@@ -1,3 +1,5 @@
+import { listEntry } from "@/lib/enter";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown, ChevronUp, PartyPopper } from "lucide-react";
@@ -13,6 +15,7 @@ import type { AttendanceRecord } from "@/types";
 const INITIAL_DAYS = 6;
 
 export default function AbsentLog() {
+  const settled = useHasAnimated("absent-days");
   const tone = useTone();
   const { data: attendance, isLoading: aLoading } = useAttendance();
   const { data: subjects, isLoading: sLoading } = useSubjects();
@@ -70,9 +73,7 @@ export default function AbsentLog() {
         visibleDays.map(([date, list], i) => (
           <motion.button
             key={date}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", stiffness: 280, damping: 26, delay: i * 0.03 }}
+            {...listEntry(i, settled)}
             onClick={() => setMarkDate(date)}
             className="card block w-full p-4 text-left transition-transform active:scale-[0.99]"
           >

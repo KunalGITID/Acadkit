@@ -1,3 +1,4 @@
+import { STAGGER_CAP } from "@/lib/enter";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dot } from "@/components/ui/misc";
 import { AnimatedNumber } from "@/components/viz/animated-number";
@@ -110,7 +111,15 @@ export function BunkWallet({ stats }: { stats: SubjectAttendance[] }) {
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         exit={{ scale: [1, 1.9, 0], opacity: [1, 1, 0] }}
-                        transition={{ delay: i * 0.03, type: "spring", stiffness: 400, damping: 22 }}
+                        transition={{
+                          // A subject with twenty spare classes would
+                          // otherwise take most of a second to finish
+                          // filling in.
+                          delay: Math.min(i, STAGGER_CAP) * 0.03,
+                          type: "spring",
+                          stiffness: 400,
+                          damping: 22,
+                        }}
                         className="h-2 w-2 rounded-full"
                         style={{ background: subject.subject.color_hex }}
                       />

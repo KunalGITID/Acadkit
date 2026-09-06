@@ -1,3 +1,5 @@
+import { listEntry } from "@/lib/enter";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -78,15 +80,14 @@ function ScenarioBar({ label, pct, color }: { label: string; pct: number; color:
 }
 
 function SubjectProjectionCard({ p, index }: { p: SubjectProjection; index: number }) {
+  const settled = useHasAnimated("insights-subjects");
   const tone = useTone();
   const risk = RISK_STYLE[p.riskLevel];
   const pace = p.pacePct;
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.04 }}
+      {...listEntry(index, settled)}
       className="card p-5"
     >
       <div className="flex items-start justify-between gap-3">

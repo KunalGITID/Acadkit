@@ -1,3 +1,5 @@
+import { listEntry } from "@/lib/enter";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -37,11 +39,10 @@ function SemesterCard({
   onDelete: (a: SemesterArchive) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const settled = useHasAnimated("history-archives");
   return (
     <motion.section
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.04 }}
+      {...listEntry(index, settled)}
       className="card overflow-hidden"
     >
       <button className="flex w-full items-center gap-4 p-5 text-left" onClick={() => setOpen((v) => !v)}>

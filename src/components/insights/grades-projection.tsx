@@ -1,3 +1,5 @@
+import { listEntry } from "@/lib/enter";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { motion } from "framer-motion";
 import { AlertTriangle } from "lucide-react";
 import { GraduationCap } from "lucide-react";
@@ -43,6 +45,7 @@ function GradeScenarioBar({
 }
 
 function SubjectGradeCard({ p, index }: { p: SubjectGradeProjection; index: number }) {
+  const settled = useHasAnimated("grades-subjects");
   const risk = RISK_STYLE[p.riskLevel];
 
   // Action line
@@ -82,9 +85,7 @@ function SubjectGradeCard({ p, index }: { p: SubjectGradeProjection; index: numb
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.04 }}
+      {...listEntry(index, settled)}
       className="card p-5"
     >
       <div className="flex items-start justify-between gap-3">
