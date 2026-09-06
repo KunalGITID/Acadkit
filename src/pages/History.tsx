@@ -1,3 +1,4 @@
+import { cgpaLadder, completedRecord } from "@/lib/cgpa";
 import { listEntry } from "@/lib/enter";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { useMemo, useState } from "react";
@@ -108,19 +109,23 @@ export default function History() {
     [subjects, marks]
   );
 
-  const { cgpa, completed, cgpaWithCurrent } = useMemo(() => {
-    const done = (archives ?? []).filter((a) => a.sgpa !== null && (a.credits ?? 0) > 0);
-    const cr = done.reduce((s, a) => s + (a.credits ?? 0), 0);
-    const cgpa = cr > 0 ? done.reduce((s, a) => s + (a.sgpa ?? 0) * (a.credits ?? 0), 0) / cr : null;
-    let cgpaWithCurrent: number | null = cgpa;
+  const { cgpa, completed, cgpaWithCurrent, ladder } = useMemo(() => {
+    const record = completedRecord(archives ?? []);
+    let cgpaWithCurrent: number | null = record.cgpa;
     if (current.sgpa !== null && current.totalCredits > 0) {
-      const totalCr = cr + current.totalCredits;
-      const weighted =
-        done.reduce((s, a) => s + (a.sgpa ?? 0) * (a.credits ?? 0), 0) +
-        current.sgpa * current.totalCredits;
-      cgpaWithCurrent = totalCr > 0 ? weighted / totalCr : null;
+      const totalCr = record.credits + current.totalCredits;
+      cgpaWithCurrent =
+        totalCr > 0 ? (record.points + current.sgpa * current.totalCredits) / totalCr : null;
     }
-    return { cgpa, completed: done.length, cgpaWithCurrent };
+    return {
+      cgpa: record.cgpa,
+      completed: record.semesters,
+      cgpaWithCurrent,
+      // What this semester has to return to land on each rung. The
+      // inverse of the number above, which is the direction you can
+      // actually act on in week three.
+      ladder: cgpaLadder(record, current.totalCredits),
+    };
   }, [archives, current]);
 
   async function archiveNow() {
@@ -223,6 +228,45 @@ export default function History() {
           </>
         )}
       </section>
+
+      {/* The CGPA above is a number you read. This is the same maths
+          run backwards, which is the only version you can act on: a
+          semester's SGPA is interesting because of where it leaves the
+          overall figure. */}
+      {/* Only once something is archived. With no prior record CGPA is
+          just this semester's SGPA, so every rung reads "need 8.5 for
+          8.5" — true, and worth nothing. */}
+      {completed > 0 && ladder.length > 0 && (
+        <section className="card p-5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
+            To finish this semester at
+          </p>
+          <ul className="mt-3 space-y-2">
+            {ladder.map(({ target, verdict }) => (
+              <li key={target} className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="font-bold tabular">{target.toFixed(1)} CGPA</span>
+                {verdict.kind === "secured" ? (
+                  <span className="text-xs font-semibold text-good-deep">
+                    already safe whatever happens
+                  </span>
+                ) : verdict.kind === "impossible" ? (
+                  <span className="text-xs font-semibold text-muted">
+                    out of reach — a perfect 10 lands {verdict.shortfall.toFixed(2)} short
+                  </span>
+                ) : (
+                  <span className="text-xs font-semibold">
+                    need <b className="tabular text-accent">{verdict.needed.toFixed(2)}</b> SGPA
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] text-muted">
+            Across {current.totalCredits} credits this semester
+            {completed > 0 ? `, on top of ${completed} archived` : ""}.
+          </p>
+        </section>
+      )}
 
       <Button className="w-full" onClick={archiveNow} disabled={busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}

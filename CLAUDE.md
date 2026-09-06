@@ -264,6 +264,31 @@ free of React:
   today's percentage: measuring against today credits the plan with
   every class you're still going to sit, making each skip look cheaper
   than it is.
+- **`src/lib/extraClasses.ts`** — classes that happened but aren't on
+  the timetable (a makeup, an extra lab, a swapped slot). Needed no
+  schema: an `attendance` row is keyed by (subject, date, start_time)
+  and never had to match a `timetable_slots` row, so an extra class is
+  *derived* — a recorded class the timetable doesn't schedule is the
+  extra class. One source of truth, survives a timetable edit, and
+  clearing the row removes it. Matching is on subject **and** time,
+  because a makeup for a class that already met that day is the common
+  case. Cancellation was always there: it's what marking a slot Off does.
+- **`src/lib/reconcile.ts`** — why a subject's percentage isn't the one
+  the portal printed. The app's figure is the portal's brought up to
+  date, which is the right answer and the most alarming one: two numbers
+  for one subject reads as a broken app. This lays out the arithmetic —
+  what the portal said and when, what's been marked since, the sum. Its
+  key test asserts agreement with `computeSubjectAttendance`, since an
+  explanation that disagrees with the number it explains is just a
+  second opinion.
+- **`src/lib/cgpa.ts`** — `targets.ts` one level up. CGPA is
+  credit-weighted, so `target = (priorPoints + sgpa x currentCredits) /
+  (priorCredits + currentCredits)` rearranged for the unknown gives what
+  this semester must return. "Secured" is a strong claim and means
+  scoring **zero** still clears the target, which is rarer than it
+  sounds. The ladder is hidden until a semester is archived: with no
+  prior record CGPA is just this semester's SGPA and every rung reads
+  "need 8.5 for 8.5".
 - **`src/lib/wrapped.ts`** — the semester counted up. Everything is a
   count of something recorded and anything unknowable comes back null
   for the UI to drop, because one invented superlative discredits the
