@@ -49,7 +49,8 @@ import { LiveClassCard } from "@/components/viz/live-class";
 import { ExamCountdown } from "@/components/viz/exam-countdown";
 import { SurvivalCard } from "@/components/viz/survival-card";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
-import { computeSgpa, gradeForTotal, groupMarksBySubject } from "@/lib/grades";
+import { gradeForTotal, groupMarksBySubject } from "@/lib/grades";
+import { computeSgpa } from "@/lib/plan";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
 import type { Deadline } from "@/types";
@@ -489,9 +490,10 @@ function DeadlinesCard() {
         <div className="space-y-2">
           {upcoming.map((d, i) => {
             const subject = subjects?.find((s) => s.id === d.subject_id);
-            const outlook = d.max_marks
-              ? deadlineTarget(d, (marks ?? []).filter((m) => m.subject_id === d.subject_id))
-              : null;
+            const outlook =
+              d.max_marks && subject
+                ? deadlineTarget(d, subject, (marks ?? []).filter((m) => m.subject_id === d.subject_id))
+                : null;
             const target = outlook ? describeTarget(outlook, Number(d.max_marks)) : null;
             const due = new Date(d.due_date);
             const days = Math.ceil((due.getTime() - Date.now()) / 86_400_000);

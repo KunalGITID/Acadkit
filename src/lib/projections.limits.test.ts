@@ -9,6 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { buildProjection } from "@/lib/projections";
+import { computeSgpa } from "@/lib/plan";
+import { groupMarksBySubject } from "@/lib/grades";
 import { planForSgpa } from "@/lib/sgpaTarget";
 import { gradeForTargetSgpa } from "@/lib/plan";
 import { GRADE_TABLE, type Grade } from "@/lib/grades";
@@ -251,5 +253,60 @@ describe("degenerate semesters", () => {
     expect(r.predictedSgpa).toBe(8); // A
     expect(r.floorSgpa).toBe(8);
     expect(r.ceilingSgpa).toBe(8); // nothing left to change it
+  });
+});
+
+describe("the Dashboard and Insights cannot disagree", () => {
+  /**
+   * The bug this suite exists to prevent.
+   *
+   * Dashboard, Marks, History and Wrapped read `computeSgpa`; Insights
+   * reads `buildProjection`. Until the app moved onto one model those
+   * were different pieces of arithmetic over the same marks, so the
+   * dial on the home screen and the hero on Insights could — and did —
+   * disagree about the same semester. Both now derive from
+   * `subjectOutlook`, and these are the assertions that keep it that way.
+   */
+  it("reports the same SGPA from both entry points, for every target", () => {
+    for (let t = 0; t <= 10.0001; t += 0.5) {
+      const { subjects, marks } = semester();
+      const insights = buildProjection(subjects, [], [], marks, [], undefined, undefined, t);
+      const dashboard = computeSgpa(subjects, groupMarksBySubject(marks));
+      expect(dashboard.sgpa, `target ${t}`).toBeCloseTo(insights.predictedSgpa!, 9);
+      expect(dashboard.countedSubjects).toBe(
+        insights.gradeProjections.filter((p) => p.subject.credits > 0 && p.plan.hasAnyMarks).length
+      );
+    }
+  });
+
+  it("agrees per subject, not just in the average", () => {
+    const { subjects, marks } = semester();
+    const insights = buildProjection(subjects, [], [], marks, []);
+    const dashboard = computeSgpa(subjects, groupMarksBySubject(marks));
+    for (const row of dashboard.rows) {
+      const card = insights.gradeProjections.find((p) => p.subject.id === row.subject.id)!;
+      expect(row.marks.predictedTotal, row.subject.id).toBeCloseTo(card.predictedTotal, 9);
+      expect(row.marks.grade, row.subject.id).toBe(card.predictedGrade);
+      expect(row.marks.banked, row.subject.id).toBeCloseTo(card.banked, 9);
+      expect(row.marks.pool, row.subject.id).toBeCloseTo(card.pool, 9);
+    }
+  });
+
+  it("keeps agreeing when the splits are anything but 60/40", () => {
+    // The case that prompted the port: a semester where no two subjects
+    // are weighted alike.
+    const odd = [
+      subj(4, split(100)),
+      subj(4, split(75)),
+      subj(3, split(50)),
+      subj(3, split(25)),
+      subj(2, split(0)),
+    ];
+    const marks = odd.flatMap((s) => [mk(s.id, "CT-1", 7, 10)]);
+    const insights = buildProjection(odd, [], [], marks, []);
+    const dashboard = computeSgpa(odd, groupMarksBySubject(marks));
+    expect(dashboard.sgpa).toBeCloseTo(insights.predictedSgpa!, 9);
+    // And every one of them is solved on its own weight.
+    expect(insights.gradeProjections.map((p) => p.internalWeight)).toEqual([100, 75, 50, 25, 0]);
   });
 });

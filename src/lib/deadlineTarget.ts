@@ -1,19 +1,41 @@
-import { computeSubjectMarks, gradeForTotal, type Grade } from "@/lib/grades";
-import { targetsFor, type GradeTarget } from "@/lib/targets";
-import type { Deadline, Mark } from "@/types";
+import { type Grade } from "@/lib/grades";
+import { ceilHalf, solveSubjectPlan } from "@/lib/plan";
+import type { Deadline, Mark, Subject } from "@/types";
 
 /**
  * What an upcoming test needs to return.
  *
- * Deadlines are used to set a target and practise toward it, so a date on
- * its own is half the answer. Given what the test is out of, targets.ts
- * already knows the rest — this joins the two.
+ * Deadlines are used to set a target and practise toward it, so a date
+ * on its own is half the answer. Given what the test is out of, the
+ * budget engine knows the rest — this joins the two.
+ *
+ * It reads off `solveSubjectPlan`, the same solve the Insights card
+ * runs, so the number on a deadline row and the number on the card
+ * cannot disagree. The old version used targets.ts, which asked "what
+ * fraction of my entered marks have I earned, and what does adding this
+ * test do to it" — a question whose answer moved when the subject's
+ * split did nothing of the kind.
  *
  * Two grades are worth showing and no more: the one you are currently on
  * pace for, and the next one up. "Hold this" and "reach this" are the
  * only two decisions available before a test; a full ladder of six is a
  * table, not an answer.
  */
+
+export interface GradeTarget {
+  grade: Grade;
+  points: number;
+  /** Percentage threshold this grade starts at. */
+  minTotal: number;
+  /** Marks needed on this test, rounded up to the next half. */
+  required: number;
+  /** Same as a share of the test, for a bar. */
+  requiredPct: number;
+  /** False when even full marks here can't get there. */
+  achievable: boolean;
+  /** True when the grade holds even scoring zero here. */
+  secured: boolean;
+}
 
 export interface DeadlineTarget {
   /** Grade you're on pace for, and what this test needs to keep it. */
@@ -29,20 +51,35 @@ const LADDER: Grade[] = ["O", "A+", "A", "B+", "B", "C", "F"];
 
 export function deadlineTarget(
   deadline: Pick<Deadline, "max_marks">,
+  subject: Subject,
   subjectMarks: Mark[]
 ): DeadlineTarget | null {
   const max = Number(deadline.max_marks ?? 0);
   if (!(max > 0)) return null;
 
-  const current = computeSubjectMarks(subjectMarks);
+  // The target grade is irrelevant here — every field read below comes
+  // off the budget, which doesn't depend on one.
+  const plan = solveSubjectPlan(subject, subjectMarks, "C");
   // With nothing recorded there is no pace to hold, and every grade is
   // still open — a target would be arithmetic, not advice.
-  if (!current.hasAnyMarks) return null;
+  if (!plan.hasAnyMarks || plan.pool <= 0) return null;
 
-  const targets = targetsFor(current, max);
-  if (!targets.length) return null;
+  // This test is part of what's left, so under the same equal-effort
+  // spread the card uses it owes `rate` of its own marks.
+  const targets: GradeTarget[] = plan.perGrade.map((g) => {
+    const required = Math.max(0, g.rate ?? 0) * max;
+    return {
+      grade: g.grade,
+      points: g.points,
+      minTotal: g.minTotal,
+      required: ceilHalf(required),
+      requiredPct: Math.min(100, (required / max) * 100),
+      achievable: g.achievable,
+      secured: g.secured,
+    };
+  });
 
-  const paceGrade = gradeForTotal(current.predictedTotal).grade;
+  const paceGrade = plan.paceGrade ?? plan.floorGrade;
   const i = LADDER.indexOf(paceGrade);
   const nextUp = i > 0 ? LADDER[i - 1] : null;
 
@@ -65,8 +102,8 @@ export function describeTarget(target: DeadlineTarget, max: number): string | nu
   }
   if (hold?.secured) return `${target.current} is safe`;
 
-  // On an F pace there is no `hold` to speak of — targetsFor omits F,
-  // since "what do I need to keep failing" isn't a question. The useful
+  // On an F pace there is no `hold` to speak of — the grade table omits
+  // F, since "what do I need to keep failing" isn't a question. The useful
   // answer is whether the next grade up is still within this test.
   if (!hold && reach) {
     return reach.achievable

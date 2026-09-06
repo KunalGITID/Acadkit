@@ -257,16 +257,37 @@ function gradeRow(grade: Grade) {
  * It's the only rule that re-solves cleanly, because after each result
  * lands the same question is simply asked of a smaller pool.
  */
-export function solveSubjectPlan(
-  subject: Subject,
-  marks: Mark[],
-  targetGrade: Grade
-): SubjectPlan {
-  // F is in the Grade union because a *result* can be an F; aiming at
-  // one is not a thing, and its 0 threshold would report every subject
-  // as already locked.
-  const target = gradeRow(targetGrade === "F" ? "C" : targetGrade);
+/**
+ * A subject's budget, before any target is applied.
+ *
+ * Split out because the same arithmetic answers two different
+ * questions. "What will I get" (the Dashboard dial, the SGPA, the Marks
+ * page) depends only on what has been banked and what is left; "what do
+ * I need for an A" adds a threshold on top. Deriving both from one
+ * function is what stops the Dashboard and Insights disagreeing about
+ * the same subject, which is exactly what happened while the two pages
+ * ran different models.
+ */
+export interface SubjectBudget {
+  internalWeight: number;
+  externalWeight: number;
+  components: SolvedComponent[];
+  /** /100 secured so far — the floor. */
+  banked: number;
+  gradedMax: number;
+  remainingInternal: number;
+  /** Everything still to play for: remaining internals + end-sem. */
+  pool: number;
+  ceiling: number;
+  /** Share of what's been played that you've actually taken, 0–1. */
+  paceRate: number | null;
+  /** /100 if you keep scoring at that share. Null with nothing graded. */
+  pace: number | null;
+  scaled: boolean;
+  hasAnyMarks: boolean;
+}
 
+export function budgetFor(subject: Subject, marks: Mark[]): SubjectBudget {
   const assessment = assessmentFor(subject);
   const internalWeight = assessment.internal;
   const externalWeight = 100 - internalWeight;
@@ -401,18 +422,137 @@ export function solveSubjectPlan(
   const remainingInternal = Math.max(0, internalWeight - gradedInternalMax);
   const pool = pending.reduce((s, c) => s + c.max, 0);
 
+  const paceRate = gradedMax > 1e-9 ? banked / gradedMax : null;
+
+  return {
+    internalWeight,
+    externalWeight,
+    components,
+    banked,
+    gradedMax,
+    remainingInternal,
+    pool,
+    ceiling: banked + pool,
+    paceRate,
+    pace: paceRate === null ? null : banked + paceRate * pool,
+    scaled,
+    hasAnyMarks: graded.length > 0,
+  };
+}
+
+/**
+ * A subject's outlook with no target involved: where your current rate
+ * lands you, and the bracket around it.
+ *
+ * This is what every screen outside Insights needs. It replaced
+ * `computeSubjectMarks`, which read a subject as earned-over-entered
+ * and so called one 5/5 assignment a predicted O.
+ */
+export interface SubjectOutlook extends SubjectBudget {
+  /** Raw internal sums as entered, for "22/30"-style display. */
+  internalObtained: number;
+  internalMax: number;
+  internalComponents: Mark[];
+  /** /100 at your current rate; the floor when nothing is graded yet. */
+  predictedTotal: number;
+  grade: Grade;
+  points: number;
+}
+
+export function subjectOutlook(subject: Subject, marks: Mark[]): SubjectOutlook {
+  const budget = budgetFor(subject, marks);
+  const internalComponents = marks.filter((m) => !m.is_external);
+  const predictedTotal = budget.pace ?? budget.banked;
+  const { grade, points } = gradeForTotal(predictedTotal);
+  return {
+    ...budget,
+    internalComponents,
+    internalObtained: internalComponents.reduce(
+      (s, m) => s + (Number.isFinite(m.marks_obtained) ? m.marks_obtained : 0),
+      0
+    ),
+    internalMax: internalComponents.reduce(
+      (s, m) => s + (Number.isFinite(m.max_marks) ? m.max_marks : 0),
+      0
+    ),
+    predictedTotal,
+    grade,
+    points,
+  };
+}
+
+export interface SgpaResult {
+  sgpa: number | null;
+  totalCredits: number;
+  countedSubjects: number;
+  rows: Array<{ subject: Subject; marks: SubjectOutlook }>;
+  /** Raw internal sums across all subjects, e.g. 22/30. */
+  totalObtained: number;
+  totalMax: number;
+}
+
+/**
+ * Predicted SGPA = Σ(points × credits) / Σcredits over credit-bearing
+ * subjects with at least one mark. 0-credit (audit) subjects never count.
+ *
+ * The points are budget-derived now, so this is the same number
+ * Insights shows rather than a second opinion.
+ */
+export function computeSgpa(
+  subjects: Subject[],
+  marksBySubject: Map<string, Mark[]>
+): SgpaResult {
+  const rows = subjects.map((subject) => ({
+    subject,
+    marks: subjectOutlook(subject, marksBySubject.get(subject.id) ?? []),
+  }));
+  const counted = rows.filter((r) => r.subject.credits > 0 && r.marks.hasAnyMarks);
+  const totalCredits = counted.reduce((s, r) => s + r.subject.credits, 0);
+  const weighted = counted.reduce((s, r) => s + r.marks.points * r.subject.credits, 0);
+  return {
+    sgpa: totalCredits > 0 ? weighted / totalCredits : null,
+    totalCredits,
+    countedSubjects: counted.length,
+    rows,
+    totalObtained: rows.reduce((s, r) => s + r.marks.internalObtained, 0),
+    totalMax: rows.reduce((s, r) => s + r.marks.internalMax, 0),
+  };
+}
+
+export function solveSubjectPlan(
+  subject: Subject,
+  marks: Mark[],
+  targetGrade: Grade
+): SubjectPlan {
+  const target = gradeRow(targetGrade === "F" ? "C" : targetGrade);
+
+  const {
+    internalWeight,
+    externalWeight,
+    components,
+    banked,
+    gradedMax,
+    remainingInternal,
+    pool,
+    ceiling,
+    paceRate,
+    pace,
+    scaled,
+    hasAnyMarks,
+  } = budgetFor(subject, marks);
+
   const needed = target.min - banked;
   const requiredRate = pool > 1e-9 ? needed / pool : null;
 
-  for (const c of pending) {
+  // The equal-effort spread: every component still in play is asked for
+  // the same share of its own marks.
+  for (const c of components) {
+    if (c.obtained !== null) continue;
     c.required = requiredRate === null ? null : Math.max(0, requiredRate) * c.max;
     c.requiredPct = c.required === null || c.max <= 0 ? null : (c.required / c.max) * 100;
   }
 
   const floor = banked;
-  const ceiling = banked + pool;
-  const paceRate = gradedMax > 1e-9 ? banked / gradedMax : null;
-  const pace = paceRate === null ? null : banked + paceRate * pool;
 
   let status: PlanStatus;
   if (pool <= 1e-9) status = "final";
@@ -461,6 +601,6 @@ export function solveSubjectPlan(
     slack: ceiling >= target.min - 1e-9 ? ceiling - target.min : null,
     scaled,
     perGrade,
-    hasAnyMarks: graded.length > 0,
+    hasAnyMarks,
   };
 }

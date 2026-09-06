@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   assessmentFor,
+  computeSgpa,
+  subjectOutlook,
   ceilHalf,
   DEFAULT_INTERNAL_WEIGHT,
   editableAssessment,
@@ -348,5 +350,122 @@ describe("plan-editor helpers", () => {
     };
     expect(editableAssessment(draft, false).components).toHaveLength(1);
     expect(assessmentFor(subject(draft)).components).toHaveLength(0);
+  });
+});
+
+describe("subjectOutlook — the number every screen outside Insights shows", () => {
+  it("respects the split instead of ignoring it", () => {
+    // Same marks, three different courses. The old model returned 80
+    // for all three, because it never looked at the split.
+    const marks = [mark("CT-1", 12, 15)];
+    const at = (internal: number) =>
+      subjectOutlook(subject({ internal, components: plan([["CT-1", 15]]) }), marks);
+
+    expect(at(60).pool).toBe(85); // 45 internal + 40 end sem
+    expect(at(100).pool).toBe(85); // all internal, none of it external
+    expect(at(20).pool).toBeCloseTo(85, 6); // 5 internal + 80 end sem
+    expect(at(15).internalWeight).toBe(15); // a 15/85 course is a course
+  });
+
+  it("counts a recorded end-sem, which the old model discarded", () => {
+    // "Externals are intentionally ignored" was true and wrong: once the
+    // paper is marked it is 40 of the 100, not a footnote.
+    const s = subject({ internal: 60, components: plan([["CT-1", 60]]) });
+    const withExt = subjectOutlook(s, [mark("CT-1", 30, 60), mark("End sem", 40, 40, true)]);
+    expect(withExt.banked).toBe(70);
+    expect(withExt.pool).toBe(0);
+    expect(withExt.predictedTotal).toBe(70);
+    expect(withExt.grade).toBe("B+");
+
+    const withoutExt = subjectOutlook(s, [mark("CT-1", 30, 60)]);
+    expect(withoutExt.pool).toBe(40);
+    expect(withoutExt.predictedTotal).toBe(50); // half of everything, projected
+  });
+
+  it("keeps the raw sums the Marks page prints", () => {
+    const o = subjectOutlook(subject({ internal: 60, components: [] }), [
+      mark("CT-1", 12, 15),
+      mark("Assignment", 4, 5),
+    ]);
+    expect(o.internalObtained).toBe(16);
+    expect(o.internalMax).toBe(20);
+    expect(o.internalComponents).toHaveLength(2);
+  });
+
+  it("predicts the floor, not zero, before anything is graded", () => {
+    const o = subjectOutlook(subject({ internal: 60, components: [] }), []);
+    expect(o.hasAnyMarks).toBe(false);
+    expect(o.predictedTotal).toBe(0);
+    expect(o.pool).toBe(100);
+  });
+});
+
+describe("computeSgpa on the budget model", () => {
+  const s = (id: string, credits: number, internal = 60): Subject => ({
+    ...subject({ internal, components: [] }),
+    id,
+    code: id,
+    credits,
+  });
+
+  it("weights by credits and excludes audits and unmarked subjects", () => {
+    const subjects = [s("a", 4), s("b", 4), s("z", 0), s("n", 3)];
+    const map = new Map<string, Mark[]>([
+      ["a", [mark("CT-1", 13, 15)]], // 86.7 → A+
+      ["b", [mark("CT-1", 12, 15)]], // 80 → A
+      ["z", [mark("CT-1", 15, 15)]], // audit, excluded from SGPA
+    ]);
+    const r = computeSgpa(subjects, map);
+    expect(r.totalCredits).toBe(8);
+    expect(r.countedSubjects).toBe(2);
+    expect(r.sgpa).toBeCloseTo((9 * 4 + 8 * 4) / 8, 5);
+    // Raw sums still span every marked subject, audit included.
+    expect(r.totalObtained).toBe(40);
+    expect(r.totalMax).toBe(45);
+  });
+
+  it("brackets the same pace differently on different splits", () => {
+    // Worth being precise about what the split does and does not move.
+    // The *pace* read is scale-invariant — keep taking half of every
+    // mark and you finish on 50 whatever the course looks like — so the
+    // headline SGPA is unchanged. What the split changes is how much of
+    // that 50 is already yours, which is the difference between "on
+    // course for a C" and "a C is banked".
+    const marks = new Map([["a", [mark("CT-1", 20, 40)]]]);
+    const mostlyInternal = computeSgpa(
+      [{ ...s("a", 4), assessment: { internal: 100, complete: true, components: [{ key: "k", label: "CT-1", type: "CT", max: 40 }] } }],
+      marks
+    );
+    const mostlyExternal = computeSgpa(
+      [{ ...s("a", 4), assessment: { internal: 20, complete: true, components: [{ key: "k", label: "CT-1", type: "CT", max: 40 }] } }],
+      marks
+    );
+
+    const internalRow = mostlyInternal.rows[0].marks;
+    const externalRow = mostlyExternal.rows[0].marks;
+
+    // Identical pace, therefore identical predicted grade.
+    expect(mostlyInternal.sgpa).toBe(mostlyExternal.sgpa);
+    expect(internalRow.predictedTotal).toBe(50);
+    expect(externalRow.predictedTotal).toBe(50);
+
+    // And almost nothing else about them is the same. One course is
+    // over — a C, banked, nothing left to change it. The other has
+    // banked 10 and has 80 marks in play, so it can still finish
+    // anywhere from an F to an A+. Reporting both as "C" and stopping
+    // there is what the old model did.
+    expect(internalRow.banked).toBe(50);
+    expect(internalRow.pool).toBe(0);
+    expect(internalRow.ceiling).toBe(50);
+
+    expect(externalRow.banked).toBe(10);
+    expect(externalRow.pool).toBe(80);
+    expect(externalRow.ceiling).toBe(90);
+  });
+
+  it("returns null rather than 0 when nothing can be projected", () => {
+    expect(computeSgpa([s("z", 0)], new Map()).sgpa).toBeNull();
+    expect(computeSgpa([], new Map()).sgpa).toBeNull();
+    expect(computeSgpa([s("a", 4)], new Map()).sgpa).toBeNull();
   });
 });
