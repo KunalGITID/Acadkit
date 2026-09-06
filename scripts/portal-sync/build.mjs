@@ -74,9 +74,14 @@ const source = readFileSync(resolve(here, "portal-sync.js"), "utf8")
   .replace("__DIAG_ONLY__", String(diagOnly));
 
 const { outputFiles } = await build({
-  stdin: { contents: source, loader: "js" },
+  // resolveDir so the shared parser import resolves; bundled because
+  // src/lib/portal/parse.ts is the one copy and the app owns it. A
+  // second copy living here is exactly how a parser and its tests drift
+  // apart while both keep passing.
+  stdin: { contents: source, loader: "js", resolveDir: here },
   minify: true,
-  bundle: false,
+  bundle: true,
+  format: "iife",
   write: false,
   target: ["safari14", "chrome90"],
 });

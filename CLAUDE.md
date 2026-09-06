@@ -312,6 +312,24 @@ and posts the rows to the **portal-ingest** edge function — it runs inside
 the page you already logged into, so no SRM credentials are stored
 anywhere.
 
+**The parser lives in `src/lib/portal/parse.ts`, not in the bookmarklet.**
+It was extracted because the bookmarklet only runs on a desktop browser,
+which is not the device the app lives on — so a phone had no way to pull
+fresh figures, which is the root of every "why doesn't this match the
+portal" moment. Two callers now share one parser: the bookmarklet
+(scraping a live page, with the modal-opening and panel code it still
+owns) and **Settings → paste a portal page**, which reads `text/html`
+off a paste event and runs the same scrapers over it. `build.mjs`
+bundles rather than just minifying so the import resolves, and both test
+files import the module instead of `eval`-ing the built script.
+
+The paste route needs no OCR, no scraping service and no new credential,
+and the portal password stays uninvolved. Its limits are real and stated
+in the UI: a plain-text clipboard loses the table structure (the sheet
+says so rather than blaming the portal), and sp.srmist.edu.in's
+per-component marks live behind a modal per subject, so pasting that
+summary page yields attendance but no marks.
+
 It used to write straight to PostgREST with the anon key. Owner-scoped
 RLS (migration 015) left anon with no policies, so those writes began
 failing with 42501. Embedding a Supabase refresh token instead would put

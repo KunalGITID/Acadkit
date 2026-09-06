@@ -12,6 +12,23 @@
  * regenerates class names between deploys. If a table shape changes, the
  * preview panel shows nothing rather than writing something wrong.
  */
+import {
+  cellsOf,
+  classify,
+  findDetailTable,
+  low,
+  norm,
+  num,
+  RE_DETAIL_BTN,
+  rowsOf,
+  scrapeAttendance,
+  scrapeComponents,
+  scrapeMarks,
+  splitPair,
+  tablesIn as tables,
+  diagnose as sharedDiagnose,
+} from "../../src/lib/portal/parse";
+
 (function () {
   "use strict";
 
@@ -62,292 +79,6 @@
       }
     }
     return { docs: docs, blocked: blocked };
-  }
-
-  function tables(docs) {
-    var out = [];
-    for (var i = 0; i < docs.length; i++) {
-      var found = docs[i].querySelectorAll("table");
-      for (var j = 0; j < found.length; j++) out.push(found[j]);
-    }
-    return out;
-  }
-
-  /** Direct element children of `el` whose tag is in `tags`. */
-  function kids(el, tags) {
-    var out = [];
-    var children = el.children || [];
-    for (var i = 0; i < children.length; i++) {
-      if (tags.indexOf(children[i].tagName.toLowerCase()) > -1) out.push(children[i]);
-    }
-    return out;
-  }
-
-  /**
-   * A table's own rows, in document order, walking children explicitly
-   * rather than using `table.rows` — that property would also hand back
-   * rows belonging to tables nested inside a cell, which the marks report
-   * is full of.
-   */
-  function rowsOf(table) {
-    var out = [];
-    var children = table.children || [];
-    for (var i = 0; i < children.length; i++) {
-      var tag = children[i].tagName.toLowerCase();
-      if (tag === "tr") out.push(children[i]);
-      else if (tag === "thead" || tag === "tbody" || tag === "tfoot") {
-        var trs = kids(children[i], ["tr"]);
-        for (var j = 0; j < trs.length; j++) out.push(trs[j]);
-      }
-    }
-    return out;
-  }
-
-  function cellsOf(tr) {
-    return kids(tr, ["td", "th"]);
-  }
-
-  /** Header labels for a table: <thead> cells, else the first row. */
-  function headers(table) {
-    var head = kids(table, ["thead"])[0];
-    var row = head ? kids(head, ["tr"])[0] : rowsOf(table)[0];
-    if (!row) return [];
-    var cells = cellsOf(row);
-    var out = [];
-    for (var i = 0; i < cells.length; i++) out.push(low(cells[i].textContent));
-    return out;
-  }
-
-  /**
-   * Index of the first header matching `re`, or -1. `not` skips headers
-   * that would otherwise be claimed by a broader pattern — "Total Hours
-   * Absent" reads as both a conducted and an absent column otherwise.
-   */
-  function col(hs, re, not) {
-    for (var i = 0; i < hs.length; i++) {
-      if (not && not.test(hs[i])) continue;
-      if (re.test(hs[i])) return i;
-    }
-    return -1;
-  }
-
-  /** Body rows, skipping the row that was consumed as the header. */
-  function bodyRows(table) {
-    var all = rowsOf(table);
-    var head = kids(table, ["thead"])[0];
-    if (head) {
-      // Header lives in its own section, so every row here is data.
-      var headRows = kids(head, ["tr"]);
-      return all.slice(headRows.length);
-    }
-    return all.slice(1);
-  }
-
-  // ---------- attendance ----------
-
-  var RE_CODE = /course\s*code|subject\s*code|^code$/;
-  var RE_CONDUCTED = /conducted|max.*hour|total\s*(?:class|hour)/;
-  var RE_ABSENT = /absent/;
-  // Some portals report classes attended instead of missed; absences are
-  // then conducted − present.
-  var RE_PRESENT = /present|attended/;
-  var RE_PCT = /%|percent/;
-
-  function scrapeAttendance(all) {
-    for (var t = 0; t < all.length; t++) {
-      var hs = headers(all[t]);
-      var iCode = col(hs, RE_CODE);
-      var iCond = col(hs, RE_CONDUCTED, RE_ABSENT);
-      var iAbs = col(hs, RE_ABSENT);
-      var iPres = iAbs < 0 ? col(hs, RE_PRESENT) : -1;
-      if (iCode < 0 || iCond < 0 || (iAbs < 0 && iPres < 0)) continue;
-
-      var iPct = col(hs, RE_PCT);
-      var rows = bodyRows(all[t]);
-      var out = [];
-      for (var r = 0; r < rows.length; r++) {
-        var c = cellsOf(rows[r]);
-        if (!c || c.length <= Math.max(iCode, iCond, iAbs, iPres)) continue;
-        var code = norm(c[iCode].textContent).toUpperCase();
-        var conducted = num(c[iCond].textContent);
-        var absent;
-        if (iAbs >= 0) {
-          absent = num(c[iAbs].textContent);
-        } else {
-          var present = num(c[iPres].textContent);
-          absent = present === null || conducted === null ? null : conducted - present;
-        }
-        if (!code || conducted === null || absent === null || absent < 0) continue;
-        out.push({
-          subject_code: code,
-          conducted: conducted,
-          absent: absent,
-          percentage: iPct >= 0 && c[iPct] ? num(c[iPct].textContent) : null,
-        });
-      }
-      if (out.length) return out;
-    }
-    return [];
-  }
-
-  // ---------- marks ----------
-
-  var RE_PERF = /test\s*performance|performance|marks?\b/;
-
-  function classify(label) {
-    var l = low(label);
-    if (/^(ct|pt|cycle|periodical|unit\s*test)/.test(l)) return "CT";
-    if (/lab|practical|experiment/.test(l)) return "Lab";
-    if (/assign|hw|homework/.test(l)) return "Assignment";
-    if (/project|model|mini/.test(l)) return "Project";
-    return "CT";
-  }
-
-  /** "CT1/50.00" -> { label: "CT1", max: 50 }, else null. */
-  function splitHead(text) {
-    var m = norm(text).match(/^(.+?)\s*\/\s*(\d+(?:\.\d+)?)$/);
-    if (!m) return null;
-    var label = norm(m[1]);
-    if (!label) return null;
-    return { label: label, max: parseFloat(m[2]) };
-  }
-
-  /**
-   * A performance cell holds one mini-table per test: a header cell
-   * "CT1/50.00" over a value cell "34.00". Absent shows as "Abs".
-   */
-  function parsePerf(cell) {
-    var out = [];
-    var nested = cell.querySelectorAll("table");
-    for (var n = 0; n < nested.length; n++) {
-      var rows = rowsOf(nested[n]);
-      if (rows.length < 2) continue;
-      var heads = cellsOf(rows[0]);
-      var vals = cellsOf(rows[1]);
-      for (var i = 0; i < heads.length; i++) {
-        var h = splitHead(heads[i].textContent);
-        if (!h || i >= vals.length) continue;
-        var raw = norm(vals[i].textContent);
-        var obtained = /^abs/i.test(raw) ? 0 : num(raw);
-        if (obtained === null) continue;
-        out.push({ label: h.label, max: h.max, obtained: obtained });
-      }
-    }
-    if (out.length) return out;
-
-    // Fallback for flat markup. Requires whitespace between max and
-    // obtained — without it "50.0034.00" is genuinely ambiguous, and
-    // reporting nothing beats writing a wrong mark.
-    var re = /([A-Za-z][A-Za-z0-9 ._-]{0,23}?)\s*\/\s*(\d+(?:\.\d+)?)\s+(Abs(?:ent)?|\d+(?:\.\d+)?)/gi;
-    var text = norm(cell.textContent);
-    var m;
-    while ((m = re.exec(text)) !== null) {
-      out.push({
-        label: norm(m[1]),
-        max: parseFloat(m[2]),
-        obtained: /^abs/i.test(m[3]) ? 0 : parseFloat(m[3]),
-      });
-    }
-    return out;
-  }
-
-  function scrapeMarks(all) {
-    for (var t = 0; t < all.length; t++) {
-      var hs = headers(all[t]);
-      var iCode = col(hs, RE_CODE);
-      var iPerf = col(hs, RE_PERF);
-      // Skip the attendance table, which also has a course-code column.
-      if (iCode < 0 || iPerf < 0 || col(hs, RE_CONDUCTED, RE_ABSENT) >= 0) continue;
-      if (col(hs, RE_ABSENT) >= 0 || col(hs, RE_PRESENT) >= 0) continue;
-
-      var rows = bodyRows(all[t]);
-      var out = [];
-      for (var r = 0; r < rows.length; r++) {
-        var c = cellsOf(rows[r]);
-        if (!c || c.length <= Math.max(iCode, iPerf)) continue;
-        var code = norm(c[iCode].textContent).toUpperCase();
-        if (!code) continue;
-        var tests = parsePerf(c[iPerf]);
-        for (var k = 0; k < tests.length; k++) {
-          out.push({
-            subject_code: code,
-            label: tests[k].label,
-            max_marks: tests[k].max,
-            marks_obtained: tests[k].obtained,
-            component_type: classify(tests[k].label),
-          });
-        }
-      }
-      if (out.length) return out;
-    }
-    return [];
-  }
-
-  // ---------- component-wise marks ----------
-
-  // sp.srmist.edu.in splits marks across two views: a summary table with
-  // one combined "2.00 / 5.00" total per subject, and a modal — one per
-  // subject, behind a "View Details" button — holding the labelled
-  // components. The summary alone is not enough: a total is not a test.
-
-  var RE_COMPONENT = /^component$/;
-  var RE_MARK_PAIR = /mark\s*\/\s*max/;
-  var RE_DETAIL_BTN = "button[onclick*='ComponentWiseMarks']";
-
-  /** "2.00 / 5.00" -> { obtained: 2, max: 5 }. "Abs" counts as 0. */
-  function splitPair(text) {
-    var m = norm(text).match(
-      /^(Abs(?:ent)?|\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/i
-    );
-    if (!m) return null;
-    return {
-      obtained: /^abs/i.test(m[1]) ? 0 : parseFloat(m[1]),
-      max: parseFloat(m[2]),
-    };
-  }
-
-  /**
-   * The component modal: "Entered on | Component | Mark / Max. Mark".
-   * The subject is the row that opened the modal, not a column, so the
-   * code is passed in rather than read off the table.
-   */
-  function scrapeComponents(all, code) {
-    for (var t = 0; t < all.length; t++) {
-      var hs = headers(all[t]);
-      var iComp = col(hs, RE_COMPONENT);
-      var iPair = col(hs, RE_MARK_PAIR);
-      if (iComp < 0 || iPair < 0) continue;
-
-      var rows = bodyRows(all[t]);
-      var out = [];
-      for (var r = 0; r < rows.length; r++) {
-        var c = cellsOf(rows[r]);
-        if (!c || c.length <= Math.max(iComp, iPair)) continue;
-        var label = norm(c[iComp].textContent);
-        var pair = splitPair(c[iPair].textContent);
-        if (!label || !pair) continue;
-        out.push({
-          subject_code: code,
-          label: label,
-          max_marks: pair.max,
-          marks_obtained: pair.obtained,
-          component_type: classify(label),
-        });
-      }
-      if (out.length) return out;
-    }
-    return [];
-  }
-
-  /** The summary table whose rows carry a "View Details" button. */
-  function findDetailTable(all) {
-    for (var t = 0; t < all.length; t++) {
-      var iCode = col(headers(all[t]), RE_CODE);
-      if (iCode < 0) continue;
-      if (!all[t].querySelector(RE_DETAIL_BTN)) continue;
-      return { table: all[t], iCode: iCode };
-    }
-    return null;
   }
 
   function sleep(ms) {
@@ -500,80 +231,17 @@
    * A candidate is any container whose element children repeat a tag+class
    * signature at least three times, each with 2+ children of its own.
    */
-  function gridsIn(docs, clip) {
-    var out = [];
-    var sig = function (el) {
-      return el.tagName.toLowerCase() + "." + norm(el.className || "").replace(/\s+/g, ".");
-    };
-    for (var d = 0; d < docs.length && out.length < 12; d++) {
-      var nodes = docs[d].querySelectorAll(
-        "[role=grid],[role=table],[role=rowgroup],div,ul,ol,section"
-      );
-      for (var i = 0; i < nodes.length && out.length < 12; i++) {
-        var children = nodes[i].children || [];
-        if (children.length < 3) continue;
-        var first = sig(children[0]);
-        if (!first) continue;
-        var same = 0;
-        for (var c = 0; c < children.length; c++) if (sig(children[c]) === first) same++;
-        if (same < 3 || same < children.length - 1) continue;
-        if ((children[0].children || []).length < 2) continue;
-        // Skip a container whose repetition is inherited from a child that
-        // already qualified — the outermost match describes it better.
-        if (nodes[i].querySelector("table")) continue;
-
-        var rows = [];
-        for (var r = 0; r < Math.min(3, children.length); r++) {
-          var cells = children[r].children || [];
-          var line = [];
-          for (var k = 0; k < cells.length; k++) line.push(clip(cells[k].textContent));
-          rows.push(line);
-        }
-        out.push({
-          container: sig(nodes[i]),
-          rowSignature: first,
-          rowCount: same,
-          sample: rows,
-        });
-      }
-    }
-    return out;
-  }
-
+  /** Context only the live page can supply; the rest is shared. */
   function diagnose(found, all) {
-    var clip = function (t) {
-      t = norm(t);
-      return t.length > 60 ? t.slice(0, 60) + "…" : t;
-    };
-    var out = {
+    return sharedDiagnose(found.docs, all, {
       url: location.origin + location.pathname,
       // The JSP portal routes on the hash, so the fragment is the only
       // record of which report was actually on screen when this ran.
       hash: location.hash || "",
-      title: clip(document.title),
+      title: document.title,
       documents: found.docs.length,
       blockedFrames: found.blocked,
-      tables: [],
-      grids: gridsIn(found.docs, clip),
-    };
-    for (var i = 0; i < all.length; i++) {
-      var rows = bodyRows(all[i]);
-      var sample = [];
-      for (var r = 0; r < Math.min(2, rows.length); r++) {
-        var cells = cellsOf(rows[r]);
-        var line = [];
-        for (var c = 0; c < cells.length; c++) line.push(clip(cells[c].textContent));
-        sample.push(line);
-      }
-      out.tables.push({
-        index: i,
-        headers: headers(all[i]),
-        rowCount: rows.length,
-        nestedTables: all[i].querySelectorAll("table").length,
-        sample: sample,
-      });
-    }
-    return JSON.stringify(out, null, 1);
+    });
   }
 
   // ---------- panel ----------

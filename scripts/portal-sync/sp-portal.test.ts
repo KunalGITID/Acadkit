@@ -14,45 +14,17 @@
  *                         lives behind a "View Details" button.
  *   The component modal — what that button loads.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-interface SyncApi {
-  scrapeAttendance: (tables: HTMLTableElement[]) => Array<{
-    subject_code: string;
-    conducted: number;
-    absent: number;
-    percentage: number | null;
-  }>;
-  scrapeMarks: (tables: HTMLTableElement[]) => Array<Mark>;
-  scrapeComponents: (tables: HTMLTableElement[], code: string) => Array<Mark>;
-  splitPair: (text: string) => { obtained: number; max: number } | null;
-  findDetailTable: (
-    tables: HTMLTableElement[]
-  ) => { table: HTMLTableElement; iCode: number } | null;
-}
+import {
+  findDetailTable,
+  scrapeAttendance,
+  scrapeComponents,
+  scrapeMarks,
+  splitPair,
+} from "@/lib/portal/parse";
 
-interface Mark {
-  subject_code: string;
-  label: string;
-  max_marks: number;
-  marks_obtained: number;
-  component_type: string;
-}
-
-let api: SyncApi;
-
-beforeAll(() => {
-  const src = readFileSync(resolve(__dirname, "portal-sync.js"), "utf8")
-    .replace("__SUPABASE_URL__", "https://example.supabase.co")
-    .replace("__SUPABASE_ANON_KEY__", "test-key")
-    .replace("__PIN__", "1234")
-    .replace("__DIAG_ONLY__", "false");
-  (window as unknown as Record<string, unknown>).__ACADKIT_SYNC_TEST__ = true;
-  new Function(src)();
-  api = (window as unknown as { __acadkitSync: SyncApi }).__acadkitSync;
-});
+const api = { findDetailTable, scrapeAttendance, scrapeComponents, scrapeMarks, splitPair };
 
 /** Parse an HTML string and hand back every table in it. */
 function tablesOf(html: string): HTMLTableElement[] {

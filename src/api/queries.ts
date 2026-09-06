@@ -352,6 +352,122 @@ export async function fetchMarks(pin: string): Promise<Mark[]> {
   return (data as Mark[]) ?? [];
 }
 
+// ---------- portal import (from a pasted page) ----------
+
+/**
+ * Write what was parsed out of a pasted portal page.
+ *
+ * The same shape the portal-ingest edge function writes, run under the
+ * user's own session instead. The bookmarklet needs a server-side
+ * endpoint because it runs on the portal's origin with no AcadKit
+ * session and would otherwise have to carry a credential; the app is
+ * already signed in, so it just writes.
+ */
+export interface PortalImportResult {
+  snapshots: number;
+  marksAdded: number;
+  marksUpdated: number;
+  /** Codes the portal reported that no subject in AcadKit matches. */
+  unmatchedCodes: string[];
+}
+
+export async function importPortalData(
+  pin: string,
+  input: {
+    attendance: Array<{
+      subject_code: string;
+      conducted: number;
+      absent: number;
+      percentage: number | null;
+    }>;
+    marks: Array<{
+      subject_code: string;
+      label: string;
+      max_marks: number;
+      marks_obtained: number;
+      component_type: string;
+    }>;
+  }
+): Promise<PortalImportResult> {
+  const today = new Date().toLocaleDateString("en-CA");
+  const result: PortalImportResult = {
+    snapshots: 0,
+    marksAdded: 0,
+    marksUpdated: 0,
+    unmatchedCodes: [],
+  };
+
+  if (input.attendance.length) {
+    const rows = input.attendance.map((a) => ({
+      device_id: pin,
+      subject_code: a.subject_code,
+      conducted: a.conducted,
+      absent: a.absent,
+      percentage: a.percentage,
+      as_of: today,
+      synced_at: new Date().toISOString(),
+    }));
+    const { error } = await supabase
+      .from("portal_snapshots")
+      .upsert(rows, { onConflict: "device_id,subject_code" });
+    if (error) throw error;
+    result.snapshots = rows.length;
+  }
+
+  if (input.marks.length) {
+    const { data: subjects } = await supabase
+      .from("subjects")
+      .select("id,code")
+      .eq("device_id", pin);
+    const byCode = new Map(
+      (subjects ?? []).map((s) => [String(s.code).trim().toUpperCase(), s.id as string])
+    );
+
+    // Only rows this sync owns are touched, so a mark typed by hand is
+    // never overwritten by a re-import.
+    const { data: existing } = await supabase
+      .from("marks")
+      .select("id,subject_id,label")
+      .eq("device_id", pin)
+      .eq("source", "portal");
+    const seen = new Map(
+      (existing ?? []).map((m) => [`${m.subject_id}|${m.label}`, m.id as string])
+    );
+
+    const unmatched = new Set<string>();
+    for (const m of input.marks) {
+      const subjectId = byCode.get(m.subject_code.trim().toUpperCase());
+      if (!subjectId) {
+        unmatched.add(m.subject_code);
+        continue;
+      }
+      const row = {
+        device_id: pin,
+        subject_id: subjectId,
+        component_type: m.component_type,
+        label: m.label,
+        marks_obtained: m.marks_obtained,
+        max_marks: m.max_marks,
+        is_external: false,
+        source: "portal",
+      };
+      const id = seen.get(`${subjectId}|${m.label}`);
+      if (id) {
+        const { error } = await supabase.from("marks").update(row).eq("id", id);
+        if (error) throw error;
+        result.marksUpdated++;
+      } else {
+        const { error } = await supabase.from("marks").insert(row);
+        if (error) throw error;
+        result.marksAdded++;
+      }
+    }
+    result.unmatchedCodes = [...unmatched];
+  }
+
+  return result;
+}
+
 // ---------- portal snapshots ----------
 
 /**

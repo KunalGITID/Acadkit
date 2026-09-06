@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CalendarRange,
+  ClipboardPaste,
   Target,
   Check,
   Loader2,
@@ -24,6 +25,7 @@ import { Field, Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Dot } from "@/components/ui/misc";
 import { SubjectSheet } from "@/components/sheets/subject-sheet";
+import { PortalPasteSheet } from "@/components/sheets/portal-paste-sheet";
 import { usePush } from "@/hooks/usePush";
 import { useSession } from "@/hooks/useSession";
 import { SetupCard } from "@/components/settings/setup-card";
@@ -542,6 +544,7 @@ function RefreshCard() {
   const qc = useQueryClient();
   const { data: snapshots } = usePortalSnapshots();
   const [busy, setBusy] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
 
   const health = syncHealth(snapshots ?? []);
 
@@ -605,12 +608,20 @@ function RefreshCard() {
             : `Portal data synced ${relativeDay(health.asOf!)}.`}
       </p>
 
-      {health.state !== "never" && (
-        <p className="text-[11px] text-muted">
-          Refreshing pulls what the server already has. New portal figures
-          need the sync bookmarklet while you're signed in to the portal.
-        </p>
-      )}
+      {/* Refreshing only pulls what the server already has. Getting
+          *new* figures used to mean the bookmarklet, which runs on a
+          desktop browser — not the device this app lives on, which is
+          why portal data went stale in the first place. */}
+      <Button variant="secondary" className="w-full" onClick={() => setPasteOpen(true)}>
+        <ClipboardPaste className="h-4 w-4" />
+        Paste a portal page
+      </Button>
+      <p className="text-[11px] text-muted">
+        Copy your attendance or marks page from the portal and paste it here — works on your
+        phone. The bookmarklet is still there for a desktop, and does the same thing.
+      </p>
+
+      <PortalPasteSheet open={pasteOpen} onClose={() => setPasteOpen(false)} />
     </section>
   );
 }

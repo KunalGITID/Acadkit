@@ -7,48 +7,21 @@
  * layouts, and prove ambiguous markup yields nothing rather than a wrong
  * number. Replace them with real saved markup when it's available.
  */
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-interface SyncApi {
-  scrapeAttendance: (tables: HTMLTableElement[]) => Array<{
-    subject_code: string;
-    conducted: number;
-    absent: number;
-    percentage: number | null;
-  }>;
-  scrapeMarks: (tables: HTMLTableElement[]) => Array<{
-    subject_code: string;
-    label: string;
-    max_marks: number;
-    marks_obtained: number;
-    component_type: string;
-  }>;
-  tables: (docs: Document[]) => HTMLTableElement[];
-  classify: (label: string) => string;
-  diagnose: (
-    found: { docs: Document[]; blocked: number },
-    all: HTMLTableElement[]
-  ) => string;
-}
+import {
+  classify,
+  diagnose,
+  scrapeAttendance,
+  scrapeMarks,
+  tablesIn,
+} from "@/lib/portal/parse";
 
-let api: SyncApi;
-
-beforeAll(() => {
-  const src = readFileSync(resolve(__dirname, "portal-sync.js"), "utf8")
-    .replace("__SUPABASE_URL__", "https://example.supabase.co")
-    .replace("__SUPABASE_ANON_KEY__", "test-key")
-    .replace("__PIN__", "1234")
-    .replace("__DIAG_ONLY__", "false");
-  (window as unknown as Record<string, unknown>).__ACADKIT_SYNC_TEST__ = true;
-  new Function(src)();
-  api = (window as unknown as Record<string, unknown>).__acadkitSync as SyncApi;
-});
+const api = { classify, scrapeAttendance, scrapeMarks, tables: tablesIn };
 
 function load(html: string): HTMLTableElement[] {
   document.body.innerHTML = html;
-  return api.tables([document]);
+  return api.tables([document]) as HTMLTableElement[];
 }
 
 const ATTENDANCE_HTML = `
@@ -218,8 +191,16 @@ describe("attendance reported as classes attended", () => {
 describe("diagnostics", () => {
   const dump = (html: string) => {
     document.body.innerHTML = html;
-    const found = { docs: [document], blocked: 0 };
-    return JSON.parse(api.diagnose(found, api.tables(found.docs)));
+    const docs = [document];
+    return JSON.parse(
+      diagnose(docs, api.tables(docs), {
+        url: location.origin + location.pathname,
+        hash: location.hash || "",
+        title: document.title,
+        documents: docs.length,
+        blockedFrames: 0,
+      })
+    );
   };
 
   it("describes a div-based report that the table scrapers can't see", () => {
