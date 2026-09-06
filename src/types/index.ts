@@ -1,5 +1,35 @@
 export type SubjectType = "theory" | "lab";
 
+/**
+ * Declared here rather than in lib/grades.ts because `Subject` needs it
+ * and types/ is the leaf: the other direction would be a cycle.
+ * `lib/grades.ts` re-exports it, so every existing import still works.
+ */
+export type Grade = "O" | "A+" | "A" | "B+" | "B" | "C" | "F";
+
+/** One declared internal component, in marks out of the internal weight. */
+export interface PlannedComponent {
+  /** Stable across edits so React keys and mark-matching survive renames. */
+  key: string;
+  label: string;
+  type: MarkComponentType;
+  max: number;
+}
+
+/**
+ * How a subject's /100 is built: the internal share, and the components
+ * that make it up. Partial by default — SRM faculty announce tests at
+ * their own pace, so undeclared internal weight stays an open bucket
+ * rather than being assumed away. See src/lib/plan.ts.
+ */
+export interface Assessment {
+  /** Internal share of the /100; the end-sem is the remainder. */
+  internal: number;
+  /** True when `components` is the whole internal breakdown. */
+  complete: boolean;
+  components: PlannedComponent[];
+}
+
 export interface Subject {
   id: string;
   device_id: string;
@@ -13,6 +43,18 @@ export interface Subject {
   short_name?: string | null;
   /** No end-sem exam — internals make the full /100 (migration 008). */
   internal_only?: boolean | null;
+  /**
+   * Internal/external split and the component breakdown (migration 021).
+   * Null on subjects predating it — `assessmentFor` falls back to
+   * `internal_only` and the 60/40 default.
+   */
+  assessment?: Assessment | null;
+  /**
+   * What you're actually aiming for here, which is not always what the
+   * target SGPA implies — a subject you're weak in gets its own number
+   * (migration 021). Null = derive it from settings.target_sgpa.
+   */
+  target_grade?: Grade | null;
   created_at?: string;
 }
 
