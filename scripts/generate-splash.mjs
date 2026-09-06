@@ -20,6 +20,7 @@
  */
 import sharp from "sharp";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { MARK_SCALE, tintedMark } from "./lib/mark.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -32,12 +33,19 @@ const outDir = join(root, "public", "splash");
  * Portrait CSS dimensions and DPR for every iPhone still worth
  * supporting. The manifest locks orientation to portrait, so landscape
  * variants would never be shown.
+ *
+ * A device missing from this list gets no match, and iOS falls back to
+ * generating its own launch screen from the manifest — the app icon
+ * blown up on `background_color`. That fallback is the reason a new
+ * phone can suddenly look unbranded at launch, so add sizes here as
+ * they ship.
  */
 const DEVICES = [
-  { w: 440, h: 956, dpr: 3 }, // 16 Pro Max
-  { w: 402, h: 874, dpr: 3 }, // 16 Pro
-  { w: 430, h: 932, dpr: 3 }, // 15/14 Pro Max
-  { w: 393, h: 852, dpr: 3 }, // 15/14 Pro
+  { w: 440, h: 956, dpr: 3 }, // 17 Pro Max, 16 Pro Max
+  { w: 420, h: 912, dpr: 3 }, // Air
+  { w: 402, h: 874, dpr: 3 }, // 17, 17 Pro, 16 Pro
+  { w: 430, h: 932, dpr: 3 }, // 16 Plus, 15/14 Pro Max
+  { w: 393, h: 852, dpr: 3 }, // 16, 15/14 Pro
   { w: 428, h: 926, dpr: 3 }, // 13/12 Pro Max
   { w: 390, h: 844, dpr: 3 }, // 13/12
   { w: 375, h: 812, dpr: 3 }, // X/XS/11 Pro/13 mini
@@ -47,14 +55,24 @@ const DEVICES = [
   { w: 320, h: 568, dpr: 2 }, // SE 1
 ];
 
-// Matches background_color in the manifest and --bg in src/index.css.
+/**
+ * The launch screen's whole job is to be indistinguishable from the
+ * app's first paint, so these must be the *default* theme's --bg and
+ * --ink: brutalist in src/index.css, whose hexes are also mirrored in
+ * the BG_HEX map in index.html. Keep all three in sync.
+ */
 const THEMES = {
-  light: { bg: { r: 249, g: 244, b: 240, alpha: 1 }, suffix: "" },
-  dark: { bg: { r: 10, g: 11, b: 16, alpha: 1 }, suffix: "-dark" },
+  light: {
+    bg: { r: 247, g: 247, b: 247 }, // --bg  0 0% 97%
+    ink: { r: 15, g: 15, b: 15 }, //  --ink 0 0% 6%
+    suffix: "",
+  },
+  dark: {
+    bg: { r: 10, g: 10, b: 10 }, //    --bg  0 0% 4%
+    ink: { r: 250, g: 250, b: 250 }, //--ink 0 0% 98%
+    suffix: "-dark",
+  },
 };
-
-/** The logo occupies this fraction of the screen's shorter side. */
-const LOGO_SCALE = 0.32;
 
 mkdirSync(outDir, { recursive: true });
 
@@ -64,20 +82,14 @@ for (const [scheme, theme] of Object.entries(THEMES)) {
   for (const { w, h, dpr } of DEVICES) {
     const pxW = w * dpr;
     const pxH = h * dpr;
-    const logoPx = Math.round(Math.min(pxW, pxH) * LOGO_SCALE);
-
-    const logo = await sharp(source)
-      .resize(logoPx, logoPx, {
-        fit: "contain",
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      })
-      .toBuffer();
+    const logoPx = Math.round(Math.min(pxW, pxH) * MARK_SCALE);
+    const mark = await tintedMark(source, logoPx, theme.ink);
 
     const name = `splash-${w}x${h}@${dpr}x${theme.suffix}.png`;
     await sharp({
-      create: { width: pxW, height: pxH, channels: 4, background: theme.bg },
+      create: { width: pxW, height: pxH, channels: 4, background: { ...theme.bg, alpha: 1 } },
     })
-      .composite([{ input: logo, gravity: "center" }])
+      .composite([{ input: mark, gravity: "center" }])
       // A flat background plus one logo is a handful of colours; a
       // palette PNG stores that in a fraction of the space, and these
       // ship with every install.

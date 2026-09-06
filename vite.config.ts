@@ -20,8 +20,16 @@ export default defineConfig({
         name: "AcadKit",
         short_name: "AcadKit",
         description: "Your academic companion for SRM KTR",
-        theme_color: "#0a0b10",
-        background_color: "#0a0b10",
+        // Not a free choice: background_color is what iOS paints when no
+        // apple-touch-startup-image matches (an iPhone newer than the list
+        // in scripts/generate-splash.mjs), so it has to be a real theme
+        // background or a new phone launches into a colour the app never
+        // uses. #0a0b10 was the retired aurora theme's; this is brutalist
+        // dark's --bg. A manifest holds one value and the default theme
+        // mode is "system", so dark is the side that gets the seamless
+        // launch — the startup images are what cover light properly.
+        theme_color: "#0a0a0a",
+        background_color: "#0a0a0a",
         display: "standalone",
         orientation: "portrait",
         scope: "/",

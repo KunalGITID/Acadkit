@@ -7,6 +7,7 @@ import { MotionConfig } from "framer-motion";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/app-shell";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { LaunchScreen } from "@/components/launch-screen";
 import { DialogProvider } from "@/components/ui/dialog";
 import { UpdatePrompt } from "@/components/update-prompt";
 import Onboarding from "@/pages/Onboarding";
@@ -88,9 +89,11 @@ export default function App() {
           />
           <AuthReset />
           <UpdatePrompt />
-          {/* Order matters: hold the splash until the stored session has
-              been read, or every launch flashes a sign-in screen at
-              someone who is already signed in. */}
+          {/* Order matters: hold the launch screen until the stored
+              session has been read, or every launch flashes a sign-in
+              screen at someone who is already signed in. It sits outside
+              the branch so it can cover whichever way this resolves. */}
+          <LaunchScreen ready={!loading} />
           {loading ? (
             <div className="min-h-dvh" />
           ) : !session ? (

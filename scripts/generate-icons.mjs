@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { markAlpha } from "./lib/mark.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
@@ -45,8 +46,32 @@ async function generate(masterBuffer, size, outName) {
   console.log(`✓ ${outName} (${size}x${size})`);
 }
 
+/**
+ * The bare mark on transparency, for the in-app launch screen.
+ *
+ * The app uses it as a CSS mask rather than an <img>, so only the alpha
+ * matters and the browser fills it with the live theme's --ink — one
+ * asset covers both colour schemes and it can never disagree with the
+ * palette the way a baked-in colour would.
+ *
+ * 384px covers ~24vmin at 3x with headroom (and is already past the
+ * 156px source), and 16 alpha levels is more than a two-tone mark's
+ * anti-aliased edge needs — together they cut this from 36KB to 10KB,
+ * which matters because nothing on screen can appear until it lands.
+ */
+async function generateMark() {
+  const alpha = await markAlpha(source, 384);
+  const { width, height } = await sharp(alpha).metadata();
+  await sharp({ create: { width, height, channels: 3, background: { r: 255, g: 255, b: 255 } } })
+    .joinChannel(alpha)
+    .png({ palette: true, colours: 16, effort: 9 })
+    .toFile(join(root, "public", "icons", "mark.png"));
+  console.log(`\u2713 mark.png (${width}x${height}, alpha)`);
+}
+
 const masterBuffer = await buildMasterBuffer();
 await generate(masterBuffer, 192, "icon-192.png");
 await generate(masterBuffer, 512, "icon-512.png");
 await generate(masterBuffer, 180, "apple-touch-icon.png");
+await generateMark();
 console.log("Icons generated successfully.");

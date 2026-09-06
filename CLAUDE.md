@@ -19,7 +19,9 @@ is verified manually via the preview. `vitest.config.ts` runs them in a
 node environment with the `@/` alias.
 
 To regenerate PWA icons after changing the logo: `node scripts/generate-icons.mjs`
-Then regenerate the iOS launch screens too: `node scripts/generate-splash.mjs`
+(this also writes `public/icons/mark.png`, the transparent mark the
+in-app launch screen masks against). Then regenerate the iOS launch
+screens too: `node scripts/generate-splash.mjs`
 (writes `public/splash/` and the `<link>` tags to paste between the
 `splash:start`/`splash:end` markers in `index.html`).
 
@@ -80,12 +82,30 @@ Nine lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks
 The app is installed to the home screen, so it has to behave like an app
 rather than a page in a browser that happens to be hidden:
 
-- **Launch screens.** `apple-touch-startup-image` for 11 iPhone sizes in
+- **Launch screens.** `apple-touch-startup-image` for 12 iPhone sizes in
   both colour schemes (iOS honours `prefers-color-scheme` in the startup
   media query). Without them iOS shows a blank white screen between tap
-  and first paint. They are excluded from the Workbox precache via
+  and first paint. A size that isn't listed gets no match and iOS
+  substitutes its own screen — the app icon blown up on the manifest's
+  `background_color` — so new phones need adding to `DEVICES`. The mark
+  is keyed out of the opaque source art and refilled with the theme's
+  `--ink`, because compositing the source directly drops a white card
+  onto the dark screen. They are excluded from the Workbox precache via
   `globIgnores` — Safari fetches them itself, and precaching ~600 KB of
   images the service worker is never asked for would tax every install.
+- **Opening animation.** `src/components/launch-screen.tsx` starts as a
+  pixel copy of the iOS launch image — same mark, same `MARK_VMIN` of
+  the shorter side, same background — and holds still for a beat before
+  anything moves, so the handoff from the system's screen to the web
+  view has nothing to give it away. `src/lib/launch.ts` owns the
+  timings; `launch.test.ts` fails the build if `MARK_VMIN` and the
+  generator's `MARK_SCALE` drift, because that seam is the whole trick.
+  It always runs for `MIN_VISIBLE_MS` (a sequence cut off halfway reads
+  as a bug, and a cached session resolves in single-digit ms), and a
+  timer unmounts it even if the exit animation never finishes —
+  `AnimatePresence` waits for completion, and animation clocks stop when
+  the page isn't painted, which would otherwise leave a full-screen
+  layer over an untappable app. `/widget` skips it.
 - **16px form fields.** iOS zooms the viewport when a focused input is
   under 16px. Every field is 16px, with a `@supports` backstop.
 - **No rubber-banding.** `overscroll-behavior: none` — standalone iOS has
