@@ -14,8 +14,20 @@ export const GRADE_TABLE: Array<{ grade: Grade; min: number; points: number }> =
   { grade: "F", min: 0, points: 0 },
 ];
 
+/**
+ * The epsilon is not cosmetic. Totals reach here through the budget
+ * engine — weights scaled, shares clamped, halves summed — so a subject
+ * that is exactly 81 can arrive as 80.99999999999967, and a student one
+ * float ulp below a threshold should not be marked down a grade for it.
+ * `floorTotal` in plan.ts absorbs the same error by the same amount, so
+ * the displayed total and the grade beside it always agree.
+ */
+const BOUNDARY_EPSILON = 1e-9;
+
 export function gradeForTotal(total: number): { grade: Grade; points: number } {
-  const row = GRADE_TABLE.find((g) => total >= g.min) ?? GRADE_TABLE[GRADE_TABLE.length - 1];
+  const row =
+    GRADE_TABLE.find((g) => total >= g.min - BOUNDARY_EPSILON) ??
+    GRADE_TABLE[GRADE_TABLE.length - 1];
   return { grade: row.grade, points: row.points };
 }
 

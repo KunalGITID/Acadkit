@@ -9,7 +9,7 @@ import { SubjectBudgetCard } from "@/components/insights/subject-budget";
 import { RISK_STYLE } from "@/components/insights/risk";
 import { Dot, EmptyState } from "@/components/ui/misc";
 import { AnimatedNumber } from "@/components/viz/animated-number";
-import { ceilHalf } from "@/lib/plan";
+import { ceilHalf, floorHalf } from "@/lib/plan";
 import type { buildProjection } from "@/lib/projections";
 import { say, VOICE } from "@/lib/voice";
 import { cn } from "@/lib/utils";
@@ -27,8 +27,14 @@ import { cn } from "@/lib/utils";
  * per subject spreading its target across every component still to come.
  */
 
-function marks(n: number): string {
+/** Chased marks round up; held marks round down. See src/lib/plan.ts. */
+function need(n: number): string {
   const v = ceilHalf(n);
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
+function have(n: number): string {
+  const v = floorHalf(n);
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
@@ -155,7 +161,7 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
                 {p.subject.code.slice(-4)}{" "}
                 {p.plan.status === "out-of-reach"
                   ? `${p.targetGrade} gone`
-                  : `→ ${marks(p.plan.needed)} of ${marks(p.pool)}`}
+                  : `→ ${need(p.plan.needed)} of ${have(p.pool)}`}
               </span>
             ))}
           </div>

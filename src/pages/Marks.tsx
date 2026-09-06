@@ -25,7 +25,7 @@ import { useSwipe } from "@/hooks/useSwipe";
 import { slideTransition, slideVariants } from "@/lib/slide";
 import { SwipeHint } from "@/components/ui/swipe-hint";
 import { groupMarksBySubject } from "@/lib/grades";
-import { computeSgpa, type SubjectOutlook } from "@/lib/plan";
+import { computeSgpa, floorTotal, type SubjectOutlook } from "@/lib/plan";
 import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
 import { computeOverallAttendance } from "@/lib/attendance";
 import type { Mark, Subject } from "@/types";
@@ -189,7 +189,7 @@ function SubjectMarksCard({
         {marks.hasAnyMarks ? (
           <p className="flex items-center gap-1.5 text-sm font-bold tabular">
             <TrendingUp className="h-4 w-4 text-accent" />
-            On pace for <AnimatedNumber value={marks.predictedTotal} decimals={0} />
+            On pace for <AnimatedNumber value={floorTotal(marks.predictedTotal)} decimals={0} />
             <span className="text-muted">/ 100</span>
           </p>
         ) : (
