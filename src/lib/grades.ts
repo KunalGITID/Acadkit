@@ -1,6 +1,7 @@
-import type { Mark, Subject } from "@/types";
+import type { Grade, Mark, Subject } from "@/types";
 
-export type Grade = "O" | "A+" | "A" | "B+" | "B" | "C" | "F";
+/** Re-exported so the long-standing `from "@/lib/grades"` imports hold. */
+export type { Grade };
 
 /** Descending by threshold: O first, F last. */
 export const GRADE_TABLE: Array<{ grade: Grade; min: number; points: number }> = [
