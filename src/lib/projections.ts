@@ -6,6 +6,7 @@
  * subject until the semester ends, then derives skip budgets, recovery
  * needs, end-of-term projections, risk and what-if scenarios from that.
  */
+import { isAttended, isCounted } from "@/lib/attendance";
 import type { AttendanceRecord, DeclaredHoliday, Mark, Subject, TimetableSlot } from "@/types";
 import { buildEffectiveMap, semesterWindow, type SemesterWindow } from "@/lib/calendar";
 import { parseISODate, todayISO } from "@/lib/dates";
@@ -112,8 +113,8 @@ export function projectSubject(
   from: string,
   semEnd: string = semesterWindow().end
 ): SubjectProjection {
-  const counted = records.filter((r) => r.status === "present" || r.status === "absent");
-  const attended = counted.filter((r) => r.status === "present").length;
+  const counted = records.filter((r) => isCounted(r.status));
+  const attended = counted.filter((r) => isAttended(r.status)).length;
   const held = counted.length;
   const currentPct = held > 0 ? (attended / held) * 100 : null;
 
@@ -180,7 +181,7 @@ function patterns(
   records: AttendanceRecord[],
   effMap: Record<string, number>
 ): AttendancePatterns {
-  const counted = records.filter((r) => r.status === "present" || r.status === "absent");
+  const counted = records.filter((r) => isCounted(r.status));
   const absents = counted.filter((r) => r.status === "absent");
 
   const bySubject = new Map<string, number>();
@@ -228,13 +229,13 @@ const TREND_BAND = 0.08;
  * four data points.
  */
 export function attendanceTrend(records: AttendanceRecord[]): AttendancePatterns["trend"] {
-  const counted = records.filter((r) => r.status === "present" || r.status === "absent");
+  const counted = records.filter((r) => isCounted(r.status));
   if (counted.length < TREND_MIN_RECORDS) return "insufficient";
 
   const sorted = [...counted].sort((a, b) => a.date.localeCompare(b.date));
   const mid = Math.floor(sorted.length / 2);
   const rate = (arr: AttendanceRecord[]) =>
-    arr.filter((r) => r.status === "present").length / arr.length;
+    arr.filter((r) => isAttended(r.status)).length / arr.length;
   const delta = rate(sorted.slice(mid)) - rate(sorted.slice(0, mid));
 
   if (delta > TREND_BAND) return "improving";

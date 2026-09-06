@@ -3,6 +3,8 @@ import {
   attendanceColor,
   computeOverallAttendance,
   computeSubjectAttendance,
+  isAttended,
+  isCounted,
 } from "@/lib/attendance";
 import type { AttendanceRecord, PortalSnapshot, Subject } from "@/types";
 
@@ -198,5 +200,48 @@ describe("portal snapshots", () => {
       [snap("A", 10, 0, "2026-08-25"), snap("B", 10, 0, "2026-08-18")]
     );
     expect(overall.portalAsOf).toBe("2026-08-18");
+  });
+});
+
+describe("On Duty", () => {
+  it("counts as attended and as a class held", () => {
+    expect(isAttended("od")).toBe(true);
+    expect(isCounted("od")).toBe(true);
+  });
+
+  it("is not the same as a cancelled slot, which is held by nobody", () => {
+    expect(isCounted("holiday")).toBe(false);
+    expect(isAttended("holiday")).toBe(false);
+  });
+
+  it("lifts a subject's percentage exactly like being present", () => {
+    const s = subj("A");
+    const withPresent = computeSubjectAttendance(s, [...many("A", 3, 1), rec("A", "present", 9)]);
+    const withOd = computeSubjectAttendance(s, [...many("A", 3, 1), rec("A", "od", 9)]);
+    expect(withOd.percentage).toBe(withPresent.percentage);
+    expect(withOd.attended).toBe(4);
+    expect(withOd.total).toBe(5);
+  });
+
+  /**
+   * The portal counts OD hours as attended, so a class marked OD after
+   * the snapshot has to move the number the same way a present does —
+   * otherwise the app reads lower than the portal and the student
+   * "loses" attendance the department already granted them.
+   */
+  it("layers onto a portal snapshot as attended", () => {
+    const snapshot: PortalSnapshot = {
+      id: "s",
+      device_id: "p",
+      subject_code: "A",
+      conducted: 20,
+      absent: 4,
+      percentage: 80,
+      as_of: "2026-08-01",
+    } as PortalSnapshot;
+    const after = { ...rec("A", "od", 40), date: "2026-08-15" };
+    const out = computeSubjectAttendance(subj("A"), [after], snapshot);
+    expect(out.attended).toBe(17);
+    expect(out.total).toBe(21);
   });
 });

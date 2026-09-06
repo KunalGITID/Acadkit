@@ -32,8 +32,14 @@ export interface TimetableSlot {
 /**
  * "holiday" is the DB value for a cancelled / no-class slot
  * (constraint predates the rebuild; UI presents it as "Cancelled").
+ * "od" is On Duty — the department pulled you out of class and the
+ * portal counts the hour as attended (migration 020).
+ *
+ * Nothing should test these values directly to decide whether a row
+ * counts: use isCounted / isAttended in src/lib/attendance.ts, which is
+ * the single place that knows what each one means.
  */
-export type AttendanceStatus = "present" | "absent" | "holiday";
+export type AttendanceStatus = "present" | "absent" | "holiday" | "od";
 
 export interface AttendanceRecord {
   id: string;

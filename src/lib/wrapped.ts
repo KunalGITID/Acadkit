@@ -1,4 +1,4 @@
-import type { SubjectAttendance } from "@/lib/attendance";
+import { isAttended, isCounted, type SubjectAttendance } from "@/lib/attendance";
 import type { AttendanceRecord, Mark, Subject } from "@/types";
 
 /**
@@ -152,9 +152,9 @@ function marksSummary(
 function streaks(records: AttendanceRecord[]): { cleanStreak: number; daysMarked: number } {
   const byDate = new Map<string, { present: number; absent: number }>();
   for (const r of records) {
-    if (r.status !== "present" && r.status !== "absent") continue;
+    if (!isCounted(r.status)) continue;
     const cell = byDate.get(r.date) ?? { present: 0, absent: 0 };
-    if (r.status === "present") cell.present++;
+    if (isAttended(r.status)) cell.present++;
     else cell.absent++;
     byDate.set(r.date, cell);
   }

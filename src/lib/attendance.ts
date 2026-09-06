@@ -1,6 +1,26 @@
-import type { AttendanceRecord, PortalSnapshot, Subject } from "@/types";
+import type { AttendanceRecord, AttendanceStatus, PortalSnapshot, Subject } from "@/types";
 
 export const MIN_ATTENDANCE = 75;
+
+/**
+ * What each status means for the maths, in one place.
+ *
+ * This used to be `status === "present" || status === "absent"` spelled
+ * out at six call sites across attendance, projections, wrapped and the
+ * heatmap. Adding On Duty to that shape means finding all six and
+ * getting all six right; miss one and a subject quietly reports two
+ * different percentages on two different screens.
+ */
+
+/** Was the class held? Cancelled slots are not part of the denominator. */
+export function isCounted(status: AttendanceStatus): boolean {
+  return status !== "holiday";
+}
+
+/** Did it count as attended? On Duty does, the same way the portal counts it. */
+export function isAttended(status: AttendanceStatus): boolean {
+  return status === "present" || status === "od";
+}
 
 /** Where a subject's attended/total numbers came from. */
 export type AttendanceSource = "manual" | "portal";
@@ -56,7 +76,7 @@ export function computeSubjectAttendance(
   records: AttendanceRecord[],
   snapshot?: PortalSnapshot
 ): SubjectAttendance {
-  const counted = records.filter((r) => r.status === "present" || r.status === "absent");
+  const counted = records.filter((r) => isCounted(r.status));
 
   let attended: number;
   let total: number;
@@ -67,11 +87,11 @@ export function computeSubjectAttendance(
     // by hand after that layer on so the number stays live between syncs.
     // Dates are "YYYY-MM-DD", so a string compare is a date compare.
     const since = counted.filter((r) => r.date > snapshot.as_of);
-    attended = snapshot.conducted - snapshot.absent + since.filter((r) => r.status === "present").length;
+    attended = snapshot.conducted - snapshot.absent + since.filter((r) => isAttended(r.status)).length;
     total = snapshot.conducted + since.length;
     source = "portal";
   } else {
-    attended = counted.filter((r) => r.status === "present").length;
+    attended = counted.filter((r) => isAttended(r.status)).length;
     total = counted.length;
   }
 

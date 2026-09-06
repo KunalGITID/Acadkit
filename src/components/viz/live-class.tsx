@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Check, X } from "lucide-react";
+import { BadgeCheck, Check, X } from "lucide-react";
 import { classProgress, formatGap, liveState, type LiveSlot } from "@/lib/liveClass";
 import { formatTimeRange } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
@@ -84,12 +84,14 @@ export function LiveClassCard({ slots, nowMinutes, statusFor, onMark, disabled }
               "flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-bold",
               marked === "present" && "bg-good/15 text-good-deep",
               marked === "absent" && "bg-bad/15 text-bad-deep",
+              marked === "od" && "bg-good/10 text-good-deep ring-1 ring-inset ring-good/40",
               marked === "holiday" && "bg-surface-2 text-muted"
             )}
           >
             {marked === "present" ? <Check className="h-3.5 w-3.5" strokeWidth={2.6} /> : null}
             {marked === "absent" ? <X className="h-3.5 w-3.5" strokeWidth={2.6} /> : null}
-            {marked === "holiday" ? "cancelled" : marked}
+            {marked === "od" ? <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2.6} /> : null}
+            {marked === "holiday" ? "cancelled" : marked === "od" ? "on duty" : marked}
           </span>
         ) : (
           <div className="flex gap-1.5">

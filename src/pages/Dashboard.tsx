@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Ban,
+  BadgeCheck,
   CalendarCheck2,
   Check,
   Clock3,
@@ -286,6 +287,10 @@ function TodayCard() {
                   ) : record?.status === "absent" ? (
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-bad/15 text-bad-deep">
                       <X className="h-4 w-4" strokeWidth={2.6} />
+                    </span>
+                  ) : record?.status === "od" ? (
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-good/10 text-good-deep ring-1 ring-inset ring-good/40">
+                      <BadgeCheck className="h-4 w-4" strokeWidth={2.6} />
                     </span>
                   ) : record?.status === "holiday" ? (
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-muted">

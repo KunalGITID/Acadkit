@@ -198,9 +198,15 @@ Deno.serve(async (req) => {
     const snapByCode = new Map(
       (snapshots ?? []).map((s) => [String(s.subject_code).trim().toUpperCase(), s])
     );
+    // Mirrors isCounted / isAttended in src/lib/attendance.ts. This file
+    // can't import from src/, so the two definitions of "counts as
+    // attended" have to be kept in step by hand — 'od' is attended,
+    // 'holiday' is not held at all.
+    const counted = (status: string) => status !== "holiday";
+    const attendedStatus = (status: string) => status === "present" || status === "od";
     function heldFor(subjectId: string, code: string | null) {
       const rows = (attendance ?? []).filter(
-        (a) => a.subject_id === subjectId && (a.status === "present" || a.status === "absent")
+        (a) => a.subject_id === subjectId && counted(a.status)
       );
       const snap = code ? snapByCode.get(code.trim().toUpperCase()) : undefined;
       if (snap && Number(snap.conducted) > 0) {
@@ -208,12 +214,12 @@ Deno.serve(async (req) => {
         return {
           attended:
             Number(snap.conducted) - Number(snap.absent) +
-            since.filter((a) => a.status === "present").length,
+            since.filter((a) => attendedStatus(a.status)).length,
           total: Number(snap.conducted) + since.length,
         };
       }
       return {
-        attended: rows.filter((a) => a.status === "present").length,
+        attended: rows.filter((a) => attendedStatus(a.status)).length,
         total: rows.length,
       };
     }

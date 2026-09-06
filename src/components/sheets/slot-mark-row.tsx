@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Ban, Check, ChevronDown, X } from "lucide-react";
+import { Ban, BadgeCheck, Check, ChevronDown, X } from "lucide-react";
 import { useAttendance, useMarkAttendance, useUnmarkAttendance } from "@/hooks/useData";
+import { isAttended } from "@/lib/attendance";
 import { formatTimeRange } from "@/lib/dates";
 import { cn, haptic } from "@/lib/utils";
 import { Dot } from "@/components/ui/misc";
@@ -27,6 +28,16 @@ const OPTIONS: Array<{
     icon: X,
     activeClass: "bg-bad text-rose-950",
     chipClass: "bg-bad/15 text-bad-deep",
+  },
+  {
+    // Attended, but for a different reason — so it borrows Present's
+    // colour outlined rather than filled, instead of introducing a hue
+    // that would have to mean something new in both themes.
+    status: "od",
+    label: "On Duty",
+    icon: BadgeCheck,
+    activeClass: "bg-good/15 text-good-deep ring-2 ring-inset ring-good",
+    chipClass: "bg-good/10 text-good-deep ring-1 ring-inset ring-good/40",
   },
   {
     status: "holiday",
@@ -73,7 +84,7 @@ export function SlotMarkRow({ slot, subject, date, collapsible = false }: SlotMa
   const active = OPTIONS.find((o) => o.status === record?.status);
 
   function toggle(status: AttendanceStatus) {
-    haptic(status === "present" ? 10 : [8, 30, 8]);
+    haptic(isAttended(status) ? 10 : [8, 30, 8]);
     if (record?.status === status) {
       unmark.mutate({ subject_id: slot.subject_id, date, start_time: slot.start_time });
     } else {

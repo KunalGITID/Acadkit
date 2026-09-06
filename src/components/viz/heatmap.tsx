@@ -1,3 +1,4 @@
+import { isAttended, isCounted } from "@/lib/attendance";
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { formatDate, todayISO } from "@/lib/dates";
@@ -63,9 +64,9 @@ export function AttendanceHeatmap({
   const columns = useMemo(() => {
     const byDate = new Map<string, { present: number; absent: number }>();
     for (const r of records) {
-      if (r.status !== "present" && r.status !== "absent") continue;
+      if (!isCounted(r.status)) continue;
       const cell = byDate.get(r.date) ?? { present: 0, absent: 0 };
-      if (r.status === "present") cell.present++;
+      if (isAttended(r.status)) cell.present++;
       else cell.absent++;
       byDate.set(r.date, cell);
     }
