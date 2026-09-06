@@ -1,31 +1,64 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
+  CARD_RATIO,
   EXIT_EASE,
   EXIT_MS,
   MARK_VMIN,
   MIN_VISIBLE_MS,
   SEAM_HOLD_MS,
-  shouldPlayLaunch,
+  SETTLE_EASE,
+  WORDMARK_DELAY_MS,
 } from "@/lib/launch";
 
 const s = (ms: number) => ms / 1000;
 
 /**
+ * The mark, drawn as a CSS mask so the browser fills it with the live
+ * theme's --ink — one asset for every theme and mode, and it can never
+ * disagree with the palette the way a baked-in colour would.
+ *
+ * Deliberately not the element that gets animated. Transforming a masked
+ * element makes WebKit re-apply the mask on the CPU every frame, which
+ * is what a 24vmin logo stuttering on a 120Hz screen looks like. Static
+ * here, moved by the wrapper above it, it rasterises once and the
+ * compositor does the rest.
+ */
+function Mark() {
+  return (
+    <div
+      className="h-full w-full bg-ink"
+      style={{
+        maskImage: "url(/icons/mark.png)",
+        WebkitMaskImage: "url(/icons/mark.png)",
+        maskSize: "contain",
+        WebkitMaskSize: "contain",
+        maskRepeat: "no-repeat",
+        WebkitMaskRepeat: "no-repeat",
+        maskPosition: "center",
+        WebkitMaskPosition: "center",
+      }}
+    />
+  );
+}
+
+/**
  * The app's opening.
  *
  * iOS has already drawn a launch image by the time this mounts — the
- * mark, centred, at MARK_VMIN of the shorter side, on the theme's
- * background. This starts as a pixel copy of that image and holds
- * still for a beat, so the handoff from the system's screen to the web
- * view has nothing to give it away. Only then does anything move.
+ * mark, centred on the screen, at MARK_VMIN of the shorter side, on the
+ * theme's background. This starts as a pixel copy of that image and
+ * holds still for a beat, so the handoff from the system's screen to the
+ * web view has nothing to give it away. Only then does anything move.
  *
  * What moves is the theme's own vocabulary rather than a generic logo
- * flourish: the squircle that every card in the app is built from snaps
- * shut around the mark, the wordmark wipes in under it, and the whole
- * surface leaves as a shutter with the accent colour on its edge —
- * a colour block doing the transition, which is the brutalist theme's
- * entire argument about depth.
+ * flourish: an actual `.card` — so it arrives with each theme's radius,
+ * border weight, surface and shadow — settles around the mark, the
+ * wordmark rises under it, and the whole surface leaves as a shutter
+ * with the accent colour on its edge. A colour block doing the
+ * transition is the brutalist theme's entire argument about depth, and
+ * in OLED the same block is a neutral grey, because zero saturation is
+ * that theme's whole argument.
  *
  * `ready` gates the exit but does not trigger it on its own: the
  * animation always gets MIN_VISIBLE_MS to finish, because a launch
@@ -33,11 +66,6 @@ const s = (ms: number) => ms / 1000;
  * resolves in single-digit milliseconds.
  */
 export function LaunchScreen({ ready }: { ready: boolean }) {
-  // Read once, off window rather than the router: this component sits
-  // above BrowserRouter so it can cover the pre-session branches, and
-  // it is a cold-start decision anyway — nothing about it should change
-  // when the user later navigates.
-  const [play] = useState(() => shouldPlayLaunch(window.location.pathname));
   const [visible, setVisible] = useState(true);
   const [unmounted, setUnmounted] = useState(false);
   const mountedAt = useRef(0);
@@ -69,7 +97,9 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
     return () => clearTimeout(timer);
   }, [visible]);
 
-  if (unmounted || !play) return null;
+  if (unmounted) return null;
+
+  const cardSize = `${MARK_VMIN * CARD_RATIO}vmin`;
 
   return (
     <AnimatePresence>
@@ -80,7 +110,12 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
           // to show yet, so it is announced as busy rather than read out.
           role="presentation"
           aria-hidden
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden bg-bg"
+          // items-center, and the wordmark is positioned off the mark
+          // rather than stacked with it in a column — a column would
+          // centre the *pair*, lifting the mark off the middle of the
+          // screen and away from where iOS just drew it.
+          className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-bg"
+          style={{ willChange: "transform" }}
           initial={false}
           exit={
             reduced
@@ -88,73 +123,69 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
               : { y: "-100%", transition: { duration: s(EXIT_MS), ease: EXIT_EASE } }
           }
         >
-          <div className="relative flex flex-col items-center">
-            {/* The card shape, closing around the mark. Sized off the
-                mark itself so the two stay proportional on any screen. */}
+          <div
+            className="relative flex items-center justify-center"
+            style={{ width: cardSize, height: cardSize }}
+          >
+            {/* The app's own card, closing around the mark. */}
             <motion.div
-              aria-hidden
-              className="absolute rounded-[28%] border-[1.5px] border-line/30"
-              style={{ width: `${MARK_VMIN * 1.75}vmin`, height: `${MARK_VMIN * 1.75}vmin` }}
-              initial={{ scale: 1.4, opacity: 0 }}
+              className="absolute inset-0"
+              style={{ willChange: "transform, opacity" }}
+              initial={{ scale: 1.16, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{
                 delay: s(SEAM_HOLD_MS),
-                type: "spring",
-                stiffness: 220,
-                damping: 22,
+                duration: 0.72,
+                ease: SETTLE_EASE,
               }}
-            />
+            >
+              <div className="card h-full w-full" />
+            </motion.div>
 
-            {/* Frame zero of this is what iOS is already showing. The
-                mask lets the browser fill the mark with the live theme's
-                ink, so one asset serves both colour schemes. */}
+            {/* Square box + contain is exactly what the generator does to
+                build the iOS image (sharp's `fit: inside` into a square),
+                so the two agree on the mark's rendered width without
+                either side hardcoding the art's aspect ratio. */}
             <motion.div
-              className="bg-ink"
-              style={{
-                width: `${MARK_VMIN}vmin`,
-                // Square box + contain is exactly what the generator does
-                // to build the iOS image (sharp's `fit: inside` into a
-                // square), so the two agree on the mark's rendered width
-                // without either side hardcoding the art's aspect ratio.
-                aspectRatio: "1",
-                maskImage: "url(/icons/mark.png)",
-                WebkitMaskImage: "url(/icons/mark.png)",
-                maskSize: "contain",
-                WebkitMaskSize: "contain",
-                maskRepeat: "no-repeat",
-                WebkitMaskRepeat: "no-repeat",
-                maskPosition: "center",
-                WebkitMaskPosition: "center",
-              }}
+              className="relative"
+              style={{ width: `${MARK_VMIN}vmin`, aspectRatio: "1", willChange: "transform" }}
               initial={{ scale: 1 }}
-              animate={{ scale: [1, 0.88, 1] }}
+              animate={{ scale: [1, 0.9, 1.02, 1] }}
               transition={{
                 delay: s(SEAM_HOLD_MS),
-                duration: 0.55,
-                times: [0, 0.35, 1],
-                ease: [0.65, 0, 0.35, 1],
+                duration: 0.86,
+                times: [0, 0.36, 0.7, 1],
+                ease: SETTLE_EASE,
               }}
-            />
-          </div>
+            >
+              <Mark />
+            </motion.div>
 
-          {/* Wiped in, not faded: the theme has no soft edges. */}
-          <motion.div
-            className="mt-[6vmin] overflow-hidden"
-            initial={{ clipPath: "inset(0 100% 0 0)" }}
-            animate={{ clipPath: "inset(0 0% 0 0)" }}
-            transition={{ delay: s(SEAM_HOLD_MS + 260), duration: 0.42, ease: EXIT_EASE }}
-          >
-            <span className="text-[4.5vmin] font-bold lowercase tracking-[0.42em] text-ink [font-family:'Chakra_Petch','Plus_Jakarta_Sans',system-ui,sans-serif]">
-              {/* The tracking adds a trailing gap; the indent re-centres it. */}
-              <span className="ms-[0.42em] inline-block">acadkit</span>
-            </span>
-          </motion.div>
+            {/* Rises into place behind its own edge. Transform only —
+                clip-path animates on the CPU in WebKit. */}
+            <div className="absolute left-1/2 top-full w-max -translate-x-1/2 overflow-hidden pt-[1vmin]">
+              <motion.span
+                className="block text-[4.5vmin] font-bold lowercase tracking-[0.42em] text-ink [font-family:'Chakra_Petch','Plus_Jakarta_Sans',system-ui,sans-serif]"
+                style={{ willChange: "transform" }}
+                initial={{ y: "115%" }}
+                animate={{ y: "0%" }}
+                transition={{
+                  delay: s(SEAM_HOLD_MS + WORDMARK_DELAY_MS),
+                  duration: 0.62,
+                  ease: SETTLE_EASE,
+                }}
+              >
+                {/* The tracking adds a trailing gap; the indent re-centres it. */}
+                <span className="ms-[0.42em] inline-block">acadkit</span>
+              </motion.span>
+            </div>
+          </div>
 
           {/* The shutter's painted edge. It sits below the fold of the
               surface, so it only becomes visible as the surface leaves —
               sweeping up the screen ahead of the app. */}
           {!reduced && (
-            <div className="absolute inset-x-0 top-full h-[1.5vmin] bg-accent" aria-hidden />
+            <div className="absolute inset-x-0 top-full h-[2vmin] bg-accent" aria-hidden />
           )}
         </motion.div>
       )}

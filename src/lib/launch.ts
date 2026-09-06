@@ -14,8 +14,16 @@
  * size, same place, so the seam reads as one continuous screen rather
  * than a splash followed by a page. `MARK_SCALE` in scripts/lib/mark.mjs
  * is the other half of this; launch.test.ts fails if they drift.
+ *
+ * The generator centres the mark on the full screen, so the app has to
+ * centre it on the full viewport — not inside a column that also holds
+ * the wordmark, which lifts it off centre by half the wordmark's height
+ * and makes it visibly jump the moment the web view paints.
  */
 export const MARK_VMIN = 24;
+
+/** The card behind the mark, relative to the mark. */
+export const CARD_RATIO = 1.75;
 
 /**
  * How long the mark sits perfectly still before anything moves.
@@ -24,7 +32,10 @@ export const MARK_VMIN = 24;
  * screen, and motion starting on frame one gives that away — the eye
  * catches the swap. A beat of stillness first sells it.
  */
-export const SEAM_HOLD_MS = 140;
+export const SEAM_HOLD_MS = 180;
+
+/** The wordmark comes in once the card has most of the way settled. */
+export const WORDMARK_DELAY_MS = 320;
 
 /**
  * Floor on how long the launch screen stays up, measured from mount.
@@ -34,25 +45,18 @@ export const SEAM_HOLD_MS = 140;
  * instantly from cache. Anything past this exits the moment the app is
  * ready.
  */
-export const MIN_VISIBLE_MS = 900;
+export const MIN_VISIBLE_MS = 1250;
 
 /** The exit wipe. Long enough to read as a shutter, not a fade. */
-export const EXIT_MS = 520;
+export const EXIT_MS = 640;
 
 /**
- * Sharp in, sharp out, with a flat middle — the easing equivalent of the
- * theme's hard borders. A symmetric ease-in-out would read as soft.
+ * A negative first control point makes the surface load downward before
+ * it lifts — the weight of a shutter being thrown rather than a panel
+ * being slid. One tween rather than keyframes, so there is a single
+ * interpolation for the compositor to run.
  */
-export const EXIT_EASE = [0.76, 0, 0.24, 1] as const;
+export const EXIT_EASE = [0.62, -0.28, 0.24, 1] as const;
 
-/**
- * Whether a cold start at this path should play the launch sequence.
- *
- * /widget installs as its own home-screen app ("What's due, at a
- * glance", public/widget.webmanifest) and is opened to read one thing
- * and close again. A second and a half of branding in front of that is
- * the opposite of glanceable, so it gets none.
- */
-export function shouldPlayLaunch(pathname: string): boolean {
-  return !pathname.startsWith("/widget");
-}
+/** Settling, not bouncing: fast to arrive, slow to stop. */
+export const SETTLE_EASE = [0.22, 1, 0.32, 1] as const;

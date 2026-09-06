@@ -11,7 +11,13 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { EXIT_MS, MARK_VMIN, MIN_VISIBLE_MS, SEAM_HOLD_MS, shouldPlayLaunch } from "@/lib/launch";
+import {
+  EXIT_MS,
+  MARK_VMIN,
+  MIN_VISIBLE_MS,
+  SEAM_HOLD_MS,
+  WORDMARK_DELAY_MS,
+} from "@/lib/launch";
 
 const GENERATOR = resolve(__dirname, "../../scripts/lib/mark.mjs");
 
@@ -27,18 +33,10 @@ describe("launch geometry", () => {
     expect(MARK_VMIN / 100).toBe(markScale());
   });
 
-  it("leaves room for the animation to play before the earliest exit", () => {
-    expect(SEAM_HOLD_MS + EXIT_MS).toBeLessThan(MIN_VISIBLE_MS);
+  it("leaves room for the whole sequence to play before the earliest exit", () => {
+    // The wordmark is the last thing in; it must have arrived and been
+    // read before the shutter can start taking it away again.
+    expect(SEAM_HOLD_MS + WORDMARK_DELAY_MS + EXIT_MS).toBeLessThan(MIN_VISIBLE_MS);
   });
 });
 
-describe("shouldPlayLaunch", () => {
-  it("plays for the app's own routes", () => {
-    expect(shouldPlayLaunch("/")).toBe(true);
-    expect(shouldPlayLaunch("/attendance")).toBe(true);
-  });
-
-  it("skips the glanceable widget, which installs as its own app", () => {
-    expect(shouldPlayLaunch("/widget")).toBe(false);
-  });
-});

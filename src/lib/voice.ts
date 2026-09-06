@@ -623,7 +623,6 @@ export const VOICE = {
     brutal: (n) => `${n} mandatory`,
   }),
 
-  titleWidget: pick({ plain: () => "Due soon", brutal: () => "what's coming for you" }),
 
   // ---- sync health ----
 

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -16,10 +15,7 @@ import {
   Wand2,
   UserRound,
   ChevronDown,
-  ArrowUpRight,
-  LayoutGrid,
   RefreshCw,
-  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -549,72 +545,6 @@ function RefreshCard() {
   );
 }
 
-/**
- * The deadlines view, and how to get it onto a home screen.
- *
- * /widget existed with nothing linking to it, so the only way in was
- * typing the URL — which is no way to ship a feature. It lives here
- * rather than in the nav because it isn't a page you visit inside the
- * app; it's a page you leave the app to install.
- */
-function WidgetCard() {
-  return (
-    <section className="card space-y-3 p-5">
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-          <LayoutGrid className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <p className="font-bold">Deadlines widget</p>
-          <p className="mt-0.5 text-xs text-muted">
-            A stripped-down page showing only what's due. Add it to your home
-            screen and it installs as its own icon, called “Due”.
-          </p>
-        </div>
-      </div>
-
-      <a
-        href="/widget"
-        className="flex items-center justify-between rounded-2xl border bg-surface-2/40 px-4 py-3 text-sm font-bold transition-transform active:scale-[0.99]"
-      >
-        Open the widget
-        <ArrowUpRight className="h-4 w-4 text-muted" />
-      </a>
-
-      <p className="text-[11px] text-muted">
-        On iPhone: open it, then Share → Add to Home Screen. It opens straight
-        to your deadlines, without the rest of the app.
-      </p>
-    </section>
-  );
-}
-
-/**
- * Wrapped lives here rather than in the nav bar.
- *
- * It's an occasion, not a destination — read once, shared, and then not
- * opened again for weeks. A permanent tab would make it furniture, and
- * the tab bar has exactly five slots that earn their place daily.
- */
-function WrappedCard() {
-  const tone = useTone();
-  return (
-    <Link
-      to="/wrapped"
-      className="card flex items-center gap-3 p-5 transition-transform active:scale-[0.99]"
-    >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
-        <Sparkles className="h-5 w-5" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="font-bold">{say(VOICE.wrappedTitle, tone)}</p>
-        <p className="mt-0.5 text-xs text-muted">{say(VOICE.wrappedIntro, tone)}</p>
-      </div>
-      <ArrowUpRight className="h-4 w-4 shrink-0 text-muted" />
-    </Link>
-  );
-}
-
 export default function Settings() {
   const tone = useTone();
   const themeMode = useAppStore((s) => s.themeMode);
@@ -657,12 +587,6 @@ export default function Settings() {
             <span className="flex items-center gap-1"><Moon className="h-3.5 w-3.5" /> dark</span>
           </p>
         </section>
-      </div>
-
-      <div className="space-y-3">
-        <SectionTitle>Home screen</SectionTitle>
-        <WidgetCard />
-        <WrappedCard />
       </div>
 
       <div className="space-y-3">

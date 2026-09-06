@@ -75,7 +75,7 @@ SRM uses a 5-day rotating schedule (Day 1–5), not weekdays. The canonical seme
 
 ### Pages & layout
 
-Nine lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/history`, `/settings`) plus `Onboarding`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/history`) is listed inline in the sidebar on desktop and reached through the **More** sheet on mobile, which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
+Eleven lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/history`, `/wrapped`, `/compare`, `/settings`) plus `Onboarding` and `SignIn`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/history`, `/wrapped`, `/compare`) is listed inline in the sidebar on desktop and reached through the **More** sheet on mobile, which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
 
 ### iOS PWA
 
@@ -100,12 +100,33 @@ rather than a page in a browser that happens to be hidden:
   view has nothing to give it away. `src/lib/launch.ts` owns the
   timings; `launch.test.ts` fails the build if `MARK_VMIN` and the
   generator's `MARK_SCALE` drift, because that seam is the whole trick.
+  Two things that seam depends on and that are easy to undo:
+
+  - The mark is centred on the **viewport**, not stacked in a column
+    with the wordmark — a column centres the pair, which lifts the mark
+    off the middle of the screen and makes it jump the instant the web
+    view paints. The wordmark hangs off it absolutely for that reason.
+  - Nothing animated carries the mask. Transforming a masked element
+    makes WebKit re-apply the mask on the CPU every frame, which is what
+    the logo stuttering on a 120Hz screen looks like; the mask sits on a
+    static child and a wrapper moves it. Same reason the wordmark
+    reveals with a transform instead of `clip-path`.
+
+  Everything else is a theme token, so the whole sequence takes each
+  theme's background, ink, accent and card shape — including the
+  squircle, which is a real `.card` and so picks up brutalist's flat
+  1.5px 28px squircle or OLED's shadowed 14px one. The one thing that
+  can't follow the theme is iOS's own launch image: it's picked before
+  any JS runs and varies only by `prefers-color-scheme`, so it's baked
+  to brutalist (the default) and an OLED user gets a few hundred ms of
+  `#0a0a0a` before the app paints `#000`.
+
   It always runs for `MIN_VISIBLE_MS` (a sequence cut off halfway reads
   as a bug, and a cached session resolves in single-digit ms), and a
   timer unmounts it even if the exit animation never finishes —
   `AnimatePresence` waits for completion, and animation clocks stop when
   the page isn't painted, which would otherwise leave a full-screen
-  layer over an untappable app. `/widget` skips it.
+  layer over an untappable app.
 - **16px form fields.** iOS zooms the viewport when a focused input is
   under 16px. Every field is 16px, with a `@supports` backstop.
 - **No rubber-banding.** `overscroll-behavior: none` — standalone iOS has
