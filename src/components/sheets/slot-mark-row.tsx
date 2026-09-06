@@ -57,10 +57,22 @@ interface SlotMarkRowProps {
    * into the three options on tap, instead of always-visible buttons.
    */
   collapsible?: boolean;
+  /**
+   * A class the timetable doesn't schedule. Labelled, because an
+   * unexplained extra row reads as a bug in the timetable rather than
+   * as the makeup lecture you sat through.
+   */
+  extra?: boolean;
 }
 
 /** One class slot with Present / Absent / Cancelled marking. */
-export function SlotMarkRow({ slot, subject, date, collapsible = false }: SlotMarkRowProps) {
+export function SlotMarkRow({
+  slot,
+  subject,
+  date,
+  collapsible = false,
+  extra = false,
+}: SlotMarkRowProps) {
   const { data: attendance } = useAttendance();
   const mark = useMarkAttendance();
   const unmark = useUnmarkAttendance();
@@ -140,7 +152,7 @@ export function SlotMarkRow({ slot, subject, date, collapsible = false }: SlotMa
         <div className="min-w-0">
           <p className="truncate text-sm font-bold">{subject?.name ?? "Unknown subject"}</p>
           <p className="truncate text-xs font-medium text-muted">
-            {slot.slot_type === "lab" ? "Lab · " : ""}
+            {extra ? "Extra · " : slot.slot_type === "lab" ? "Lab · " : ""}
             {formatTimeRange(slot.start_time, slot.end_time)}
             {slot.room ? ` · ${slot.room}` : ""}
           </p>
