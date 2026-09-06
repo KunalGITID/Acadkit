@@ -37,3 +37,23 @@ describe("boundary tolerance", () => {
     expect(gradeForTotal(49.999).grade).toBe("F");
   });
 });
+
+describe("the pass mark", () => {
+  /**
+   * Confirmed with the user: SRM requires 50/100 overall in a subject
+   * and nothing else. There is no separate minimum in the end-sem, so
+   * 60/60 internal with 5/40 external is a 65 and a B+, not a fail.
+   *
+   * Recorded here because it is a regulation rather than a derivation —
+   * nothing in the code implies it, and the engine would need a second
+   * constraint threaded through every solve if it ever changed.
+   */
+  it("passes at 50 overall, however the 50 was assembled", () => {
+    expect(gradeForTotal(50).grade).toBe("C");
+    expect(gradeForTotal(49.5).grade).toBe("F");
+    // A strong internal and a weak end-sem still clears it.
+    expect(gradeForTotal(60 + 5).grade).toBe("B+");
+    // As does a weak internal and a strong end-sem.
+    expect(gradeForTotal(15 + 40).grade).toBe("C");
+  });
+});
