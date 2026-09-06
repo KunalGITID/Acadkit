@@ -1,3 +1,6 @@
+import { listEntry } from "@/lib/enter";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
+import { reconcile, type Reconciliation } from "@/lib/reconcile";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
@@ -26,6 +29,7 @@ import {
   attendanceColor,
   attendanceTextClass,
   computeOverallAttendance,
+  snapshotsByCode,
   type SubjectAttendance,
 } from "@/lib/attendance";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
@@ -37,7 +41,16 @@ import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
 import { cn } from "@/lib/utils";
 
-function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number }) {
+function SubjectRow({
+  stats,
+  index,
+  recon,
+}: {
+  stats: SubjectAttendance;
+  index: number;
+  recon: Reconciliation | null;
+}) {
+  const settled = useHasAnimated("attendance-subjects");
   const tone = useTone();
   const [open, setOpen] = useState(false);
   const pct = stats.percentage;
@@ -45,9 +58,7 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 26, delay: Math.min(index, 5) * 0.04 }}
+      {...listEntry(index, settled)}
       className="card overflow-hidden"
     >
       <button
@@ -107,6 +118,63 @@ function SubjectRow({ stats, index }: { stats: SubjectAttendance; index: number 
               </div>
             </div>
           </div>
+
+          {/* The app's number is the portal's brought up to date, which
+              means it is deliberately not the portal's. Two figures for
+              one subject reads as a broken app unless the arithmetic is
+              on show. */}
+          {recon && (
+            <div className="border-t px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-muted">
+                Why this differs from the portal
+              </p>
+              <dl className="mt-2 space-y-1.5 text-xs">
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-muted">
+                    Portal, {relativeDay(recon.portalAsOf)}
+                  </dt>
+                  <dd className="shrink-0 font-semibold tabular">
+                    {recon.portalAttended}/{recon.portalConducted}
+                    {/* One decimal, matching "Now" below. Rounded to whole
+                        points, a portal figure of 93.3 prints as 93 and the
+                        drop to 91.4 reads as 1.6 while the line underneath
+                        says 1.9 — the one thing this panel exists to avoid. */}
+                    {recon.portalPercentage !== null
+                      ? ` · ${recon.portalPercentage.toFixed(1)}%`
+                      : ""}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-muted">
+                    {recon.sinceCounted === 0
+                      ? "Nothing marked since"
+                      : `Marked since · ${recon.sinceAttended} of ${recon.sinceCounted} attended`}
+                    {recon.sinceCancelled > 0
+                      ? ` (${recon.sinceCancelled} cancelled, not counted)`
+                      : ""}
+                  </dt>
+                  <dd className="shrink-0 font-semibold tabular">
+                    {recon.sinceCounted === 0
+                      ? "—"
+                      : `+${recon.sinceAttended}/${recon.sinceCounted}`}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 border-t pt-1.5">
+                  <dt className="font-bold">Now</dt>
+                  <dd className={cn("shrink-0 font-extrabold tabular", attendanceTextClass(recon.percentage))}>
+                    {recon.attended}/{recon.conducted}
+                    {recon.percentage !== null ? ` · ${recon.percentage.toFixed(1)}%` : ""}
+                  </dd>
+                </div>
+              </dl>
+              {recon.delta !== null && Math.abs(recon.delta) >= 0.05 && (
+                <p className="mt-2 text-[11px] text-muted">
+                  Your marking has moved it {recon.delta > 0 ? "up" : "down"}{" "}
+                  {Math.abs(recon.delta).toFixed(1)} points since the last sync.
+                </p>
+              )}
+            </div>
+          )}
         </motion.div>
       )}
     </motion.div>
@@ -126,6 +194,22 @@ export default function Attendance() {
     () => computeOverallAttendance(subjects ?? [], attendance ?? [], snapshots ?? []),
     [subjects, attendance, snapshots]
   );
+
+  /**
+   * Why each subject's number isn't the one the portal printed.
+   *
+   * Computed here rather than in the row because this is where the raw
+   * records and snapshots are; the row only ever sees totals.
+   */
+  const reconciliations = useMemo(() => {
+    const byCode = snapshotsByCode(snapshots ?? []);
+    const out = new Map<string, Reconciliation>();
+    for (const s of subjects ?? []) {
+      const r = reconcile(s, attendance ?? [], byCode.get(s.code.trim().toUpperCase()));
+      if (r) out.set(s.id, r);
+    }
+    return out;
+  }, [subjects, attendance, snapshots]);
   // Depend on the two fields, not the settings object: React Query
   // hands back a new object on every refetch, so listing `settings`
   // would satisfy the linter by defeating the memo.
@@ -344,7 +428,12 @@ export default function Attendance() {
       <div className="space-y-3">
         <p className="px-1 text-xs font-bold uppercase tracking-widest text-muted">By subject</p>
         {overall.subjects.map((s, i) => (
-          <SubjectRow key={s.subject.id} stats={s} index={i} />
+          <SubjectRow
+            key={s.subject.id}
+            stats={s}
+            index={i}
+            recon={reconciliations.get(s.subject.id) ?? null}
+          />
         ))}
       </div>
 
