@@ -10,7 +10,7 @@ import {
   inferType,
   solveSubjectPlan,
 } from "@/lib/plan";
-import type { Assessment, Mark, PlannedComponent, Subject } from "@/types";
+import type { Assessment, Deadline, Mark, PlannedComponent, Subject } from "@/types";
 
 const plan = (rows: Array<[string, number]>): PlannedComponent[] =>
   rows.map(([label, max]) => ({ key: label, label, type: "CT" as const, max }));
@@ -467,5 +467,139 @@ describe("computeSgpa on the budget model", () => {
     expect(computeSgpa([s("z", 0)], new Map()).sgpa).toBeNull();
     expect(computeSgpa([], new Map()).sgpa).toBeNull();
     expect(computeSgpa([s("a", 4)], new Map()).sgpa).toBeNull();
+  });
+});
+
+describe("component dates, from the deadlines you already keep", () => {
+  const dl = (title: string, due: string, max: number | null = null): Deadline => ({
+    id: `d-${title}-${due}`,
+    device_id: "0000",
+    subject_id: "s1",
+    title,
+    type: "exam",
+    due_date: `${due}T09:00:00.000Z`,
+    status: "pending",
+    priority: "medium",
+    max_marks: max,
+  });
+
+  const planned = subject({
+    internal: 60,
+    components: plan([["CT-1", 15], ["CT-2", 15], ["Lab", 10]]),
+  });
+
+  it("dates a component from a deadline with the same name", () => {
+    const p = solveSubjectPlan(planned, [], "A", [dl("CT-2", "2026-10-12")]);
+    const ct2 = p.components.find((c) => c.label === "CT-2")!;
+    expect(ct2.date).toBe("2026-10-12");
+    expect(p.components.find((c) => c.label === "CT-1")!.date).toBeNull();
+  });
+
+  it("matches names loosely enough to be useful", () => {
+    const p = solveSubjectPlan(planned, [], "A", [dl("ct 2", "2026-10-12")]);
+    expect(p.components.find((c) => c.label === "CT-2")!.date).toBe("2026-10-12");
+  });
+
+  it("falls back to weight, but only when nothing is ambiguous", () => {
+    // Lab is the only 10-mark component and this the only 10-mark
+    // deadline, so the pairing is forced rather than guessed.
+    const p = solveSubjectPlan(planned, [], "A", [dl("Practical assessment", "2026-11-02", 10)]);
+    expect(p.components.find((c) => c.label === "Lab")!.date).toBe("2026-11-02");
+  });
+
+  it("refuses to guess between two components of the same weight", () => {
+    // CT-1 and CT-2 are both 15. A wrong date on a real test is worse
+    // than no date, so neither gets one.
+    const p = solveSubjectPlan(planned, [], "A", [dl("Some test", "2026-10-12", 15)]);
+    expect(p.components.find((c) => c.label === "CT-1")!.date).toBeNull();
+    expect(p.components.find((c) => c.label === "CT-2")!.date).toBeNull();
+  });
+
+  it("never dates something already graded", () => {
+    const p = solveSubjectPlan(planned, [mark("CT-1", 12, 15)], "A", [dl("CT-1", "2026-09-01")]);
+    expect(p.components.find((c) => c.label === "CT-1")!.date).toBeNull();
+  });
+
+  it("names the soonest thing still to come", () => {
+    const p = solveSubjectPlan(planned, [], "A", [
+      dl("Lab", "2026-11-02"),
+      dl("CT-2", "2026-10-12"),
+    ]);
+    expect(p.next?.label).toBe("CT-2");
+    expect(p.next?.date).toBe("2026-10-12");
+    expect(p.next?.required).toBeGreaterThan(0);
+  });
+
+  it("has no next when nothing is dated", () => {
+    expect(solveSubjectPlan(planned, [], "A").next).toBeNull();
+  });
+});
+
+describe("confidence band — how much your own results swing", () => {
+  const four = subject({
+    internal: 60,
+    components: plan([["T1", 15], ["T2", 15], ["T3", 15], ["T4", 15]]),
+  });
+
+  it("says nothing from too few results", () => {
+    expect(solveSubjectPlan(four, [mark("T1", 12, 15)], "A").band).toBeNull();
+    expect(
+      solveSubjectPlan(four, [mark("T1", 12, 15), mark("T2", 9, 15)], "A").band
+    ).toBeNull();
+  });
+
+  it("collapses to a point when you are perfectly consistent", () => {
+    const p = solveSubjectPlan(
+      four,
+      [mark("T1", 9, 15), mark("T2", 9, 15), mark("T3", 9, 15)],
+      "A"
+    );
+    expect(p.band!.sd).toBeCloseTo(0, 9);
+    expect(p.band!.low).toBeCloseTo(p.pace!, 9);
+    expect(p.band!.high).toBeCloseTo(p.pace!, 9);
+    expect(p.band!.samples).toBe(3);
+  });
+
+  it("widens when your results disagree with each other", () => {
+    // Same average as above, wildly different consistency: 14/15 and
+    // 2/15 average to the same place as three 8/15s and mean something
+    // very different about the forecast.
+    const steady = solveSubjectPlan(
+      four,
+      [mark("T1", 8, 15), mark("T2", 8, 15), mark("T3", 8, 15)],
+      "A"
+    );
+    const swingy = solveSubjectPlan(
+      four,
+      [mark("T1", 14, 15), mark("T2", 2, 15), mark("T3", 8, 15)],
+      "A"
+    );
+    expect(steady.pace).toBeCloseTo(swingy.pace!, 6); // identical pace
+    expect(swingy.band!.sd).toBeGreaterThan(steady.band!.sd);
+    expect(swingy.band!.high - swingy.band!.low).toBeGreaterThan(
+      steady.band!.high - steady.band!.low
+    );
+  });
+
+  it("stays inside the bracket it is drawn on", () => {
+    const p = solveSubjectPlan(
+      four,
+      [mark("T1", 15, 15), mark("T2", 0, 15), mark("T3", 15, 15)],
+      "A"
+    );
+    expect(p.band!.low).toBeGreaterThanOrEqual(p.floor - 1e-9);
+    expect(p.band!.high).toBeLessThanOrEqual(p.ceiling + 1e-9);
+    expect(p.band!.low).toBeLessThanOrEqual(p.band!.high);
+  });
+
+  it("has nothing to say once there is nothing left to forecast", () => {
+    const done = subject({ internal: 100, components: plan([["T1", 40], ["T2", 30], ["T3", 30]]) });
+    const p = solveSubjectPlan(
+      done,
+      [mark("T1", 30, 40), mark("T2", 20, 30), mark("T3", 25, 30)],
+      "A"
+    );
+    expect(p.pool).toBe(0);
+    expect(p.band).toBeNull();
   });
 });

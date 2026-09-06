@@ -144,6 +144,44 @@ number. That changed some answers — 25/25 on one CT used to report "O
 is safe", and now reports what O costs across the 75 marks still
 unplayed, which is the honest version.
 
+**Attendance gates the whole plan** (`Eligibility` in
+`projections.ts`). Below the minimum you are not permitted into the
+end-sem, so a budget whose pool *is* that exam is fiction, not a
+pessimistic forecast. The two halves of `projections.ts` — attendance
+and marks — never spoke to each other; they are joined now, and
+`barred` outranks everything else the card can say about a subject.
+`at-risk` carries the streak of classes that clears the line and the
+date it lands on.
+
+**Components carry dates**, matched from the deadlines you already
+keep: by name first, then by weight but only when unambiguous on both
+sides. A wrong date on a real test is worse than no date, so a
+near-miss yields nothing. `plan.next` is the soonest dated component
+still to come.
+
+**The pace line carries a band** (`ConfidenceBand`) — ±1 population SD
+of your own graded components, needing at least three. A 14/15 and a
+2/15 average to the same place as two 8/15s and mean something very
+different about how much to trust the forecast; a bare pace line quietly
+claims a certainty nobody has.
+
+**`src/lib/effort.ts` allocates work across subjects.** It replaced
+`sgpaTarget.planForSgpa`, which allowed each subject exactly one grade
+step — so a target needing two grades from one subject came back as
+"at least one has to climb twice" with no plan attached — and ranked by
+distance rather than return. The allocator ranks by SGPA bought per
+extra mark and lets a subject climb repeatedly, pricing each step from
+where the previous ones left it.
+
+The cost model is worth stating because it is not obvious: the extra
+marks a grade costs is exactly `threshold − pace`. The pool cancels out
+of `(rate − paceRate) × pool` entirely. How *many* more marks you need
+does not depend on how many chances remain — what the pool decides is
+whether the grade is reachable at all and at what rate, which is
+`requiredRate`, carried alongside for exactly that reason. A lift above
+your current pace always costs something, by definition, so there is no
+such thing as a free one.
+
 **Rounding has a direction.** A mark you must reach rounds up
 (`ceilHalf` — 10.4 needed means 10.5); a mark you already hold rounds
 down (`floorHalf` — banking 42.4 and printing 42.5 hands you half a

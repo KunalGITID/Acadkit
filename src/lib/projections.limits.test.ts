@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { buildProjection } from "@/lib/projections";
 import { computeSgpa } from "@/lib/plan";
 import { groupMarksBySubject } from "@/lib/grades";
-import { planForSgpa } from "@/lib/sgpaTarget";
+import { allocateEffort } from "@/lib/effort";
 import { gradeForTargetSgpa } from "@/lib/plan";
 import { GRADE_TABLE, type Grade } from "@/lib/grades";
 import type { Assessment, Mark, Subject } from "@/types";
@@ -166,11 +166,11 @@ describe("target grade derivation", () => {
   });
 });
 
-describe("planForSgpa cannot disagree with the cards", () => {
+describe("the allocator cannot disagree with the cards", () => {
   it("reports the same projection the report does", () => {
     for (let t = 0; t <= 10.0001; t += 0.5) {
       const r = report(t);
-      const plan = planForSgpa(r.gradeProjections, t);
+      const plan = allocateEffort(r.gradeProjections, t);
       if (plan.status === "unknown") continue;
       // The doc claims nothing is re-derived. This is that claim.
       const credited = r.gradeProjections.filter((p) => p.subject.credits > 0);
@@ -184,11 +184,11 @@ describe("planForSgpa cannot disagree with the cards", () => {
   it("only ever proposes lifts that gain ground and stay reachable", () => {
     for (let t = 0; t <= 10.0001; t += 0.25) {
       const r = report(t);
-      const plan = planForSgpa(r.gradeProjections, t);
-      for (const lift of plan.lifts) {
+      const plan = allocateEffort(r.gradeProjections, t);
+      for (const lift of plan.moves) {
         expect(lift.gain, `target ${t}`).toBeGreaterThan(0);
         expect(lift.requiredRate).toBeGreaterThanOrEqual(0);
-        expect(Number.isFinite(lift.neededMarks)).toBe(true);
+        expect(Number.isFinite(lift.cost)).toBe(true);
         // A lift is a grade the subject can actually still reach.
         const p = r.gradeProjections.find((x) => x.subject.id === lift.subject.id)!;
         const row = p.plan.perGrade.find((g) => g.grade === lift.to)!;
@@ -197,16 +197,14 @@ describe("planForSgpa cannot disagree with the cards", () => {
       if (plan.status === "reachable") {
         expect(plan.projectedAfter!).toBeGreaterThanOrEqual(t - 1e-9);
       }
-      if (plan.status === "needs-more-than-one-grade") {
-        expect(plan.projectedAfter!).toBeLessThan(t);
-      }
+
     }
   });
 
   it("says out of reach only when the ceiling really is short", () => {
     for (let t = 0; t <= 10.0001; t += 0.25) {
       const r = report(t);
-      const plan = planForSgpa(r.gradeProjections, t);
+      const plan = allocateEffort(r.gradeProjections, t);
       if (plan.status === "out-of-reach") expect(plan.ceiling!).toBeLessThan(t);
       if (plan.status === "met") expect(plan.projected!).toBeGreaterThanOrEqual(t - 1e-9);
     }
@@ -218,7 +216,7 @@ describe("degenerate semesters", () => {
     const r = buildProjection([], [], [], [], []);
     expect(r.gradeProjections).toEqual([]);
     expect(r.predictedSgpa).toBeNull();
-    expect(planForSgpa([], 8.5).status).toBe("unknown");
+    expect(allocateEffort([], 8.5).status).toBe("unknown");
   });
 
   it("survives subjects with no marks anywhere", () => {
@@ -236,7 +234,7 @@ describe("degenerate semesters", () => {
   it("survives a semester of nothing but 0-credit subjects", () => {
     const r = buildProjection([subj(0, split(60))], [], [], [], []);
     expect(r.predictedSgpa).toBeNull();
-    expect(planForSgpa(r.gradeProjections, 8.5).status).toBe("unknown");
+    expect(allocateEffort(r.gradeProjections, 8.5).status).toBe("unknown");
   });
 
   it("handles a fully finished semester", () => {
@@ -308,5 +306,104 @@ describe("the Dashboard and Insights cannot disagree", () => {
     expect(dashboard.sgpa).toBeCloseTo(insights.predictedSgpa!, 9);
     // And every one of them is solved on its own weight.
     expect(insights.gradeProjections.map((p) => p.internalWeight)).toEqual([100, 75, 50, 25, 0]);
+  });
+});
+
+describe("attendance decides whether the grade plan is even possible", () => {
+  /**
+   * Below the minimum you are not permitted into the end-sem, so a plan
+   * whose whole pool is that exam is not a pessimistic forecast — it is
+   * fiction. These two halves of the projection never spoke to each
+   * other before; this is the join.
+   */
+  const WINDOW = { start: "2026-09-01", end: "2026-11-30" };
+  const FROM = "2026-09-15";
+
+  const slots = [1, 2, 3, 4, 5].map((day_order) => ({
+    id: `slot${day_order}`,
+    device_id: "0000",
+    subject_id: "att",
+    day_order,
+    start_time: "08:00:00",
+    end_time: "08:50:00",
+    room: null,
+  }));
+
+  const att = (i: number, status: "present" | "absent") => ({
+    id: `a${i}`,
+    device_id: "0000",
+    subject_id: "att",
+    date: `2026-09-0${i}`,
+    start_time: "08:00:00",
+    end_time: "08:50:00",
+    status,
+  });
+
+  const subject = (): Subject => ({ ...subj(4, split(60)), id: "att" });
+
+  const run = (
+    records: ReturnType<typeof att>[],
+    timetable: typeof slots,
+    marks: Mark[] = []
+  ) =>
+    buildProjection(
+      [subject()],
+      records,
+      timetable,
+      marks,
+      [],
+      FROM,
+      WINDOW,
+      8.5
+    ).gradeProjections[0];
+
+  it("says nothing when there is nothing to go on", () => {
+    const p = run([], []);
+    expect(p.eligibility.status).toBe("unknown");
+    expect(p.eligibility.pct).toBeNull();
+  });
+
+  it("stays quiet when you're above the line", () => {
+    const p = run([att(1, "present"), att(2, "present"), att(3, "present")], slots);
+    expect(p.eligibility.status).toBe("safe");
+    expect(p.eligibility.pct).toBe(100);
+  });
+
+  it("warns while 75% is still recoverable", () => {
+    // 1 of 4, with a term's worth of classes left to climb back through.
+    const p = run(
+      [att(1, "present"), att(2, "absent"), att(3, "absent"), att(4, "absent")],
+      slots
+    );
+    expect(p.eligibility.status).toBe("at-risk");
+    expect(p.eligibility.pct).toBe(25);
+    expect(p.eligibility.needToAttend).toBe(8); // (0.75·4 − 1) / 0.25
+    expect(p.eligibility.clearBy).not.toBeNull();
+    expect(p.riskLevel).not.toBe("safe");
+  });
+
+  it("calls it barred once the arithmetic is gone", () => {
+    // Same record, but no classes remain to recover in.
+    const p = run(
+      [att(1, "present"), att(2, "absent"), att(3, "absent"), att(4, "absent")],
+      []
+    );
+    expect(p.eligibility.status).toBe("barred");
+    expect(p.eligibility.bestPct).toBe(25);
+    // It outranks everything else the card could say about this subject.
+    expect(p.riskLevel).toBe("critical");
+  });
+
+  it("leaves the marks budget untouched — the two are orthogonal", () => {
+    // Attendance decides whether the plan is worth anything; it does not
+    // change the arithmetic of the plan itself.
+    const marks = [mk("att", "CT-1", 12, 15)];
+    const barred = run([att(1, "absent"), att(2, "absent")], [], marks);
+    const safe = run([att(1, "present"), att(2, "present")], [], marks);
+    expect(barred.eligibility.status).toBe("barred");
+    expect(safe.eligibility.status).toBe("safe");
+    expect(barred.banked).toBe(safe.banked);
+    expect(barred.pool).toBe(safe.pool);
+    expect(barred.requiredRate).toBe(safe.requiredRate);
   });
 });

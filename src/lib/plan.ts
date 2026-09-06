@@ -32,6 +32,7 @@
 import { GRADE_TABLE, gradeForTotal } from "@/lib/grades";
 import type {
   Assessment,
+  Deadline,
   Grade,
   Mark,
   MarkComponentType,
@@ -189,6 +190,12 @@ export interface SolvedComponent {
    * target has moved out of reach.
    */
   requiredPct: number | null;
+  /**
+   * When this component happens, if a deadline says so. The plan
+   * carries weights; the deadlines table carries dates, and a list of
+   * what each test owes is far more useful in the order they arrive.
+   */
+  date: string | null;
 }
 
 export interface GradeRequirement {
@@ -254,6 +261,10 @@ export interface SubjectPlan {
   scaled: boolean;
   perGrade: GradeRequirement[];
   hasAnyMarks: boolean;
+  /** ±1 SD of your own component scores, or null with too few to say. */
+  band: ConfidenceBand | null;
+  /** The soonest dated component still to come. */
+  next: SolvedComponent | null;
 }
 
 /** The grade a target SGPA implies, for subjects with no explicit target. */
@@ -309,9 +320,106 @@ export interface SubjectBudget {
   pace: number | null;
   scaled: boolean;
   hasAnyMarks: boolean;
+  /**
+   * How much your results actually vary, and what that does to the
+   * forecast. A single pace line quietly assumes you will reproduce
+   * your average exactly; anyone with a 14/15 and a 2/15 knows that is
+   * not a forecast, it is an average pretending to be one.
+   */
+  band: ConfidenceBand | null;
+  /** The soonest dated component still to come. */
+  next: SolvedComponent | null;
 }
 
-export function budgetFor(subject: Subject, marks: Mark[]): SubjectBudget {
+/** ±1 standard deviation of your own component scores, on the pool. */
+export interface ConfidenceBand {
+  /** Pace minus a deviation, floored at what's already banked. */
+  low: number;
+  /** Pace plus a deviation, capped at the ceiling. */
+  high: number;
+  /** Spread of your component ratios, 0–1. */
+  sd: number;
+  /** Graded components it was measured over. */
+  samples: number;
+}
+
+/** Below this a "spread" is one result disagreeing with another. */
+const MIN_BAND_SAMPLES = 3;
+
+/**
+ * Put dates on components, from deadlines, by name.
+ *
+ * Label match first, since that is the one the user controls directly.
+ * Failing that, a weight match — but only when it is unambiguous on
+ * both sides, because "the other 15-mark one" is a guess and a wrong
+ * date on a test is worse than no date at all.
+ */
+function attachDates(components: SolvedComponent[], deadlines: Deadline[]): void {
+  const dated = deadlines.filter((d) => d.due_date);
+  if (dated.length === 0) return;
+
+  const pending = components.filter((c) => c.obtained === null);
+  const taken = new Set<string>();
+
+  for (const c of pending) {
+    const hit = dated.find((d) => !taken.has(d.id) && normLabel(d.title) === normLabel(c.label));
+    if (hit) {
+      taken.add(hit.id);
+      c.date = hit.due_date.slice(0, 10);
+    }
+  }
+
+  for (const c of pending) {
+    if (c.date !== null) continue;
+    const byWeight = dated.filter(
+      (d) => !taken.has(d.id) && Number(d.max_marks) > 0 && Number(d.max_marks) === c.max
+    );
+    const rivals = pending.filter((o) => o.date === null && o.max === c.max);
+    if (byWeight.length === 1 && rivals.length === 1) {
+      taken.add(byWeight[0].id);
+      c.date = byWeight[0].due_date.slice(0, 10);
+    }
+  }
+}
+
+/**
+ * The spread of your own component scores.
+ *
+ * Population deviation over each graded component's ratio, which is the
+ * right unit: a 2/15 and a 14/15 are 13% and 93%, and it is that gap —
+ * not the raw marks — that says how much a single pace line should be
+ * trusted. Below three components there is no spread worth reporting,
+ * only two numbers disagreeing.
+ */
+function confidenceBand(
+  components: SolvedComponent[],
+  banked: number,
+  pool: number,
+  paceRate: number | null
+): ConfidenceBand | null {
+  if (paceRate === null || pool <= 1e-9) return null;
+  const ratios = components
+    .filter((c) => c.obtained !== null && c.max > 1e-9)
+    .map((c) => (c.obtained as number) / c.max);
+  if (ratios.length < MIN_BAND_SAMPLES) return null;
+
+  const mean = ratios.reduce((a, r) => a + r, 0) / ratios.length;
+  const variance = ratios.reduce((a, r) => a + (r - mean) ** 2, 0) / ratios.length;
+  const sd = Math.sqrt(variance);
+
+  return {
+    low: banked + clamp(paceRate - sd, 0, 1) * pool,
+    high: banked + clamp(paceRate + sd, 0, 1) * pool,
+    sd,
+    samples: ratios.length,
+  };
+}
+
+export function budgetFor(
+  subject: Subject,
+  marks: Mark[],
+  deadlines: Deadline[] = []
+): SubjectBudget {
   const assessment = assessmentFor(subject);
   const internalWeight = assessment.internal;
   const externalWeight = 100 - internalWeight;
@@ -400,6 +508,7 @@ export function budgetFor(subject: Subject, marks: Mark[]): SubjectBudget {
     obtained: c.obtained === null ? null : c.obtained * scale,
     required: null,
     requiredPct: null,
+    date: null,
   }));
 
   // ---- whatever internal weight nobody has claimed ----
@@ -415,6 +524,7 @@ export function budgetFor(subject: Subject, marks: Mark[]): SubjectBudget {
       obtained: null,
       required: null,
       requiredPct: null,
+      date: null,
     });
   }
 
@@ -432,8 +542,15 @@ export function budgetFor(subject: Subject, marks: Mark[]): SubjectBudget {
           : null,
       required: null,
       requiredPct: null,
+      date: null,
     });
   }
+
+  // Dates come from the deadlines you already keep, matched by name.
+  // Nothing is inferred from a near-miss: an unmatched component simply
+  // has no date, which is honest, where guessing "CT-2 is probably that
+  // 15-mark thing in November" would put a wrong date on a real test.
+  attachDates(components, deadlines);
 
   // Keys become React keys downstream, and a plan can carry duplicates
   // — jsonb edited by hand, or a row copied in the editor. Deduping
@@ -458,6 +575,9 @@ export function budgetFor(subject: Subject, marks: Mark[]): SubjectBudget {
   const pool = pending.reduce((s, c) => s + c.max, 0);
 
   const paceRate = gradedMax > 1e-9 ? banked / gradedMax : null;
+  const upcoming = components
+    .filter((c) => c.obtained === null && c.date !== null)
+    .sort((a, b) => (a.date as string).localeCompare(b.date as string));
 
   return {
     internalWeight,
@@ -472,6 +592,8 @@ export function budgetFor(subject: Subject, marks: Mark[]): SubjectBudget {
     pace: paceRate === null ? null : banked + paceRate * pool,
     scaled,
     hasAnyMarks: graded.length > 0,
+    band: confidenceBand(components, banked, pool, paceRate),
+    next: upcoming[0] ?? null,
   };
 }
 
@@ -494,8 +616,12 @@ export interface SubjectOutlook extends SubjectBudget {
   points: number;
 }
 
-export function subjectOutlook(subject: Subject, marks: Mark[]): SubjectOutlook {
-  const budget = budgetFor(subject, marks);
+export function subjectOutlook(
+  subject: Subject,
+  marks: Mark[],
+  deadlines: Deadline[] = []
+): SubjectOutlook {
+  const budget = budgetFor(subject, marks, deadlines);
   const internalComponents = marks.filter((m) => !m.is_external);
   const predictedTotal = budget.pace ?? budget.banked;
   const { grade, points } = gradeForTotal(predictedTotal);
@@ -557,7 +683,8 @@ export function computeSgpa(
 export function solveSubjectPlan(
   subject: Subject,
   marks: Mark[],
-  targetGrade: Grade
+  targetGrade: Grade,
+  deadlines: Deadline[] = []
 ): SubjectPlan {
   const target = gradeRow(targetGrade === "F" ? "C" : targetGrade);
 
@@ -574,7 +701,9 @@ export function solveSubjectPlan(
     pace,
     scaled,
     hasAnyMarks,
-  } = budgetFor(subject, marks);
+    band,
+    next,
+  } = budgetFor(subject, marks, deadlines);
 
   const needed = target.min - banked;
   const requiredRate = pool > 1e-9 ? needed / pool : null;
@@ -637,5 +766,7 @@ export function solveSubjectPlan(
     scaled,
     perGrade,
     hasAnyMarks,
+    band,
+    next,
   };
 }

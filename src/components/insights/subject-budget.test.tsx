@@ -15,7 +15,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SubjectBudgetCard } from "@/components/insights/subject-budget";
 import { buildProjection } from "@/lib/projections";
-import type { Mark, Subject } from "@/types";
+import type { AttendanceRecord, Deadline, Mark, Subject, TimetableSlot } from "@/types";
 
 const SUBJECT: Subject = {
   id: "s1",
@@ -52,9 +52,25 @@ const mark = (label: string, obtained: number, max: number): Mark => ({
   is_external: false,
 });
 
+interface Extras {
+  attendance?: AttendanceRecord[];
+  timetable?: TimetableSlot[];
+  deadlines?: Deadline[];
+}
+
 /** The card, as the Insights page assembles it. */
-function renderFor(subject: Subject, marks: Mark[]): string {
-  const report = buildProjection([subject], [], [], marks, []);
+function renderFor(subject: Subject, marks: Mark[], extras: Extras = {}): string {
+  const report = buildProjection(
+    [subject],
+    extras.attendance ?? [],
+    extras.timetable ?? [],
+    marks,
+    [],
+    "2026-09-15",
+    { start: "2026-09-01", end: "2026-11-30" },
+    8.5,
+    extras.deadlines ?? []
+  );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderToStaticMarkup(
     <QueryClientProvider client={qc}>
@@ -188,5 +204,76 @@ describe("SubjectBudgetCard", () => {
     expect(t).not.toContain("71/100 B+");
     // And what is banked is floored too, not rounded up to 42.5.
     expect(t).toContain("42 banked");
+  });
+
+  it("leads with attendance when the end-sem is at risk", () => {
+    const absences: AttendanceRecord[] = [1, 2, 3, 4].map((i) => ({
+      id: `a${i}`,
+      device_id: "1234",
+      subject_id: "s1",
+      date: `2026-09-0${i}`,
+      start_time: "08:00:00",
+      end_time: "08:50:00",
+      status: i === 1 ? "present" : "absent",
+    }));
+    const slots: TimetableSlot[] = [1, 2, 3, 4, 5].map((day_order) => ({
+      id: `t${day_order}`,
+      device_id: "1234",
+      subject_id: "s1",
+      day_order,
+      start_time: "08:00:00",
+      end_time: "08:50:00",
+      room: null,
+    }));
+
+    const atRisk = text(renderFor(SUBJECT, [], { attendance: absences, timetable: slots }));
+    expect(atRisk).toContain("Attendance is 25%");
+    expect(atRisk).toContain("Attend the next 8 classes to clear 75%");
+
+    // With no classes left to recover in, it stops being a warning.
+    const barred = text(renderFor(SUBJECT, [], { attendance: absences }));
+    expect(barred).toContain("cannot reach 75%");
+    expect(barred).toContain("this plan assumes you can sit it");
+  });
+
+  it("says nothing about attendance when it is fine", () => {
+    const present: AttendanceRecord[] = [{
+      id: "a1", device_id: "1234", subject_id: "s1", date: "2026-09-01",
+      start_time: "08:00:00", end_time: "08:50:00", status: "present",
+    }];
+    const t = text(renderFor(SUBJECT, [], { attendance: present }));
+    expect(t).not.toContain("Attendance is");
+  });
+
+  it("dates the components and names what is next", () => {
+    const deadlines: Deadline[] = [
+      {
+        id: "d1", device_id: "1234", subject_id: "s1", title: "CT-2",
+        type: "exam", due_date: "2026-10-12T09:00:00.000Z",
+        status: "pending", priority: "high", max_marks: 15,
+      },
+      {
+        id: "d2", device_id: "1234", subject_id: "s1", title: "Model",
+        type: "exam", due_date: "2026-11-03T09:00:00.000Z",
+        status: "pending", priority: "high", max_marks: 15,
+      },
+    ];
+    const t = text(renderFor(SUBJECT, [mark("Assignment", 5, 5)], { deadlines }));
+    expect(t).toContain("Next up: CT-2 on 12 Oct");
+    expect(t).toContain("CT-2 12 Oct");
+    expect(t).toContain("Model 3 Nov");
+  });
+
+  it("shows how much your own results swing, once there are enough", () => {
+    // 14/15 then 2/15 averages to the same pace as two 8/15s and says
+    // something very different about how much to trust it.
+    const swingy = text(
+      render([mark("Assignment", 5, 5), mark("CT-1", 14, 15), mark("CT-2", 2, 15)])
+    );
+    expect(swingy).toMatch(/At your pace \d+\/100 \w\+? \d+–\d+/);
+
+    // Two components is not a spread, it is two numbers disagreeing.
+    const tooFew = text(render([mark("Assignment", 5, 5), mark("CT-1", 14, 15)]));
+    expect(tooFew).not.toMatch(/At your pace \d+\/100 \w\+? \d+–\d+/);
   });
 });
