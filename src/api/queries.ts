@@ -81,12 +81,21 @@ alter table attendance
 create index if not exists idx_attendance_auto_marked
   on attendance(device_id, auto_marked) where auto_marked;
 alter table settings
-  add column if not exists auto_mark_present boolean not null default false;`;
+  add column if not exists auto_mark_present boolean not null default false;
+
+-- Assessment plan + per-subject target (021)
+alter table subjects
+  add column if not exists assessment jsonb,
+  add column if not exists target_grade text;
+alter table subjects drop constraint if exists subjects_target_grade_check;
+alter table subjects add constraint subjects_target_grade_check
+  check (target_grade is null or target_grade in ('O','A+','A','B+','B','C'));`;
 
 const OPTIONAL_COLUMNS: Array<{ table: string; column: string; enables: string }> = [
   { table: "settings", column: "name", enables: "greeting name that follows your PIN" },
   { table: "timetable_slots", column: "slot_type", enables: "theory/lab class tags" },
   { table: "subjects", column: "internal_only", enables: "internal-only subjects" },
+  { table: "subjects", column: "assessment", enables: "per-subject mark split & test plan" },
   { table: "semester_archives", column: "id", enables: "semester history & CGPA" },
   { table: "portal_snapshots", column: "id", enables: "portal attendance sync" },
   { table: "marks", column: "source", enables: "portal marks sync" },
@@ -118,12 +127,26 @@ async function withColumnFallback<T extends Record<string, unknown>>(
 ): Promise<void> {
   const { error } = await run(payload);
   if (!error) return;
-  const missing = optionalColumns.find((col) => error.message.includes(`'${col}'`));
-  if (!missing) throw new Error(error.message);
-  const stripped = { ...payload };
-  delete stripped[missing];
-  const retry = await run(stripped);
-  throwIf(retry.error);
+
+  // Loop rather than strip once: PostgREST names a single unknown column
+  // per error, so a migration that adds two (021 adds `assessment` and
+  // `target_grade`) surfaces the second only after the first is gone.
+  // Stripping one and giving up turned a recoverable save into a thrown
+  // error on exactly the subjects this fallback exists to protect.
+  const stripped: Record<string, unknown> = { ...payload };
+  let last = error;
+  for (let i = 0; i < optionalColumns.length; i++) {
+    const missing = optionalColumns.find(
+      (col) => col in stripped && last.message.includes(`'${col}'`)
+    );
+    if (!missing) throw new Error(last.message);
+    delete stripped[missing];
+    const retry = await run(stripped);
+    if (!retry.error) break;
+    last = retry.error;
+    if (i === optionalColumns.length - 1) throw new Error(last.message);
+  }
+
   if (!migrationHintShown) {
     migrationHintShown = true;
     toast.info("Saved — one field needs a quick setup step", {
@@ -210,14 +233,19 @@ export async function insertSubject(
   pin: string,
   subject: Omit<Subject, "id" | "device_id" | "created_at">
 ): Promise<void> {
-  await withColumnFallback({ ...subject, device_id: pin }, ["internal_only"], (payload) =>
-    supabase.from("subjects").insert(payload)
+  await withColumnFallback(
+    { ...subject, device_id: pin },
+    ["internal_only", "assessment", "target_grade"],
+    (payload) =>
+      supabase.from("subjects").insert(payload)
   );
 }
 
 export async function updateSubject(id: string, patch: Partial<Subject>): Promise<void> {
-  await withColumnFallback({ ...patch }, ["internal_only"], (payload) =>
-    supabase.from("subjects").update(payload).eq("id", id)
+  await withColumnFallback(
+    { ...patch },
+    ["internal_only", "assessment", "target_grade"],
+    (payload) => supabase.from("subjects").update(payload).eq("id", id)
   );
 }
 

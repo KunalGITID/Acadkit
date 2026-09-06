@@ -80,11 +80,54 @@ Supabase ← src/api/queries.ts ← src/hooks/useData.ts (React Query) ← pages
 
 SRM uses a 5-day rotating schedule (Day 1–5), not weekdays. The canonical semester data (window, official holidays, date → day-order map) lives in **`src/data/semester.ts`** — edit that file each new semester. **`src/lib/calendar.ts`** resolves any date to a `DayInfo` (working/weekend/holiday/pre-/post-semester). User-declared holidays live in `settings.declared_holidays` (jsonb) and are auto-shifted: `buildEffectiveMap` removes declared dates and reassigns the day-order sequence onto the remaining working days. `useToday` (`src/hooks/useToday.ts`) derives today's day order + class slots.
 
-### Marks & SGPA (SRM-specific) — `src/lib/grades.ts`
+### Marks & SGPA (SRM-specific) — `src/lib/grades.ts`, `src/lib/plan.ts`
 
-- Internal components scale to /60 (`Σobtained/Σmax × 60`), the single external mark scales to /40; total /100.
 - Grade thresholds: O≥91, A+≥81, A≥71, B+≥61, B≥56, C≥50, F<50; points O=10…C=5, F=0.
 - SGPA = Σ(points × credits)/Σcredits over credit-bearing subjects with ≥1 mark; 0-credit (audit) subjects are excluded.
+
+**A subject is a budget, not a rate** (`src/lib/plan.ts`). The original
+model read a subject as the ratio of internal marks earned to internal
+marks *entered*, scaled onto /100 — so one 5/5 assignment read as 100%
+and predicted an O, and the same subject read F the moment a 2/15
+landed. Both are artefacts of a denominator that only counts what has
+already been marked.
+
+`solveSubjectPlan(subject, marks, targetGrade)` treats the course as 100
+marks that have each either been played or are still to come. 5/5 banks
+5 of 100 and leaves 95 on the table, so a target is a number to cover
+rather than a pace to hold: `needed = threshold − banked`, spread across
+everything left at one equal rate (`requiredRate = needed / pool`). Each
+result landing shrinks the pool and every remaining number is re-solved
+against it. `plan.test.ts` walks the canonical case — 60/40, targeting
+A, assignment 5/5 then CT-1 2/15 — and pins each step's spread.
+
+Two SRM realities drive the shape, and both were previously unmodelled:
+
+- **The split isn't fixed.** 60/40 is typical, not universal. The
+  internal weight is per-subject (`subjects.assessment.internal`,
+  migration 021); everything is written against `W`, not a literal 60.
+  `internal_only` (migration 008) is now just `W = 100`, and is kept
+  written in step so a device that hasn't run 021 still agrees.
+- **The component plan arrives late, or never.** Some faculty hand out
+  the breakdown in week one, others announce a test days before it
+  happens. So `assessment.components` is **partial by design**: declared
+  rows take their share of `W`, and whatever nobody has claimed stays a
+  single unannounced bucket that shrinks as rows are added. A subject
+  with no plan still solves — it answers in one lump instead of per
+  test. `complete: true` says "this is the whole breakdown", which lets
+  components recorded in their own units (the portal reports out of 5s
+  and 50s) scale onto `W` rather than sprouting a phantom bucket.
+
+Graded marks match declared rows on normalised label (`CT-1` ≡ `ct 1`),
+and the declared weight wins over what the mark says it was out of — the
+plan is the contract, the mark is one reading of it. A graded component
+nobody declared still counts; it happened.
+
+`subjects.target_grade` is the grade you're chasing *in that subject*,
+which is not always what the target SGPA implies — being weak in one
+subject and aiming A there while targeting 9.0 overall is the normal
+case. Null means "derive it from `settings.target_sgpa`", so the two
+can't silently disagree.
 
 ### Attendance — `src/lib/attendance.ts`
 
@@ -93,6 +136,20 @@ SRM uses a 5-day rotating schedule (Day 1–5), not weekdays. The canonical seme
 ### Pages & layout
 
 Eleven lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/history`, `/wrapped`, `/compare`, `/settings`) plus `Onboarding` and `SignIn`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/history`, `/wrapped`, `/compare`) is listed inline in the sidebar on desktop and reached through the **More** sheet on mobile, which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
+
+**Everything grade-shaped lives on `/insights`.** The Marks page used to
+carry its own calculator strip (`components/marks/calculators.tsx`) —
+"what do I need in the end-sem", a target-SGPA table, and a CGPA pad —
+while Insights carried the projections: two screens answering
+overlapping questions off two different models, which is how one page
+came to say "on pace for O" while another said "you need 80% of what's
+left". The first two are superseded by the per-subject budget cards
+(`components/insights/subject-budget.tsx`), which answer the same
+questions against a real assessment plan and a per-subject target; the
+CGPA pad had no equivalent and moved to
+`components/insights/cgpa-card.tsx`. Marks is now purely for entering
+marks. The plan itself is edited in the subject sheet
+(`components/sheets/assessment-editor.tsx`).
 
 ### iOS PWA
 

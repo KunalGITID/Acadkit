@@ -10,13 +10,8 @@ import { isAttended, isCounted } from "@/lib/attendance";
 import type { AttendanceRecord, DeclaredHoliday, Mark, Subject, TimetableSlot } from "@/types";
 import { buildEffectiveMap, semesterWindow, type SemesterWindow } from "@/lib/calendar";
 import { parseISODate, todayISO } from "@/lib/dates";
-import {
-  computeSubjectMarks,
-  gradeForTotal,
-  GRADE_TABLE,
-  groupMarksBySubject,
-  type Grade,
-} from "@/lib/grades";
+import { gradeForTotal, groupMarksBySubject, type Grade } from "@/lib/grades";
+import { gradeForTargetSgpa, solveSubjectPlan, type SubjectPlan } from "@/lib/plan";
 
 export const MIN = 0.75;
 
@@ -259,35 +254,56 @@ export interface ProjectionReport {
   whatIf: WhatIfRow[];
   atRisk: SubjectProjection[]; // not safe, sorted worst-first
   // marks side
+  /** Every subject, including ones with no marks yet — they still have a budget. */
   gradeProjections: SubjectGradeProjection[];
+  /** The target SGPA these were solved against. */
+  targetSgpa: number;
   predictedSgpa: number | null;
   ceilingSgpa: number | null; // if you ace every remaining end-sem
   floorSgpa: number | null; // if every end-sem is blank
   gradesAtRisk: SubjectGradeProjection[];
 }
 
-export interface GradeTarget {
-  grade: Grade;
-  points: number;
-  externalNeeded: number | null; // /40 needed in end-sem; null = impossible
-  locked: boolean; // internal alone already secures it
-}
-
+/**
+ * A subject's grade outlook, entirely budget-derived.
+ *
+ * Everything here reads off `plan` (src/lib/plan.ts) rather than the
+ * old earned-over-entered ratio, so a subject with one 5/5 assignment
+ * reports 5 marks banked of 100 with 95 unplayed — not "100%, on pace
+ * for O". The fields kept their names because the SGPA maths above and
+ * `sgpaTarget.ts` read them, but every one of them now means "of the
+ * whole course" rather than "of what happens to be marked".
+ */
 export interface SubjectGradeProjection {
   subject: Subject;
+  /** The full solve against this subject's target grade. */
+  plan: SubjectPlan;
+  targetGrade: Grade;
   internalOnly: boolean;
-  internalScaled: number; // /60 (split) or /100 (internal-only) locked at current pace
-  internalPct: number; // 0–100 current internal performance
-  predictedTotal: number; // /100 at current pace
+  /** Internal weight, 0–100. 60 unless the subject says otherwise. */
+  internalWeight: number;
+  /** /100 banked so far — the floor, not a projection. */
+  banked: number;
+  /** /100 still to play for. */
+  pool: number;
+  /** Share of what's left the target needs, 0–1. Null when nothing is left. */
+  requiredRate: number | null;
+  /** Share of what's been played that you've actually taken, 0–1. */
+  paceRate: number | null;
+  /** /100 if you keep scoring at your rate so far. */
+  predictedTotal: number;
   predictedGrade: Grade;
   predictedPoints: number;
+  /** Ace everything left. */
   bestTotal: number;
-  worstTotal: number;
   bestGrade: Grade;
+  /** Score zero on everything left. */
+  worstTotal: number;
   worstGrade: Grade;
-  paceExternal: number | null; // /40 implied by current internal pace (split only)
-  targets: GradeTarget[]; // external needed per grade (split only)
-  nextGrade: GradeTarget | null; // next reachable grade up from predicted
+  /** Best grade still arithmetically reachable. */
+  bestReachable: Grade | null;
+  /** The next grade up from predicted that is still reachable. */
+  nextGrade: { grade: Grade; points: number; rate: number } | null;
   riskLevel: RiskLevel;
 }
 
@@ -297,69 +313,52 @@ function gradeRisk(grade: Grade): RiskLevel {
   return "safe";
 }
 
-function projectSubjectGrade(subject: Subject, marks: Mark[]): SubjectGradeProjection {
-  const m = computeSubjectMarks(marks);
-  const internalPct = m.internalMax > 0 ? (m.internalObtained / m.internalMax) * 100 : 0;
-  const predictedTotal = m.predictedTotal;
+function projectSubjectGrade(
+  subject: Subject,
+  marks: Mark[],
+  targetSgpa: number
+): SubjectGradeProjection {
+  const targetGrade = subject.target_grade ?? gradeForTargetSgpa(targetSgpa);
+  const plan = solveSubjectPlan(subject, marks, targetGrade);
+
+  // The pace read: keep taking the same share of every mark you have so
+  // far. With nothing graded there is no rate to extend, so the honest
+  // prediction is the floor — you have banked nothing.
+  const predictedTotal = plan.pace ?? plan.banked;
   const pg = gradeForTotal(predictedTotal);
 
-  if (subject.internal_only) {
-    return {
-      subject,
-      internalOnly: true,
-      internalScaled: predictedTotal,
-      internalPct,
-      predictedTotal,
-      predictedGrade: pg.grade,
-      predictedPoints: pg.points,
-      bestTotal: 100,
-      worstTotal: predictedTotal,
-      bestGrade: gradeForTotal(100).grade,
-      worstGrade: pg.grade,
-      paceExternal: null,
-      targets: [],
-      nextGrade: null,
-      riskLevel: gradeRisk(pg.grade),
-    };
-  }
+  // One grade up, and only if the arithmetic still allows it.
+  const nextGrade =
+    plan.perGrade
+      .filter((g) => g.points > pg.points && g.achievable && g.rate !== null)
+      .sort((a, b) => a.points - b.points)
+      .map((g) => ({ grade: g.grade, points: g.points, rate: g.rate! }))[0] ?? null;
 
-  const internalScaled = (internalPct / 100) * 60; // /60 locked at current internal pace
-  const bestTotal = Math.min(100, internalScaled + 40);
-  const worstTotal = internalScaled;
-  const targets: GradeTarget[] = GRADE_TABLE.filter((g) => g.grade !== "F").map((g) => {
-    const need = g.min - internalScaled;
-    if (need <= 0) return { grade: g.grade, points: g.points, externalNeeded: 0, locked: true };
-    if (need > 40) return { grade: g.grade, points: g.points, externalNeeded: null, locked: false };
-    return { grade: g.grade, points: g.points, externalNeeded: need, locked: false };
-  });
-  const higher = GRADE_TABLE.filter((g) => g.points > pg.points && g.grade !== "F").sort(
-    (a, b) => a.points - b.points
-  );
-  let nextGrade: GradeTarget | null = null;
-  for (const g of higher) {
-    const t = targets.find((x) => x.grade === g.grade);
-    if (t && t.externalNeeded !== null) {
-      nextGrade = t;
-      break;
-    }
-  }
+  // A target that is gone is the loudest thing this card can say, so it
+  // outranks the grade-band colouring.
+  const riskLevel: RiskLevel =
+    plan.status === "out-of-reach" ? "critical" : plan.status === "push" ? "watch" : gradeRisk(pg.grade);
 
   return {
     subject,
-    internalOnly: false,
-    internalScaled,
-    internalPct,
+    plan,
+    targetGrade,
+    internalOnly: plan.externalWeight <= 0,
+    internalWeight: plan.internalWeight,
+    banked: plan.banked,
+    pool: plan.pool,
+    requiredRate: plan.requiredRate,
+    paceRate: plan.paceRate,
     predictedTotal,
     predictedGrade: pg.grade,
     predictedPoints: pg.points,
-    bestTotal,
-    worstTotal,
-    bestGrade: gradeForTotal(bestTotal).grade,
-    worstGrade: gradeForTotal(worstTotal).grade,
-    paceExternal: (internalPct / 100) * 40,
-    targets,
+    bestTotal: plan.ceiling,
+    bestGrade: plan.ceilingGrade,
+    worstTotal: plan.floor,
+    worstGrade: plan.floorGrade,
+    bestReachable: plan.bestReachable,
     nextGrade,
-    riskLevel: gradeRisk(pg.grade),
+    riskLevel,
   };
 }
 
@@ -380,7 +379,8 @@ export function buildProjection(
   marks: Mark[],
   declared: DeclaredHoliday[],
   fromDate: string = todayISO(),
-  window: SemesterWindow = semesterWindow()
+  window: SemesterWindow = semesterWindow(),
+  targetSgpa = 8.5
 ): ProjectionReport {
   const effMap = buildEffectiveMap(declared, window);
   const from = fromDate > window.end ? window.end : fromDate;
@@ -423,16 +423,24 @@ export function buildProjection(
 
   // Grade projections: internal locked at current pace, end-sem (/40) the
   // variable. Mirrors the attendance best/pace/worst structure.
+  // Every subject gets solved, not just the ones with marks: a subject
+  // with nothing entered still has a budget worth showing ("you need
+  // 71% of everything from here"), which is exactly the state you're in
+  // in week one.
   const marksBySubject = groupMarksBySubject(marks);
-  const gradeProjections = subjects
-    .filter((s) => (marksBySubject.get(s.id) ?? []).some((mk) => !mk.is_external))
-    .map((s) => projectSubjectGrade(s, marksBySubject.get(s.id) ?? []));
+  const gradeProjections = subjects.map((s) =>
+    projectSubjectGrade(s, marksBySubject.get(s.id) ?? [], targetSgpa)
+  );
 
-  const predictedSgpa = sgpaFrom(gradeProjections, (p) => p.predictedPoints);
-  const ceilingSgpa = sgpaFrom(gradeProjections, (p) => gradeForTotal(p.bestTotal).points);
-  const floorSgpa = sgpaFrom(gradeProjections, (p) => gradeForTotal(p.worstTotal).points);
+  // SGPA still only counts subjects with something to project from —
+  // averaging in a subject that has banked nothing yet would drag the
+  // number toward zero and say nothing true.
+  const scoreable = gradeProjections.filter((p) => p.plan.hasAnyMarks);
+  const predictedSgpa = sgpaFrom(scoreable, (p) => p.predictedPoints);
+  const ceilingSgpa = sgpaFrom(scoreable, (p) => gradeForTotal(p.bestTotal).points);
+  const floorSgpa = sgpaFrom(scoreable, (p) => gradeForTotal(p.worstTotal).points);
   const gradesAtRisk = gradeProjections
-    .filter((p) => p.riskLevel !== "safe")
+    .filter((p) => p.riskLevel !== "safe" && (p.plan.hasAnyMarks || p.plan.status === "out-of-reach"))
     .sort((a, b) => a.predictedPoints - b.predictedPoints);
 
   return {
@@ -443,6 +451,7 @@ export function buildProjection(
     whatIf,
     atRisk,
     gradeProjections,
+    targetSgpa,
     predictedSgpa,
     ceilingSgpa,
     floorSgpa,

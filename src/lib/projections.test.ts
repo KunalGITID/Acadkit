@@ -74,19 +74,50 @@ describe("projectSubject", () => {
   });
 });
 
-describe("buildProjection — grade targets", () => {
-  it("backsolves end-sem marks needed per grade", () => {
+describe("buildProjection — grade budgets", () => {
+  it("reads one CT as marks banked, not as a rate to hold", () => {
     const subject = subj({ id: "s1", credits: 4 });
     const marks: Mark[] = [
       { id: "m", device_id: "p", subject_id: "s1", component_type: "CT", label: "CT-1", marks_obtained: 12, max_marks: 15, is_external: false },
     ];
     const r = buildProjection([subject], [], [], marks, []);
     const g = r.gradeProjections[0];
-    expect(g.internalScaled).toBeCloseTo(48, 5); // 80% of 60
-    expect(g.predictedGrade).toBe("A"); // predicted total 80
-    expect(g.bestGrade).toBe("A+"); // 48 + 40 = 88
+
+    // 12 of 100 banked. The other 88 marks — 45 of unannounced
+    // internals and the 40-mark end-sem — are still unplayed, which is
+    // what the old rate model had no way to express.
+    expect(g.banked).toBe(12);
+    expect(g.pool).toBe(85);
+    expect(g.internalWeight).toBe(60);
+
+    expect(g.worstTotal).toBe(12); // score nothing from here
+    expect(g.bestTotal).toBe(97); // ace everything from here
+    expect(g.predictedTotal).toBeCloseTo(80, 5); // 80% pace extended over the pool
+    expect(g.predictedGrade).toBe("A");
+
+    // Default target comes from the target SGPA, not from the subject.
+    expect(g.targetGrade).toBe("A+");
+    expect(g.plan.needed).toBe(69); // 81 - 12
+    expect(g.requiredRate).toBeCloseTo(69 / 85, 5);
     expect(g.nextGrade?.grade).toBe("A+");
-    expect(g.nextGrade?.externalNeeded).toBeCloseTo(33, 5); // 81 - 48
+  });
+
+  it("solves a subject with no marks at all", () => {
+    const r = buildProjection([subj({ id: "s1", credits: 4 })], [], [], [], []);
+    const g = r.gradeProjections[0];
+    expect(g.banked).toBe(0);
+    expect(g.pool).toBe(100);
+    expect(g.requiredRate).toBeCloseTo(0.81, 5);
+    // Nothing banked is not a prediction of failure — it is excluded
+    // from SGPA rather than dragging it to zero.
+    expect(r.predictedSgpa).toBeNull();
+  });
+
+  it("honours a per-subject target over the target SGPA", () => {
+    const subject = subj({ id: "s1", credits: 4, target_grade: "A" });
+    const r = buildProjection([subject], [], [], [], [], undefined, undefined, 9);
+    expect(r.gradeProjections[0].targetGrade).toBe("A");
+    expect(r.gradeProjections[0].requiredRate).toBeCloseTo(0.71, 5);
   });
 });
 

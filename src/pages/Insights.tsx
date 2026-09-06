@@ -221,9 +221,12 @@ export default function Insights() {
         marks ?? [],
         declared,
         todayISO(),
-        semWindow
+        semWindow,
+        // A subject with no target of its own inherits the one implied
+        // by the target SGPA, so the two can never disagree.
+        settings?.target_sgpa ?? 8.5
       ),
-    [subjects, attendance, timetable, marks, declared, semWindow]
+    [subjects, attendance, timetable, marks, declared, semWindow, settings?.target_sgpa]
   );
 
   if (sL || aL || tL || mL) {

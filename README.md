@@ -16,7 +16,7 @@ vite-plugin-pwa.
 ### 1. Backend (Supabase)
 
 Create a project at [supabase.com](https://supabase.com) (free tier is plenty), then run the
-SQL files in `supabase/migrations/` in order (001 → 008) in the SQL editor. That creates the
+SQL files in `supabase/migrations/` in order (001 → 021) in the SQL editor. That creates the
 six tables (`subjects`, `timetable_slots`, `attendance`, `marks`, `deadlines`, `settings`)
 and the RLS policies.
 
@@ -64,6 +64,21 @@ On first launch, **Start fresh** generates a random 4-digit PIN, seeds your subj
 stores the PIN locally. The PIN is the identity key for every row in the cloud. On any other
 device, choose **I have a PIN** (or Settings → *Sync this device to another PIN*) and enter
 the same digits — your entire AcadKit loads there. Your PIN is always visible in Settings.
+
+## Per-subject marks structure
+
+SRM's 60/40 internal/external split is a default, not a rule, and the
+component breakdown behind the internal half arrives whenever your
+faculty get round to it. Both live on the subject: **Subjects → edit →
+Marks structure** sets the split and lists the components you know about
+(`CT-1 15`, `Assignment 5`, …). Anything you haven't declared stays an
+open bucket, so a subject with no plan still works — Insights just
+answers in one lump instead of per test. Add a row the day a test is
+announced and every number re-spreads.
+
+Each subject also carries its own **target grade** (set it on the card in
+Insights → Grades). Leave it alone and it follows your target SGPA;
+change it when one subject deserves a different ambition from the rest.
 
 ## New semester checklist
 
