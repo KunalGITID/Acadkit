@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CalendarRange,
+  Target,
   Check,
   Loader2,
   Bell,
@@ -170,6 +171,75 @@ function SemesterDatesCard() {
       <Button onClick={save} disabled={!dirty || invalid} className="w-full">
         {saved ? <Check className="h-4 w-4" /> : null}
         {saved ? "Saved" : "Save semester dates"}
+      </Button>
+    </section>
+  );
+}
+
+/**
+ * The SGPA this semester is aiming at.
+ *
+ * `target_sgpa` has been a column since the first migration and nothing
+ * ever read it — a stored preference the app didn't act on. It drives
+ * the plan on Insights → Grades and the gap on Marks, which is the only
+ * reason to ask for it.
+ */
+function TargetSgpaCard() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const stored = settings?.target_sgpa ?? 8.5;
+  const [value, setValue] = useState(String(stored));
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setValue(String(stored));
+  }, [stored]);
+
+  const parsed = Number(value);
+  // Below 5 is an F average, above 10 is off the scale; neither is a
+  // goal, and both would make every plan nonsense.
+  const invalid = !value || Number.isNaN(parsed) || parsed < 5 || parsed > 10;
+  const dirty = !invalid && parsed !== stored;
+
+  function save() {
+    if (invalid) {
+      toast.error("Pick a target between 5.0 and 10.0");
+      return;
+    }
+    updateSettings.mutate({ target_sgpa: parsed });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+    toast.success(`Aiming at ${parsed.toFixed(1)} SGPA`);
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/12 text-accent">
+          <Target className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="font-bold">Target SGPA</p>
+          <p className="mt-0.5 text-xs text-muted">
+            What this semester is aiming at. Insights works backwards from it to say which
+            subjects have to move, and Marks shows the gap.
+          </p>
+        </div>
+      </div>
+      <Field label="Target">
+        <Input
+          type="number"
+          inputMode="decimal"
+          step="0.1"
+          min="5"
+          max="10"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      </Field>
+      <Button onClick={save} disabled={!dirty} className="w-full">
+        {saved ? <Check className="h-4 w-4" /> : null}
+        {saved ? "Saved" : "Save target"}
       </Button>
     </section>
   );
@@ -595,6 +665,7 @@ export default function Settings() {
       </div>
 
       <CollapsibleSection title="Academics">
+        <TargetSgpaCard />
         <SemesterDatesCard />
         <AutoMarkCard />
         <SubjectsCard />

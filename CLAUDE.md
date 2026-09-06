@@ -281,6 +281,17 @@ free of React:
   key test asserts agreement with `computeSubjectAttendance`, since an
   explanation that disagrees with the number it explains is just a
   second opinion.
+- **`src/lib/sgpaTarget.ts`** — `cgpa.ts` says which SGPA this semester
+  needs; this says which subjects have to move to produce it. A target
+  without that second step isn't advice. Everything is read off
+  `projectSubjectGrade` rather than re-derived, so it can't disagree
+  with the cards beneath it. Lifts are single grade steps ordered by
+  **how far above current pace** the required end-sem mark is, not by
+  the mark itself — needing 32 while tracking 30 is a cheaper ask than
+  needing 28 while tracking 18. When the ceiling allows the target but
+  one-grade steps don't reach it, the status says so instead of listing
+  a plan that falls short. `settings.target_sgpa` had been a column
+  since migration 001 that nothing ever read; this is what reads it.
 - **`src/lib/cgpa.ts`** — `targets.ts` one level up. CGPA is
   credit-weighted, so `target = (priorPoints + sgpa x currentCredits) /
   (priorCredits + currentCredits)` rearranged for the unknown gives what

@@ -207,6 +207,8 @@ export default function Marks() {
   const tone = useTone();
   const { data: subjects, isLoading: sLoading } = useSubjects();
   const { data: marks, isLoading: mLoading } = useMarks();
+  const { data: pageSettings } = useSettings();
+  const targetSgpa = pageSettings?.target_sgpa ?? 8.5;
 
   const [view, setView] = useState<"marks" | "calculator">("marks");
   // The segmented control stays; this just means you don't have to
@@ -299,6 +301,21 @@ export default function Marks() {
                     ? "Add internal marks to see your predicted SGPA"
                     : `Predicted from ${result.countedSubjects} subject${result.countedSubjects > 1 ? "s" : ""} · ${result.totalCredits} credits`}
                 </p>
+                {/* The dial says where you are. Without the target beside
+                    it, "8.12" is a fact rather than a position. */}
+                {result.sgpa !== null && (
+                  <p className="text-sm font-bold">
+                    {result.sgpa >= targetSgpa ? (
+                      <span className="text-good-deep">
+                        {(result.sgpa - targetSgpa).toFixed(2)} above your {targetSgpa.toFixed(1)} target
+                      </span>
+                    ) : (
+                      <span className="text-warn-deep">
+                        {(targetSgpa - result.sgpa).toFixed(2)} short of your {targetSgpa.toFixed(1)} target
+                      </span>
+                    )}
+                  </p>
+                )}
                 <p className="max-w-xs text-center text-xs text-muted lg:text-right">
                   Grades projected from your internal performance so far — O ≥ 91 · A+ ≥ 81 ·
                   A ≥ 71 · B+ ≥ 61 · B ≥ 56 · C ≥ 50

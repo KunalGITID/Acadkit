@@ -1,3 +1,6 @@
+import { useMemo } from "react";
+import { planForSgpa } from "@/lib/sgpaTarget";
+import { useSettings } from "@/hooks/useData";
 import { listEntry } from "@/lib/enter";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { motion } from "framer-motion";
@@ -145,6 +148,12 @@ function SubjectGradeCard({ p, index }: { p: SubjectGradeProjection; index: numb
 
 export function GradesProjection({ report }: { report: ReturnType<typeof buildProjection> }) {
   const tone = useTone();
+  const { data: settings } = useSettings();
+  const target = settings?.target_sgpa ?? 8.5;
+  const plan = useMemo(
+    () => planForSgpa(report.gradeProjections, target),
+    [report.gradeProjections, target]
+  );
   if (report.gradeProjections.length === 0) {
     return (
       <section className="card">
@@ -176,6 +185,71 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
           </div>
         ))}
       </section>
+
+      {/* The three numbers above are a forecast. This is the only part
+          you can act on: which subjects have to move, and by how much
+          more than they are already tracking. */}
+      {plan.status !== "unknown" && (
+        <section className="card p-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
+              Target {plan.target.toFixed(1)}
+            </p>
+            <p className="text-xs font-semibold text-muted">
+              on pace for{" "}
+              <b className="tabular text-ink">{plan.projected?.toFixed(2) ?? "—"}</b>
+            </p>
+          </div>
+
+          {plan.status === "met" ? (
+            <p className="mt-2 text-sm font-bold text-good-deep">
+              Already on pace. Hold this and it lands.
+            </p>
+          ) : plan.status === "out-of-reach" ? (
+            <p className="mt-2 text-sm font-semibold">
+              Out of reach this semester — acing every end-sem still tops out at{" "}
+              <b className="tabular">{plan.ceiling?.toFixed(2)}</b>.{" "}
+              <span className="text-muted">Worth re-aiming at something you can hit.</span>
+            </p>
+          ) : (
+            <>
+              <p className="mt-2 text-sm font-semibold">
+                {plan.status === "needs-more-than-one-grade"
+                  ? "One grade up in each of these gets most of the way — at least one has to climb two:"
+                  : plan.lifts.length === 1
+                    ? "One subject has to move:"
+                    : `${plan.lifts.length} subjects have to move:`}
+              </p>
+              <ul className="mt-2.5 space-y-2">
+                {plan.lifts.map((lift) => (
+                  <li key={lift.subject.id} className="flex items-baseline justify-between gap-3 text-xs">
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <Dot color={lift.subject.color_hex} className="shrink-0" />
+                      <span className="truncate font-bold">{lift.subject.name}</span>
+                    </span>
+                    <span className="shrink-0 font-semibold">
+                      {lift.from} → <b className="text-accent">{lift.to}</b>
+                      {lift.externalNeeded !== null && (
+                        <span className="text-muted">
+                          {" "}
+                          · {lift.externalNeeded.toFixed(0)}/40
+                          {lift.extraNeeded !== null && lift.extraNeeded > 0
+                            ? ` (+${lift.extraNeeded.toFixed(0)})`
+                            : ""}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2.5 text-[11px] text-muted">
+                Ordered by how far each is above its current pace, so the first is the one
+                nearly true already. Change the target in Settings → Academics.
+              </p>
+            </>
+          )}
+        </section>
+      )}
 
       {report.gradesAtRisk.length > 0 && (
         <section className="card border-bad/25 bg-bad/5 p-5">
