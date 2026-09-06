@@ -17,7 +17,7 @@ import { Badge, Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { Segmented } from "@/components/ui/segmented";
-import { useAttendance, useMarks, useSettings, useSubjects, useTimetable , usePortalSnapshots } from "@/hooks/useData";
+import { useAttendance, useDeadlines, useMarks, useSettings, useSubjects, useTimetable , usePortalSnapshots } from "@/hooks/useData";
 import { attendanceColor } from "@/lib/attendance";
 import {
   buildProjection,
@@ -171,6 +171,9 @@ export default function Insights() {
   const { data: attendance, isLoading: aL } = useAttendance();
   const { data: timetable, isLoading: tL } = useTimetable();
   const { data: marks, isLoading: mL } = useMarks();
+  // Dates for the assessment plan: a list of what each test owes is
+  // more useful in the order the tests actually arrive.
+  const { data: deadlines } = useDeadlines();
   const { data: settings } = useSettings();
   const { data: snapshots } = usePortalSnapshots();
   const [view, setView] = useState<"attendance" | "grades" | "plan">("attendance");
@@ -224,9 +227,19 @@ export default function Insights() {
         semWindow,
         // A subject with no target of its own inherits the one implied
         // by the target SGPA, so the two can never disagree.
-        settings?.target_sgpa ?? 8.5
+        settings?.target_sgpa ?? 8.5,
+        deadlines ?? []
       ),
-    [subjects, attendance, timetable, marks, declared, semWindow, settings?.target_sgpa]
+    [
+      subjects,
+      attendance,
+      timetable,
+      marks,
+      declared,
+      semWindow,
+      settings?.target_sgpa,
+      deadlines,
+    ]
   );
 
   if (sL || aL || tL || mL) {

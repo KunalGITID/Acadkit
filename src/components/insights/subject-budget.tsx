@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Check, Lock, TriangleAlert } from "lucide-react";
+import { CalendarClock, Check, Lock, TriangleAlert, UserX } from "lucide-react";
 import { useUpdateSubject } from "@/hooks/useData";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { listEntry } from "@/lib/enter";
@@ -7,6 +7,7 @@ import { ceilHalf, floorHalf, floorTotal, type SolvedComponent } from "@/lib/pla
 import { GRADE_COLORS, GRADE_TABLE } from "@/lib/grades";
 import type { SubjectGradeProjection } from "@/lib/projections";
 import { Dot } from "@/components/ui/misc";
+import { formatDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type { Grade } from "@/types";
 
@@ -103,6 +104,11 @@ function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
             tbd
           </span>
         )}
+        {c.date && (
+          <span className="shrink-0 text-[10px] font-semibold text-muted">
+            {formatDate(c.date, { day: "numeric", month: "short" })}
+          </span>
+        )}
       </span>
 
       <span className="shrink-0 font-bold tabular">
@@ -129,6 +135,7 @@ function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
 
 /** floor · pace · ceiling, the three totals the budget brackets. */
 function Bracket({ p }: { p: SubjectGradeProjection }) {
+  const band = p.plan.band;
   const cells = [
     { label: "Banked", value: p.worstTotal, grade: p.worstGrade, cls: "text-muted" },
     { label: "At your pace", value: p.predictedTotal, grade: p.predictedGrade, cls: "text-ink" },
@@ -146,6 +153,18 @@ function Bracket({ p }: { p: SubjectGradeProjection }) {
           <p className="text-[10px] font-bold" style={{ color: GRADE_COLORS[c.grade] }}>
             {c.grade}
           </p>
+          {/* How much your own results actually swing. A pace line with
+              nothing beside it reads more certain than it is: a 14/15
+              and a 2/15 average to the same place as two 8/15s and mean
+              something very different about the forecast. */}
+          {c.label === "At your pace" && band && (
+            <p
+              className="mt-0.5 text-[10px] font-semibold tabular text-muted"
+              title={`±1 SD of your ${band.samples} graded components`}
+            >
+              {floorTotal(band.low)}–{floorTotal(band.high)}
+            </p>
+          )}
         </div>
       ))}
     </div>
@@ -261,6 +280,51 @@ function Verdict({ p }: { p: SubjectGradeProjection }) {
   );
 }
 
+/**
+ * Whether the end-sem is even available to you.
+ *
+ * Placed above the verdict rather than beside the attendance figures on
+ * another tab, because below the minimum the entire plan underneath is
+ * conditional on something the plan itself cannot fix. A card that
+ * calmly asks for 32/40 in an exam you will not be permitted to sit is
+ * worse than one that says nothing.
+ */
+function Attendance({ p }: { p: SubjectGradeProjection }) {
+  const e = p.eligibility;
+  if (e.status === "safe" || e.status === "unknown") return null;
+  const barred = e.status === "barred";
+
+  return (
+    <div
+      className={cn(
+        "mt-4 flex items-start gap-2 rounded-2xl border p-3.5 text-sm font-semibold",
+        barred ? "border-bad/30 bg-bad/10 text-bad-deep" : "border-warn/30 bg-warn/10"
+      )}
+    >
+      <UserX className="mt-0.5 h-4 w-4 shrink-0" />
+      <span>
+        {barred ? (
+          <>
+            Attendance is <b className="tabular">{Math.round(e.pct ?? 0)}%</b> and cannot reach
+            75% — attending everything left tops out at{" "}
+            <b className="tabular">{Math.round(e.bestPct)}%</b>. The end-sem is{" "}
+            {Math.round(p.internalWeight === 100 ? 0 : 100 - p.internalWeight)} of the marks
+            below, and this plan assumes you can sit it.
+          </>
+        ) : (
+          <>
+            Attendance is <b className="tabular">{Math.round(e.pct ?? 0)}%</b>. Attend the next{" "}
+            <b className="tabular">{e.needToAttend}</b> class
+            {e.needToAttend === 1 ? "" : "es"} to clear 75%
+            {e.clearBy && <> by {formatDate(e.clearBy, { day: "numeric", month: "short" })}</>} —
+            below it the end-sem is off the table and none of this applies.
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
 const BAND: Record<string, string> = {
   locked: "border-good/25 bg-good/10",
   "on-track": "border-good/25 bg-good/10",
@@ -293,6 +357,8 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
         <TargetPicker p={p} />
       </div>
 
+      <Attendance p={p} />
+
       <div
         className={cn(
           "mt-4 rounded-2xl border p-3.5 text-sm font-semibold",
@@ -301,6 +367,21 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
       >
         <Verdict p={p} />
       </div>
+
+      {p.plan.next && (
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-muted">
+          <CalendarClock className="h-3 w-3 shrink-0" />
+          Next up: <b className="text-ink">{p.plan.next.label}</b> on{" "}
+          {formatDate(p.plan.next.date!, { day: "numeric", month: "short" })}
+          {p.plan.next.required !== null && (
+            <>
+              {" "}
+              · needs <b className="text-accent">{need(p.plan.next.required)}</b>/
+              {have(p.plan.next.max)}
+            </>
+          )}
+        </p>
+      )}
 
       {p.plan.scaled && (
         <p className="mt-2 flex items-start gap-1.5 text-[11px] font-medium text-muted">

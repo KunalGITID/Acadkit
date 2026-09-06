@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, GraduationCap } from "lucide-react";
-import { planForSgpa } from "@/lib/sgpaTarget";
+import { allocateEffort } from "@/lib/effort";
 import { useSettings } from "@/hooks/useData";
 import { useTone } from "@/hooks/useTone";
 import { CgpaCard } from "@/components/insights/cgpa-card";
@@ -43,7 +43,7 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
   const { data: settings } = useSettings();
   const target = settings?.target_sgpa ?? 8.5;
   const plan = useMemo(
-    () => planForSgpa(report.gradeProjections, target),
+    () => allocateEffort(report.gradeProjections, target),
     [report.gradeProjections, target]
   );
 
@@ -107,35 +107,38 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
           ) : (
             <>
               <p className="mt-2 text-sm font-semibold">
-                {plan.status === "needs-more-than-one-grade"
-                  ? "One grade up in each of these gets most of the way — at least one has to climb two:"
-                  : plan.lifts.length === 1
-                    ? "One subject has to move:"
-                    : `${plan.lifts.length} subjects have to move:`}
+                {plan.moves.length === 1 ? "One lift gets there" : `${plan.moves.length} lifts get there`}
+                , for <b className="text-accent tabular">{need(plan.totalCost)}</b> marks more than
+                you're currently on track for:
               </p>
               <ul className="mt-2.5 space-y-2">
-                {plan.lifts.map((lift) => (
-                  <li key={lift.subject.id} className="flex items-baseline justify-between gap-3 text-xs">
+                {plan.moves.map((move, i) => (
+                  <li
+                    key={`${move.subject.id}-${move.to}`}
+                    className="flex items-baseline justify-between gap-3 text-xs"
+                  >
                     <span className="flex min-w-0 items-baseline gap-2">
-                      <Dot color={lift.subject.color_hex} className="shrink-0" />
-                      <span className="truncate font-bold">{lift.subject.name}</span>
+                      <span className="w-4 shrink-0 text-right font-bold text-muted tabular">
+                        {i + 1}
+                      </span>
+                      <Dot color={move.subject.color_hex} className="shrink-0" />
+                      <span className="truncate font-bold">{move.subject.name}</span>
                     </span>
                     <span className="shrink-0 font-semibold">
-                      {lift.from} → <b className="text-accent">{lift.to}</b>
+                      {move.from} → <b className="text-accent">{move.to}</b>
                       <span className="text-muted">
                         {" "}
-                        · {Math.round(lift.requiredRate * 100)}% of what's left
-                        {lift.extraRate !== null && lift.extraRate > 0
-                          ? ` (+${Math.round(lift.extraRate * 100)}pts)`
-                          : ""}
+                        · +{need(move.cost)} marks · {Math.round(move.requiredRate * 100)}% of
+                        what's left
                       </span>
                     </span>
                   </li>
                 ))}
               </ul>
               <p className="mt-2.5 text-[11px] text-muted">
-                Ordered by how far each is above its current rate, so the first is the one nearly
-                true already. Change the target in Settings → Academics.
+                Ordered by SGPA bought per extra mark, so the first is where an hour goes
+                furthest — not simply the biggest number. Change the target in Settings →
+                Academics.
               </p>
             </>
           )}

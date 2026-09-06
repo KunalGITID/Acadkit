@@ -7,7 +7,14 @@
  * needs, end-of-term projections, risk and what-if scenarios from that.
  */
 import { isAttended, isCounted } from "@/lib/attendance";
-import type { AttendanceRecord, DeclaredHoliday, Mark, Subject, TimetableSlot } from "@/types";
+import type {
+  AttendanceRecord,
+  Deadline,
+  DeclaredHoliday,
+  Mark,
+  Subject,
+  TimetableSlot,
+} from "@/types";
 import { buildEffectiveMap, semesterWindow, type SemesterWindow } from "@/lib/calendar";
 import { parseISODate, todayISO } from "@/lib/dates";
 import { gradeForTotal, groupMarksBySubject, type Grade } from "@/lib/grades";
@@ -274,11 +281,42 @@ export interface ProjectionReport {
  * `sgpaTarget.ts` read them, but every one of them now means "of the
  * whole course" rather than "of what happens to be marked".
  */
+/**
+ * Whether you will be allowed to sit the end-sem at all.
+ *
+ * The two halves of this file never spoke to each other: attendance
+ * decided one page and marks decided another. But below the minimum you
+ * are not permitted into the examination, and a grade plan whose whole
+ * pool is an exam you cannot enter is not a pessimistic forecast — it
+ * is fiction. The card has to lead with that, not bury it on another tab.
+ */
+export interface Eligibility {
+  /** Attendance so far, or null with nothing marked. */
+  pct: number | null;
+  /** Best attendance still achievable by attending everything left. */
+  bestPct: number;
+  status:
+    /** At or above the minimum. */
+    | "safe"
+    /** Below it, but attending enough remaining classes recovers. */
+    | "at-risk"
+    /** Even a perfect record from here finishes below the minimum. */
+    | "barred"
+    /** Nothing marked and nothing scheduled — no basis to say. */
+    | "unknown";
+  /** Consecutive future classes that climb back over the line. */
+  needToAttend: number;
+  /** Date that streak lands on, when there is one. */
+  clearBy: string | null;
+}
+
 export interface SubjectGradeProjection {
   subject: Subject;
   /** The full solve against this subject's target grade. */
   plan: SubjectPlan;
   targetGrade: Grade;
+  /** Whether the end-sem is even available to you. */
+  eligibility: Eligibility;
   internalOnly: boolean;
   /** Internal weight, 0–100. 60 unless the subject says otherwise. */
   internalWeight: number;
@@ -313,13 +351,37 @@ function gradeRisk(grade: Grade): RiskLevel {
   return "safe";
 }
 
+/** Read off the attendance projection this subject already has. */
+function eligibilityFrom(attendance: SubjectProjection | undefined): Eligibility {
+  if (!attendance || (attendance.held === 0 && attendance.remaining === 0)) {
+    return { pct: null, bestPct: 0, status: "unknown", needToAttend: 0, clearBy: null };
+  }
+  const { currentPct, bestPct, mustAttendStreak, recoveryDate } = attendance;
+  const status: Eligibility["status"] =
+    !attendance.reachable
+      ? "barred"
+      : currentPct === null || currentPct >= MIN * 100 - 1e-9
+        ? "safe"
+        : "at-risk";
+  return {
+    pct: currentPct,
+    bestPct,
+    status,
+    needToAttend: mustAttendStreak,
+    clearBy: recoveryDate,
+  };
+}
+
 function projectSubjectGrade(
   subject: Subject,
   marks: Mark[],
-  targetSgpa: number
+  targetSgpa: number,
+  attendance: SubjectProjection | undefined,
+  deadlines: Deadline[]
 ): SubjectGradeProjection {
   const targetGrade = subject.target_grade ?? gradeForTargetSgpa(targetSgpa);
-  const plan = solveSubjectPlan(subject, marks, targetGrade);
+  const plan = solveSubjectPlan(subject, marks, targetGrade, deadlines);
+  const eligibility = eligibilityFrom(attendance);
 
   // The pace read: keep taking the same share of every mark you have so
   // far. With nothing graded there is no rate to extend, so the honest
@@ -336,13 +398,20 @@ function projectSubjectGrade(
 
   // A target that is gone is the loudest thing this card can say, so it
   // outranks the grade-band colouring.
+  // Being shut out of the exam outranks everything else the card could
+  // say about this subject.
   const riskLevel: RiskLevel =
-    plan.status === "out-of-reach" ? "critical" : plan.status === "push" ? "watch" : gradeRisk(pg.grade);
+    eligibility.status === "barred" || plan.status === "out-of-reach"
+      ? "critical"
+      : eligibility.status === "at-risk" || plan.status === "push"
+        ? "watch"
+        : gradeRisk(pg.grade);
 
   return {
     subject,
     plan,
     targetGrade,
+    eligibility,
     internalOnly: plan.externalWeight <= 0,
     internalWeight: plan.internalWeight,
     banked: plan.banked,
@@ -380,7 +449,9 @@ export function buildProjection(
   declared: DeclaredHoliday[],
   fromDate: string = todayISO(),
   window: SemesterWindow = semesterWindow(),
-  targetSgpa = 8.5
+  targetSgpa = 8.5,
+  /** Dates for the plan's components; matched by name in plan.ts. */
+  deadlines: Deadline[] = []
 ): ProjectionReport {
   const effMap = buildEffectiveMap(declared, window);
   const from = fromDate > window.end ? window.end : fromDate;
@@ -428,8 +499,22 @@ export function buildProjection(
   // 71% of everything from here"), which is exactly the state you're in
   // in week one.
   const marksBySubject = groupMarksBySubject(marks);
+  const attendanceById = new Map(perSubject.map((p) => [p.subject.id, p]));
+  const deadlinesBySubject = new Map<string, Deadline[]>();
+  for (const d of deadlines) {
+    if (!d.subject_id) continue;
+    const list = deadlinesBySubject.get(d.subject_id) ?? [];
+    list.push(d);
+    deadlinesBySubject.set(d.subject_id, list);
+  }
   const gradeProjections = subjects.map((s) =>
-    projectSubjectGrade(s, marksBySubject.get(s.id) ?? [], targetSgpa)
+    projectSubjectGrade(
+      s,
+      marksBySubject.get(s.id) ?? [],
+      targetSgpa,
+      attendanceById.get(s.id),
+      deadlinesBySubject.get(s.id) ?? []
+    )
   );
 
   // SGPA still only counts subjects with something to project from —
