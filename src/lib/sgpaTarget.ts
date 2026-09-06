@@ -1,4 +1,4 @@
-import type { Grade } from "@/lib/grades";
+import { GRADE_TABLE, type Grade } from "@/lib/grades";
 import type { SubjectGradeProjection } from "@/lib/projections";
 import type { Subject } from "@/types";
 
@@ -15,6 +15,10 @@ import type { Subject } from "@/types";
  * knows each subject's predicted grade, its ceiling, and the end-sem
  * mark each grade needs. Nothing is re-derived, so this can't disagree
  * with the per-subject cards it sits above.
+ *
+ * Since the budget rewrite the ask is a *rate* — the share of every
+ * remaining mark a lift needs — rather than a mark out of 40, because
+ * the end-sem is no longer assumed to be worth 40 or to exist at all.
  */
 
 export interface Lift {
@@ -23,15 +27,23 @@ export interface Lift {
   to: Grade;
   /** SGPA points this adds, already credit-weighted and divided out. */
   gain: number;
-  /** End-sem mark /40 the higher grade needs, when the subject has one. */
-  externalNeeded: number | null;
   /**
-   * How far above the current pace that mark is — the real cost of the
-   * lift. A subject needing 32 when it is already tracking 30 is a
-   * cheaper ask than one needing 28 while tracking 18, even though 28
-   * is the smaller number.
+   * Share of every remaining mark the higher grade needs, 0–1.
+   *
+   * A rate rather than a mark out of 40, because the end-sem is no
+   * longer assumed to be worth 40 — or to exist. This is the same
+   * number the per-subject card spreads across each remaining test.
    */
-  extraNeeded: number | null;
+  requiredRate: number;
+  /** That rate as marks, out of everything the subject has left. */
+  neededMarks: number;
+  /**
+   * How far above your current rate that is — the real cost of the
+   * lift. A subject needing 80% while already taking 78% is a cheaper
+   * ask than one needing 70% while taking 35%, even though 70 is the
+   * smaller number. Null when nothing is graded yet to compare against.
+   */
+  extraRate: number | null;
 }
 
 export type PlanStatus =
@@ -88,7 +100,7 @@ export function planForSgpa(
     rows.reduce((sum, p) => sum + points(p) * p.subject.credits, 0) / credits;
 
   const projected = sgpaOf((p) => p.predictedPoints);
-  const ceiling = sgpaOf((p) => gradePoints(p, p.bestGrade));
+  const ceiling = sgpaOf((p) => pointsFor(p.bestGrade));
   const gap = target - projected;
 
   const base = {
@@ -110,23 +122,20 @@ export function planForSgpa(
     .filter((p) => p.nextGrade !== null)
     .map((p) => {
       const next = p.nextGrade!;
-      const externalNeeded = next.externalNeeded;
       return {
         subject: p.subject,
         from: p.predictedGrade,
         to: next.grade,
         gain: ((next.points - p.predictedPoints) * p.subject.credits) / credits,
-        externalNeeded,
-        extraNeeded:
-          externalNeeded !== null && p.paceExternal !== null
-            ? externalNeeded - p.paceExternal
-            : null,
+        requiredRate: next.rate,
+        neededMarks: next.rate * p.pool,
+        extraRate: p.paceRate === null ? null : next.rate - p.paceRate,
       };
     })
     .filter((l) => l.gain > 0)
     .sort((a, b) => {
-      const ea = a.extraNeeded ?? Number.POSITIVE_INFINITY;
-      const eb = b.extraNeeded ?? Number.POSITIVE_INFINITY;
+      const ea = a.extraRate ?? Number.POSITIVE_INFINITY;
+      const eb = b.extraRate ?? Number.POSITIVE_INFINITY;
       if (ea !== eb) return ea - eb;
       return b.gain - a.gain;
     });
@@ -149,11 +158,7 @@ export function planForSgpa(
   return { ...base, status: "reachable", lifts, projectedAfter: running };
 }
 
-/** Points for a grade, read off the projection's own target table. */
-function gradePoints(p: SubjectGradeProjection, grade: Grade): number {
-  const row = p.targets.find((t) => t.grade === grade);
-  if (row) return row.points;
-  // Internal-only subjects carry no target table; their best is their
-  // prediction, since there is no end-sem left to change it.
-  return p.predictedPoints;
+/** Points for a grade. One table, so this can't disagree with the cards. */
+function pointsFor(grade: Grade): number {
+  return GRADE_TABLE.find((g) => g.grade === grade)?.points ?? 0;
 }

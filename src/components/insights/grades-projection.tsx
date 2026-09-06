@@ -1,149 +1,35 @@
 import { useMemo } from "react";
+import { motion } from "framer-motion";
+import { AlertTriangle, GraduationCap } from "lucide-react";
 import { planForSgpa } from "@/lib/sgpaTarget";
 import { useSettings } from "@/hooks/useData";
-import { listEntry } from "@/lib/enter";
-import { useHasAnimated } from "@/hooks/useHasAnimated";
-import { motion } from "framer-motion";
-import { AlertTriangle } from "lucide-react";
-import { GraduationCap } from "lucide-react";
+import { useTone } from "@/hooks/useTone";
+import { CgpaCard } from "@/components/insights/cgpa-card";
+import { SubjectBudgetCard } from "@/components/insights/subject-budget";
+import { RISK_STYLE } from "@/components/insights/risk";
 import { Dot, EmptyState } from "@/components/ui/misc";
 import { AnimatedNumber } from "@/components/viz/animated-number";
-import { GradeBadge } from "@/components/viz/grade-badge";
-import { useTone } from "@/hooks/useTone";
-import { RISK_STYLE } from "@/components/insights/risk";
-import { GRADE_COLORS, GRADE_TABLE } from "@/lib/grades";
-import type { buildProjection, SubjectGradeProjection } from "@/lib/projections";
+import { ceilHalf } from "@/lib/plan";
+import type { buildProjection } from "@/lib/projections";
 import { say, VOICE } from "@/lib/voice";
 import { cn } from "@/lib/utils";
 
-function GradeScenarioBar({
-  label,
-  total,
-  grade,
-}: {
-  label: string;
-  total: number;
-  grade: string;
-}) {
-  const color = GRADE_COLORS[grade as keyof typeof GRADE_COLORS] ?? "hsl(var(--accent))";
-  return (
-    <div>
-      <div className="mb-1 flex items-baseline justify-between text-[11px] font-semibold">
-        <span className="text-muted">{label}</span>
-        <span className="tabular" style={{ color }}>
-          {Math.round(total)}/100 · {grade}
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
-        <motion.div
-          className="h-full rounded-full"
-          style={{ backgroundColor: color }}
-          initial={{ width: 0 }}
-          animate={{ width: `${Math.max(0, Math.min(100, total))}%` }}
-          transition={{ type: "spring", stiffness: 60, damping: 18 }}
-        />
-      </div>
-    </div>
-  );
-}
+/**
+ * Everything grade-shaped, in one place.
+ *
+ * The Marks page used to carry its own calculator strip — "what do I
+ * need in the end-sem", a target-SGPA table, and a CGPA pad — while
+ * Insights carried the projections. Two screens answering overlapping
+ * questions off two different models, which is how you end up with a
+ * page saying you're on pace for an O and another saying you need 80%
+ * of everything left. They're now one view over one solver
+ * (src/lib/plan.ts): the SGPA range, what the target costs, then a card
+ * per subject spreading its target across every component still to come.
+ */
 
-function SubjectGradeCard({ p, index }: { p: SubjectGradeProjection; index: number }) {
-  const settled = useHasAnimated("grades-subjects");
-  const risk = RISK_STYLE[p.riskLevel];
-
-  // Action line
-  let action: React.ReactNode;
-  if (p.internalOnly) {
-    const up = GRADE_TABLE.find((g) => g.points === p.predictedPoints + 1 && g.grade !== "F");
-    action = (
-      <>
-        Internals are the whole 100 here — you're averaging{" "}
-        <b>{Math.round(p.internalPct)}%</b> → on pace for <b>{p.predictedGrade}</b>.
-        {up && ` Average ≥ ${up.min}% to reach ${up.grade}.`}
-      </>
-    );
-  } else if (p.predictedGrade === "O") {
-    action = (
-      <>
-        On pace for <b>O</b> — hold your internal level and even a soft end-sem keeps it (
-        {p.worstGrade} floor).
-      </>
-    );
-  } else if (p.nextGrade) {
-    action = (
-      <>
-        On pace for <b>{p.predictedGrade}</b> ({Math.round(p.predictedTotal)}/100). Score{" "}
-        <b className="text-accent">≥ {p.nextGrade.externalNeeded!.toFixed(0)}/40</b> in the end-sem
-        to reach <b>{p.nextGrade.grade}</b>.
-      </>
-    );
-  } else {
-    action = (
-      <>
-        On pace for <b>{p.predictedGrade}</b>. Best possible is <b>{p.bestGrade}</b> even acing the
-        end-sem.
-      </>
-    );
-  }
-
-  return (
-    <motion.section
-      {...listEntry(index, settled)}
-      className="card p-5"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="flex items-start gap-2 font-bold">
-            <Dot color={p.subject.color_hex} className="mt-1.5 shrink-0" />
-            <span className="line-clamp-2">{p.subject.name}</span>
-          </p>
-          <p className="mt-0.5 text-xs font-medium text-muted">
-            {p.internalOnly
-              ? `internals = /100 · ${Math.round(p.internalScaled)}/100 locked`
-              : `internal locked ${p.internalScaled.toFixed(1)}/60 · end-sem worth 40`}
-          </p>
-        </div>
-        <GradeBadge grade={p.predictedGrade} />
-      </div>
-
-      <div className={cn("mt-4 rounded-2xl border p-3.5 text-sm font-semibold", risk.bg)}>
-        <span className={risk.text === "text-good-deep" ? "text-ink" : risk.text}>{action}</span>
-      </div>
-
-      <div className="mt-4 space-y-2.5">
-        {!p.internalOnly && (
-          <GradeScenarioBar label="If you ace the end-sem (40/40)" total={p.bestTotal} grade={p.bestGrade} />
-        )}
-        <GradeScenarioBar label="At your current pace" total={p.predictedTotal} grade={p.predictedGrade} />
-        {!p.internalOnly && (
-          <GradeScenarioBar label="If the end-sem is blank (0/40)" total={p.worstTotal} grade={p.worstGrade} />
-        )}
-      </div>
-
-      {/* End-sem needed per grade */}
-      {!p.internalOnly && (
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {p.targets.map((t) => {
-            const color = GRADE_COLORS[t.grade];
-            const txt = t.locked ? "✓ locked" : t.externalNeeded === null ? "—" : `${t.externalNeeded.toFixed(0)}/40`;
-            return (
-              <span
-                key={t.grade}
-                className={cn(
-                  "rounded-lg px-2 py-1 text-[11px] font-bold tabular",
-                  t.externalNeeded === null && "opacity-40"
-                )}
-                style={{ backgroundColor: `${color}1f`, color }}
-                title={`${t.grade}: ${t.locked ? "secured by internals" : t.externalNeeded === null ? "not reachable" : `needs ${t.externalNeeded.toFixed(1)}/40 in end-sem`}`}
-              >
-                {t.grade} {txt}
-              </span>
-            );
-          })}
-        </div>
-      )}
-    </motion.section>
-  );
+function marks(n: number): string {
+  const v = ceilHalf(n);
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
 export function GradesProjection({ report }: { report: ReturnType<typeof buildProjection> }) {
@@ -154,13 +40,14 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
     () => planForSgpa(report.gradeProjections, target),
     [report.gradeProjections, target]
   );
+
   if (report.gradeProjections.length === 0) {
     return (
       <section className="card">
         <EmptyState
           icon={GraduationCap}
           title={say(VOICE.insightsNeedMarks, tone)}
-          description="Enter internal marks (a CT, an assignment) and this view backsolves exactly what you need in the end-sem for each grade — plus your projected SGPA range."
+          description="Add your subjects and this backsolves what every remaining test and the end-sem have to return for the grade you're aiming at — re-spread after each result."
           className="py-10"
         />
       </section>
@@ -169,11 +56,12 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
 
   return (
     <div className="space-y-4">
-      {/* SGPA range hero */}
+      {/* The bracket, not a point estimate: what you've banked, where
+          your current rate lands you, and the best still available. */}
       <section className="card grid grid-cols-3 divide-x p-5">
         {[
-          { label: "Floor", value: report.floorSgpa, sub: "blank end-sems", cls: "text-bad-deep" },
-          { label: "Predicted", value: report.predictedSgpa, sub: "current pace", cls: "accent-gradient-text" },
+          { label: "Banked", value: report.floorSgpa, sub: "nothing more", cls: "text-bad-deep" },
+          { label: "At your pace", value: report.predictedSgpa, sub: "current rate", cls: "accent-gradient-text" },
           { label: "Ceiling", value: report.ceilingSgpa, sub: "ace what's left", cls: "text-good-deep" },
         ].map((s) => (
           <div key={s.label} className="px-2 text-center">
@@ -196,8 +84,7 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
               Target {plan.target.toFixed(1)}
             </p>
             <p className="text-xs font-semibold text-muted">
-              on pace for{" "}
-              <b className="tabular text-ink">{plan.projected?.toFixed(2) ?? "—"}</b>
+              on pace for <b className="tabular text-ink">{plan.projected?.toFixed(2) ?? "—"}</b>
             </p>
           </div>
 
@@ -207,7 +94,7 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
             </p>
           ) : plan.status === "out-of-reach" ? (
             <p className="mt-2 text-sm font-semibold">
-              Out of reach this semester — acing every end-sem still tops out at{" "}
+              Out of reach this semester — acing everything left still tops out at{" "}
               <b className="tabular">{plan.ceiling?.toFixed(2)}</b>.{" "}
               <span className="text-muted">Worth re-aiming at something you can hit.</span>
             </p>
@@ -229,22 +116,20 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
                     </span>
                     <span className="shrink-0 font-semibold">
                       {lift.from} → <b className="text-accent">{lift.to}</b>
-                      {lift.externalNeeded !== null && (
-                        <span className="text-muted">
-                          {" "}
-                          · {lift.externalNeeded.toFixed(0)}/40
-                          {lift.extraNeeded !== null && lift.extraNeeded > 0
-                            ? ` (+${lift.extraNeeded.toFixed(0)})`
-                            : ""}
-                        </span>
-                      )}
+                      <span className="text-muted">
+                        {" "}
+                        · {Math.round(lift.requiredRate * 100)}% of what's left
+                        {lift.extraRate !== null && lift.extraRate > 0
+                          ? ` (+${Math.round(lift.extraRate * 100)}pts)`
+                          : ""}
+                      </span>
                     </span>
                   </li>
                 ))}
               </ul>
               <p className="mt-2.5 text-[11px] text-muted">
-                Ordered by how far each is above its current pace, so the first is the one
-                nearly true already. Change the target in Settings → Academics.
+                Ordered by how far each is above its current rate, so the first is the one nearly
+                true already. Change the target in Settings → Academics.
               </p>
             </>
           )}
@@ -267,7 +152,10 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
                 )}
               >
                 <Dot color={p.subject.color_hex} className="h-1.5 w-1.5" />
-                {p.subject.code.slice(-4)} → {p.predictedGrade}
+                {p.subject.code.slice(-4)}{" "}
+                {p.plan.status === "out-of-reach"
+                  ? `${p.targetGrade} gone`
+                  : `→ ${marks(p.plan.needed)} of ${marks(p.pool)}`}
               </span>
             ))}
           </div>
@@ -276,12 +164,20 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
 
       <div className="space-y-3">
         <p className="px-1 text-xs font-bold uppercase tracking-widest text-muted">
-          Per subject — internals locked, end-sem to play for
+          Per subject — what's banked, what each test still has to return
         </p>
         {report.gradeProjections.map((p, i) => (
-          <SubjectGradeCard key={p.subject.id} p={p} index={i} />
+          <SubjectBudgetCard key={p.subject.id} p={p} index={i} />
         ))}
       </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 260, damping: 26 }}
+      >
+        <CgpaCard />
+      </motion.div>
     </div>
   );
 }

@@ -4,12 +4,13 @@ import { Trash2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
-import { Segmented } from "@/components/ui/segmented";
+import { AssessmentEditor } from "@/components/sheets/assessment-editor";
+import { editableAssessment, inferType } from "@/lib/plan";
 import { abbreviate } from "@/lib/subjectName";
 import { useDialog } from "@/components/ui/dialog";
 import { useAddSubject, useDeleteSubject, useUpdateSubject } from "@/hooks/useData";
 import { cn } from "@/lib/utils";
-import type { Subject } from "@/types";
+import type { Assessment, Subject } from "@/types";
 
 const PALETTE = [
   "#7c6af7", "#f97316", "#22d3ee", "#4ade80",
@@ -34,7 +35,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
   const [code, setCode] = useState("");
   const [credits, setCredits] = useState("3");
   const [color, setColor] = useState(PALETTE[0]);
-  const [internalOnly, setInternalOnly] = useState(false);
+  const [assessment, setAssessment] = useState<Assessment>(() => editableAssessment(null, false));
 
   useEffect(() => {
     if (!open) return;
@@ -43,7 +44,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
     setCode(subject?.code ?? "");
     setCredits(String(subject?.credits ?? 3));
     setColor(subject?.color_hex ?? PALETTE[0]);
-    setInternalOnly(subject?.internal_only ?? false);
+    setAssessment(editableAssessment(subject?.assessment, subject?.internal_only ?? false));
   }, [open, subject]);
 
   function save() {
@@ -58,7 +59,18 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
       type: "theory" as const,
       faculty: subject?.faculty ?? null,
       color_hex: color,
-      internal_only: internalOnly,
+      // Kept in step with the weight so anything still reading the
+      // migration-008 flag (and a device whose 021 hasn't run) agrees
+      // with the assessment it now lives beside.
+      internal_only: assessment.internal >= 100,
+      assessment: {
+        ...assessment,
+        // Blank rows are half-finished typing, not components.
+        components: assessment.components
+          .filter((c) => c.label.trim() !== "" && c.max > 0)
+          .map((c) => ({ ...c, label: c.label.trim(), type: inferType(c.label) })),
+      },
+      target_grade: subject?.target_grade ?? null,
       // Blank means "derive it", not "call it nothing".
       short_name: shortNameInput.trim() || null,
     };
@@ -102,15 +114,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
           </Field>
         </div>
         <Field label="Marks structure">
-          <Segmented
-            layoutId="subject-marks-structure"
-            options={[
-              { value: "split", label: "Internal 60 + End sem 40" },
-              { value: "internal", label: "Internals only (/100)" },
-            ]}
-            value={internalOnly ? "internal" : "split"}
-            onChange={(v) => setInternalOnly(v === "internal")}
-          />
+          <AssessmentEditor value={assessment} onChange={setAssessment} />
         </Field>
 
         <Field label="Color">

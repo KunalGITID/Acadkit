@@ -11,7 +11,6 @@ import { GradeBadge } from "@/components/viz/grade-badge";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { MarkTrend } from "@/components/viz/mark-trend";
 import { MarkSheet } from "@/components/sheets/mark-sheet";
-import { MarksCalculators } from "@/components/marks/calculators";
 import {
   useAttendance,
   useMarks,
@@ -354,7 +353,6 @@ export default function Marks() {
             exit="exit"
             transition={slideTransition}
           >
-            <MarksCalculators rows={result.rows} />
           </motion.div>
         )}
       </AnimatePresence>
