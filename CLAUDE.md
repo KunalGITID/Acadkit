@@ -144,6 +144,13 @@ number. That changed some answers — 25/25 on one CT used to report "O
 is safe", and now reports what O costs across the 75 marks still
 unplayed, which is the honest version.
 
+**Passing is 50/100 overall and nothing else** — no separate minimum
+in the end-sem, confirmed rather than assumed. So 60/60 internal with
+5/40 external is a 65 and a B+, and the engine needs no second
+constraint. Pinned in `grades.test.ts` because it is a regulation, not
+a derivation: nothing in the code implies it, and if it ever changed a
+minimum would have to be threaded through every solve.
+
 **Attendance gates the whole plan** (`Eligibility` in
 `projections.ts`). Below the minimum you are not permitted into the
 end-sem, so a budget whose pool *is* that exam is fiction, not a
