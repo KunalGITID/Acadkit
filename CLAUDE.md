@@ -56,6 +56,23 @@ Supabase ← src/api/queries.ts ← src/hooks/useData.ts (React Query) ← pages
 - **`src/lib/supabase.ts`** — single Supabase client; credentials from `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (`.env.local`).
 - **`src/api/queries.ts`** — every raw Supabase call, all `.eq("device_id", pin)`-scoped.
 - **`src/hooks/useData.ts`** — React Query hooks. All mutations go through a generic `useOptimistic` helper: cache updated immediately, rolled back on error, invalidated + broadcast on settle. Query keys are `[root, pin]` where root ∈ settings/subjects/timetable/attendance/marks/deadlines.
+
+  Writes are **named**, not passed (`src/api/mutations.ts`). Offline,
+  React Query pauses a mutation rather than failing it, so `onError`
+  never fires and the optimistic value stays in a cache that is
+  persisted to localStorage — but the mutation's function is a closure
+  that dies with the page. Close the app and the edit was on screen, in
+  storage, and never sent, and the next refetch quietly replaced it with
+  the server's older truth. That is the app's most-used action failing
+  in exactly the conditions it's used in, while the offline banner
+  promised the opposite. A name survives serialisation, so
+  `registerMutationDefaults` (called at module scope, before the cache
+  is restored) gives a rehydrated mutation something to call. The pin
+  rides inside the variables for the same reason: replay has no store
+  to read it from, and it must land on the account that made the write.
+  `src/api/mutations.test.ts` does the whole round trip — pause offline,
+  dehydrate, rehydrate, resume — and fails if mutations stop being
+  persisted.
 - **`src/hooks/useSync.ts`** — cross-tab sync via BroadcastChannel (`src/lib/broadcast.ts`) + cross-device live sync via Supabase realtime `postgres_changes` filtered by device_id.
 - If the PIN is absent, `App.tsx` renders `src/pages/Onboarding.tsx` instead of the router.
 

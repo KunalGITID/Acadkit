@@ -5,6 +5,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { MotionConfig } from "framer-motion";
 import { Toaster } from "sonner";
+import { registerMutationDefaults } from "@/api/mutations";
 import { AppShell } from "@/components/layout/app-shell";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { LaunchScreen } from "@/components/launch-screen";
@@ -41,12 +42,16 @@ const queryClient = new QueryClient({
 });
 
 // Persist the read cache to localStorage so data is viewable offline
-// across reloads. Mutations aren't persisted (they can't be replayed
-// without their fn); they pause in-session and flush on reconnect.
+// across reloads.
 const persister = createSyncStoragePersister({
   storage: window.localStorage,
   key: RQ_CACHE_KEY,
 });
+
+// Must happen before the persisted cache is restored: a rehydrated
+// mutation looks up its function by key, and one that finds nothing is
+// dropped on the floor.
+registerMutationDefaults(queryClient);
 
 /**
  * useAuthReset needs the query client, so it has to run inside the
@@ -70,7 +75,20 @@ export default function App() {
           persister,
           maxAge: 1000 * 60 * 60 * 24,
           buster: "v2",
-          dehydrateOptions: { shouldDehydrateMutation: () => false },
+          dehydrateOptions: {
+            // Offline, React Query pauses a mutation rather than failing
+            // it. Persisting those is the difference between "your
+            // changes are saved and will sync when you're back" being
+            // true and being a sentence on a yellow bar: the optimistic
+            // value is already in this cache, so dropping the write that
+            // justifies it means the next refetch silently takes it away.
+            shouldDehydrateMutation: (m) => m.state.isPaused,
+          },
+        }}
+        // Restored writes have to be kicked, and the server is the
+        // authority once they land.
+        onSuccess={() => {
+          void queryClient.resumePausedMutations().then(() => queryClient.invalidateQueries());
         }}
       >
         <MotionConfig reducedMotion="user">

@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import * as api from "@/api/queries";
+import { type MutationEnvelope, type MutationName } from "@/api/mutations";
 import { broadcastInvalidate } from "@/lib/broadcast";
 import { useAppStore } from "@/store/app";
 import type { PendingMark } from "@/lib/autoMark";
@@ -40,20 +41,36 @@ function invalidate(qc: QueryClient, pin: string, roots: string[]) {
  * Generic optimistic mutation over a single list/object query.
  * Applies `updater` to the cache immediately, rolls back on error,
  * and refetches (+ notifies other tabs) when settled.
+ *
+ * The write itself is named rather than passed. Offline, React Query
+ * pauses a mutation instead of failing it, so `onError` never fires and
+ * the optimistic value stays in a cache that is persisted to
+ * localStorage — but the mutation's own function is a closure that dies
+ * with the page. Close the app and the edit was on screen, in storage,
+ * and never sent; the next refetch silently replaced it with the server's
+ * older truth. Naming the write lets it be restored and replayed
+ * (src/api/mutations.ts), which is what the offline banner has always
+ * claimed happens.
+ *
+ * Variables travel wrapped with the pin for the same reason: a replay
+ * has no store to read it from. Callers never see the envelope — mutate
+ * still takes the plain variables.
  */
 function useOptimistic<TVars, TData>(opts: {
   pin: string;
+  name: MutationName;
   root: string;
   extraRoots?: string[];
-  mutationFn: (vars: TVars) => Promise<void>;
   updater: (old: TData | undefined, vars: TVars) => TData | undefined;
   errorMessage?: string;
 }) {
   const qc = useQueryClient();
   const key = [opts.root, opts.pin];
-  return useMutation({
-    mutationFn: opts.mutationFn,
-    onMutate: async (vars: TVars) => {
+  const m = useMutation({
+    // No mutationFn: it comes from the defaults registered against this
+    // key, so a rehydrated copy of this mutation resolves the same one.
+    mutationKey: [opts.name],
+    onMutate: async ({ vars }: MutationEnvelope<TVars>) => {
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<TData>(key);
       qc.setQueryData<TData>(key, (old) => opts.updater(old, vars));
@@ -67,6 +84,13 @@ function useOptimistic<TVars, TData>(opts: {
     },
     onSettled: () => invalidate(qc, opts.pin, [opts.root, ...(opts.extraRoots ?? [])]),
   });
+
+  const pin = opts.pin;
+  return {
+    ...m,
+    mutate: (vars: TVars) => m.mutate({ pin, vars }),
+    mutateAsync: (vars: TVars) => m.mutateAsync({ pin, vars }),
+  };
 }
 
 // ---------- settings ----------
@@ -84,7 +108,7 @@ export function useUpdateSettings() {
   return useOptimistic<Partial<Settings>, Settings | null>({
     pin,
     root: "settings",
-    mutationFn: (patch) => api.updateSettings(pin, patch),
+    name: "settings.update",
     updater: (old, patch) => (old ? { ...old, ...patch } : old),
   });
 }
@@ -104,7 +128,7 @@ export function useAddSubject() {
   return useOptimistic<Omit<Subject, "id" | "device_id" | "created_at">, Subject[]>({
     pin,
     root: "subjects",
-    mutationFn: (s) => api.insertSubject(pin, s),
+    name: "subjects.add",
     updater: (old, s) => [...(old ?? []), { ...s, id: tempId(), device_id: pin }],
   });
 }
@@ -114,7 +138,7 @@ export function useUpdateSubject() {
   return useOptimistic<{ id: string; patch: Partial<Subject> }, Subject[]>({
     pin,
     root: "subjects",
-    mutationFn: ({ id, patch }) => api.updateSubject(id, patch),
+    name: "subjects.update",
     updater: (old, { id, patch }) =>
       old?.map((s) => (s.id === id ? { ...s, ...patch } : s)),
   });
@@ -126,7 +150,7 @@ export function useDeleteSubject() {
     pin,
     root: "subjects",
     extraRoots: ["timetable", "attendance", "marks"],
-    mutationFn: (id) => api.deleteSubject(id),
+    name: "subjects.delete",
     updater: (old, id) => old?.filter((s) => s.id !== id),
   });
 }
@@ -146,7 +170,7 @@ export function useAddSlot() {
   return useOptimistic<Omit<TimetableSlot, "id" | "device_id" | "created_at">, TimetableSlot[]>({
     pin,
     root: "timetable",
-    mutationFn: (slot) => api.insertSlot(pin, slot),
+    name: "timetable.add",
     updater: (old, slot) => [...(old ?? []), { ...slot, id: tempId(), device_id: pin }],
   });
 }
@@ -156,7 +180,7 @@ export function useUpdateSlot() {
   return useOptimistic<{ id: string; patch: Partial<TimetableSlot> }, TimetableSlot[]>({
     pin,
     root: "timetable",
-    mutationFn: ({ id, patch }) => api.updateSlot(id, patch),
+    name: "timetable.update",
     updater: (old, { id, patch }) =>
       old?.map((s) => (s.id === id ? { ...s, ...patch } : s)),
   });
@@ -167,7 +191,7 @@ export function useDeleteSlot() {
   return useOptimistic<string, TimetableSlot[]>({
     pin,
     root: "timetable",
-    mutationFn: (id) => api.deleteSlot(id),
+    name: "timetable.delete",
     updater: (old, id) => old?.filter((s) => s.id !== id),
   });
 }
@@ -189,7 +213,7 @@ export function useMarkAttendance() {
   return useOptimistic<AttendanceUpsert, AttendanceRecord[]>({
     pin,
     root: "attendance",
-    mutationFn: (record) => api.upsertAttendance(pin, record),
+    name: "attendance.mark",
     updater: (old, record) => {
       const rest = (old ?? []).filter(
         (r) =>
@@ -213,7 +237,7 @@ export function useUnmarkAttendance() {
   >({
     pin,
     root: "attendance",
-    mutationFn: (key) => api.deleteAttendance(pin, key),
+    name: "attendance.unmark",
     updater: (old, key) =>
       old?.filter(
         (r) =>
@@ -289,7 +313,7 @@ export function useAddMark() {
   return useOptimistic<Omit<Mark, "id" | "device_id" | "added_at">, Mark[]>({
     pin,
     root: "marks",
-    mutationFn: (mark) => api.insertMark(pin, mark),
+    name: "marks.add",
     updater: (old, mark) => [...(old ?? []), { ...mark, id: tempId(), device_id: pin }],
   });
 }
@@ -299,7 +323,7 @@ export function useUpdateMark() {
   return useOptimistic<{ id: string; patch: Partial<Mark> }, Mark[]>({
     pin,
     root: "marks",
-    mutationFn: ({ id, patch }) => api.updateMark(id, patch),
+    name: "marks.update",
     updater: (old, { id, patch }) =>
       old?.map((m) => (m.id === id ? { ...m, ...patch } : m)),
   });
@@ -310,7 +334,7 @@ export function useDeleteMark() {
   return useOptimistic<string, Mark[]>({
     pin,
     root: "marks",
-    mutationFn: (id) => api.deleteMark(id),
+    name: "marks.delete",
     updater: (old, id) => old?.filter((m) => m.id !== id),
   });
 }
@@ -340,7 +364,7 @@ export function useDeleteArchive() {
   return useOptimistic<string, SemesterArchive[]>({
     pin,
     root: "archives",
-    mutationFn: (id) => api.deleteArchive(id),
+    name: "archives.delete",
     updater: (old, id) => old?.filter((a) => a.id !== id),
   });
 }
@@ -350,7 +374,7 @@ export function useAddDeadline() {
   return useOptimistic<Omit<Deadline, "id" | "device_id" | "created_at">, Deadline[]>({
     pin,
     root: "deadlines",
-    mutationFn: (d) => api.insertDeadline(pin, d),
+    name: "deadlines.add",
     updater: (old, d) => [...(old ?? []), { ...d, id: tempId(), device_id: pin }],
   });
 }
@@ -360,7 +384,7 @@ export function useUpdateDeadline() {
   return useOptimistic<{ id: string; patch: Partial<Deadline> }, Deadline[]>({
     pin,
     root: "deadlines",
-    mutationFn: ({ id, patch }) => api.updateDeadline(id, patch),
+    name: "deadlines.update",
     updater: (old, { id, patch }) =>
       old?.map((d) => (d.id === id ? { ...d, ...patch } : d)),
   });
@@ -371,7 +395,7 @@ export function useDeleteDeadline() {
   return useOptimistic<string, Deadline[]>({
     pin,
     root: "deadlines",
-    mutationFn: (id) => api.deleteDeadline(id),
+    name: "deadlines.delete",
     updater: (old, id) => old?.filter((d) => d.id !== id),
   });
 }
