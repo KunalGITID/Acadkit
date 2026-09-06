@@ -37,10 +37,13 @@ export function ExamCountdown() {
   const subject = subjects?.find((s) => s.id === deadline.subject_id);
   const urgency = examUrgency(daysAway);
 
-  const target = deadlineTarget(
-    deadline,
-    (marks ?? []).filter((m) => m.subject_id === deadline.subject_id)
-  );
+  const target = subject
+    ? deadlineTarget(
+        deadline,
+        subject,
+        (marks ?? []).filter((m) => m.subject_id === deadline.subject_id)
+      )
+    : null;
   const advice = target ? describeTarget(target, Number(deadline.max_marks)) : null;
 
   return (

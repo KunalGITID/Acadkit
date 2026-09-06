@@ -14,7 +14,8 @@ import {
 } from "@/hooks/useData";
 import { computeOverallAttendance } from "@/lib/attendance";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
-import { computeSgpa, groupMarksBySubject } from "@/lib/grades";
+import { groupMarksBySubject } from "@/lib/grades";
+import { computeSgpa } from "@/lib/plan";
 import { buildWrapped, type Wrapped as WrappedData } from "@/lib/wrapped";
 import { renderWrappedCard, shareCard } from "@/lib/shareCard";
 import { say, VOICE } from "@/lib/voice";

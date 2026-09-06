@@ -54,6 +54,7 @@ Supabase ← src/api/queries.ts ← src/hooks/useData.ts (React Query) ← pages
 ```
 
 - **`src/lib/supabase.ts`** — single Supabase client; credentials from `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (`.env.local`).
+- **`src/lib/plan.ts`** — the assessment-budget engine: per-subject split, component plan, `subjectOutlook` / `computeSgpa` / `solveSubjectPlan`. Everything that answers "what will I get" or "what do I need" comes from here.
 - **`src/api/queries.ts`** — every raw Supabase call, all `.eq("device_id", pin)`-scoped.
 - **`src/hooks/useData.ts`** — React Query hooks. All mutations go through a generic `useOptimistic` helper: cache updated immediately, rolled back on error, invalidated + broadcast on settle. Query keys are `[root, pin]` where root ∈ settings/subjects/timetable/attendance/marks/deadlines.
 
@@ -122,6 +123,26 @@ Graded marks match declared rows on normalised label (`CT-1` ≡ `ct 1`),
 and the declared weight wins over what the mark says it was out of — the
 plan is the contract, the mark is one reading of it. A graded component
 nobody declared still counts; it happened.
+
+**The whole app reads this model, not just Insights.** `computeSgpa`
+and `subjectOutlook` live in `plan.ts` now (they moved out of
+`grades.ts`, which is the grade table and nothing else — plan.ts
+imports it, so keeping them there would have been a cycle). Dashboard,
+Marks, History and Wrapped call the same solver Insights does, and
+`projections.limits.test.ts` asserts the two entry points return the
+same SGPA for every target and the same banked/pool/grade per subject.
+They previously ran different arithmetic over the same marks and could
+disagree about the same semester.
+
+Two consequences of the port worth knowing. A recorded end-sem now
+counts toward the predicted total — `computeSubjectMarks` explicitly
+discarded externals ("they arrive after the sem"), which was true and
+wrong once the paper is marked. And `src/lib/targets.ts` is gone:
+deadline targets (`deadlineTarget.ts`) read the plan's per-grade rate,
+so a deadline row and the subject's card now answer with the same
+number. That changed some answers — 25/25 on one CT used to report "O
+is safe", and now reports what O costs across the 75 marks still
+unplayed, which is the honest version.
 
 `subjects.target_grade` is the grade you're chasing *in that subject*,
 which is not always what the target SGPA implies — being weak in one

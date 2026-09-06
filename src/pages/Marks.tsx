@@ -24,7 +24,8 @@ import { useTone } from "@/hooks/useTone";
 import { useSwipe } from "@/hooks/useSwipe";
 import { slideTransition, slideVariants } from "@/lib/slide";
 import { SwipeHint } from "@/components/ui/swipe-hint";
-import { computeSgpa, groupMarksBySubject, type SubjectMarks } from "@/lib/grades";
+import { groupMarksBySubject } from "@/lib/grades";
+import { computeSgpa, type SubjectOutlook } from "@/lib/plan";
 import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
 import { computeOverallAttendance } from "@/lib/attendance";
 import type { Mark, Subject } from "@/types";
@@ -37,7 +38,7 @@ function ShareButton({
   rows,
   sgpa,
 }: {
-  rows: Array<{ subject: Subject; marks: SubjectMarks }>;
+  rows: Array<{ subject: Subject; marks: SubjectOutlook }>;
   sgpa: number | null;
 }) {
   const { data: settings } = useSettings();
@@ -111,7 +112,7 @@ function SubjectMarksCard({
   onEdit,
 }: {
   subject: Subject;
-  marks: SubjectMarks;
+  marks: SubjectOutlook;
   index: number;
   onAdd: (subject: Subject) => void;
   onEdit: (subject: Subject, mark: Mark) => void;
