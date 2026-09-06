@@ -1,6 +1,5 @@
 import { Component, type ReactNode } from "react";
-import { supabase } from "@/lib/supabase";
-import { getStoredPin } from "@/lib/pin";
+import { buildReport, fileReport } from "@/lib/crashLog";
 
 interface Props {
   children: ReactNode;
@@ -22,17 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
-    void supabase
-      .from("error_log")
-      .insert({
-        device_id: getStoredPin(),
-        message: error.message,
-        stack: (error.stack ?? "").slice(0, 4000),
-        component_stack: (info.componentStack ?? "").slice(0, 4000),
-        url: location.pathname,
-        user_agent: navigator.userAgent,
-      })
-      .then(undefined, () => {});
+    void fileReport(buildReport(error, info.componentStack));
   }
 
   render() {

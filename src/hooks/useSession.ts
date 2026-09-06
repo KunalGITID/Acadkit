@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { flushPendingReports } from "@/lib/crashLog";
 
 export interface SessionState {
   session: Session | null;
@@ -27,11 +28,15 @@ export function useSession(): SessionState {
       if (!alive) return;
       setSession(data.session);
       setLoading(false);
+      // Crashes captured while signed out couldn't be written — the
+      // error_log policy is `to authenticated`. Now there's a session.
+      if (data.session) void flushPendingReports();
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       setSession(next);
       setLoading(false);
+      if (next) void flushPendingReports();
     });
 
     return () => {

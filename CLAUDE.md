@@ -197,6 +197,28 @@ Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.d
 
 Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`, `portal_snapshots`, `device_owners`. Migrations in `supabase/migrations/`; RLS is owner-scoped via `owns_device()` — see the auth note above.
 
+### Crash reporting
+
+`src/lib/crashLog.ts`. The ErrorBoundary used to insert into `error_log`
+directly and swallow the result, which lost the two kinds of report
+worth having.
+
+- **Signed out.** The policy is `to authenticated` (migration 015) and
+  the boundary wraps SignIn and Onboarding, so a crash before sign-in
+  returned 42501 and vanished — the report you most want, because
+  someone is looking at an app they can't get into. Those are held in
+  localStorage and filed by `useSession` once a session lands.
+- **Not a render error.** Boundaries only catch render. Unhandled
+  rejections and uncaught errors bypassed all of it, so the table
+  described one narrow class of failure and implied the rest didn't
+  happen. `installGlobalErrorHandlers` runs in `main.tsx` before render.
+
+Nothing on this path may throw: `buildReport` tolerates a non-Error
+(rejections usually carry a string) and storage being disabled, which
+makes `localStorage` throw rather than return null.
+
+Nothing reads the table yet — worth remembering before trusting silence.
+
 ### Derived-decision libraries
 
 These pure modules turn stored data into answers, all unit-tested and all
