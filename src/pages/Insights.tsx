@@ -242,9 +242,13 @@ export default function Insights() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3 px-1">
+      {/* Stacked on phones. The brutalist h1 is clamp(2.25rem, 8vw, …)
+          and wraps to three lines, so a 288px control beside it had
+          nowhere to go but off the right edge — a fixed width can't
+          shrink, so the third tab was simply unreachable. */}
+      <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight lg:text-3xl">
-          <Sparkles className="h-6 w-6 text-accent" />{say(VOICE.titleInsights, tone)}</h1>
+          <Sparkles className="h-6 w-6 shrink-0 text-accent" />{say(VOICE.titleInsights, tone)}</h1>
         <Segmented
           layoutId="insights-view"
           options={[
@@ -257,7 +261,7 @@ export default function Insights() {
             const next = v as (typeof VIEWS)[number];
             goView(next, VIEWS.indexOf(next) > VIEWS.indexOf(view) ? 1 : -1);
           }}
-          className="w-72"
+          className="w-full shrink-0 sm:w-72"
         />
       </div>
 

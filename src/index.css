@@ -229,10 +229,19 @@
     @apply rounded-3xl border bg-surface shadow-card;
     border-radius: var(--radius-card, 1.5rem);
   }
+  /* The scrolling chrome: the sticky top bar and the bottom nav.
+     Opaque, and deliberately not glass any more.
+
+     A backdrop-filter on a sticky or fixed element makes the compositor
+     re-blur everything behind it on every scroll frame, and there are
+     two of these on screen at once — the measurable cause of scroll and
+     swipe stutter on a 120Hz phone, where a frame is 8ms. It also never
+     earned its keep: OLED had already opted out (a lit slab across the
+     top of a true-black page), and brutalist's whole argument is that
+     colour blocks separate surfaces, not depth — a blurred bar was the
+     one place the theme contradicted itself. The border does the work. */
   .glass {
-    background: hsl(var(--surface) / 0.78);
-    backdrop-filter: blur(20px) saturate(1.6);
-    -webkit-backdrop-filter: blur(20px) saturate(1.6);
+    background: hsl(var(--bg));
   }
   .tabular {
     font-variant-numeric: tabular-nums;
@@ -291,7 +300,9 @@
     border: 1.5px solid hsl(var(--line) / 0.14);
     border-radius: 9999px;
     padding-bottom: 0;
-    background: hsl(var(--surface) / 0.92);
+    /* Opaque: at 0.92 over no blur, content slides visibly under the
+       pill instead of passing behind it. */
+    background: hsl(var(--surface));
   }
   /* …and its active indicator from a soft rectangle to a solid disc. */
   [data-theme="brutalist"] nav[aria-label="Primary"] [data-nav-pill] {
@@ -301,20 +312,6 @@
   [data-theme="brutalist"] nav[aria-label="Primary"] a[aria-current="page"] svg,
   [data-theme="brutalist"] nav[aria-label="Primary"] a[aria-current="page"] span {
     color: hsl(0 0% 6%);
-  }
-
-  /* OLED: the glass surfaces stop being glass.
-     Measured on device, the top bar rendered rgb(3,3,3)-rgb(8,8,8) —
-     a faint gradient from surface/0.78 plus the backdrop blur — while
-     the page below sat at a true rgb(0,0,0). On a panel where black
-     means the pixels are off, that reads as a lit slab across the top
-     rather than a translucent bar. Opaque --bg, no blur: the border is
-     enough separation, and "pixels off, not just dark" is the whole
-     point of the theme. */
-  [data-theme="oled"] .glass {
-    background: hsl(var(--bg));
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
   }
 
   /* OLED x-factor: there isn't one, deliberately — zero saturation everywhere
