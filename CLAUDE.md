@@ -293,8 +293,12 @@ medical leave has been granted (`subjects.medical_leave`, migration
 rest are held to 75. Every threshold asks `minAttendanceFor(subject)`
 rather than assuming: skip budgets, recovery streaks, risk levels,
 colour bands, the survival plan and whether you may sit the end-sem.
-It matters most where it changes the instruction rather than the
-number — 10 of 40 needs 80 consecutive attends to clear 75%, which is
+The plan and the outlooks carry the bar they were computed against
+(`SubjectOutlook.min`, `SurvivalPlan.onMedicalLeave`) rather than
+leaving each screen to re-derive it — a plan worked out to 65% and
+presented as though it were 75% gives the right instruction for a
+reason you cannot see. It matters most where it changes the instruction
+rather than the number — 10 of 40 needs 80 consecutive attends to clear 75%, which is
 more classes than remain, so the subject reads as lost; the same
 subject needs 46 to clear 65%, which there is room for, so the answer
 becomes "attend everything" instead.

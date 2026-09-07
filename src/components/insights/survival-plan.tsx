@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CalendarClock, Share2 } from "lucide-react";
+import { BadgeCheck, CalendarClock, Share2 } from "lucide-react";
 import { Badge, EmptyState } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { useTone } from "@/hooks/useTone";
@@ -98,6 +98,21 @@ export function SurvivalPlan({
             ? say(VOICE.planDeadline, tone, formatDate(plan.firstRequiredDate))
             : say(VOICE.planNoDeadline, tone)}
         </p>
+        {plan.onMedicalLeave.length > 0 && (
+          // Why the plan is survivable at all. Computed to 65% and
+          // presented as though it were 75%, "attend everything" is the
+          // right instruction for a reason you cannot see.
+          <p className="flex items-start gap-1.5 text-sm font-semibold text-muted">
+            <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Planned to <b className="text-ink">65%</b> on{" "}
+              <span className="font-mono text-xs">
+                {plan.onMedicalLeave.map((s) => s.code).join(", ")}
+              </span>{" "}
+              — medical leave. Everything else is held to 75%.
+            </span>
+          </p>
+        )}
         {plan.lost.length > 0 && (
           <p className="text-sm font-semibold text-bad-deep">
             {say(VOICE.planLost, tone, plan.lost.length)}{" "}

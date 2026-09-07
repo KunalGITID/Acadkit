@@ -181,3 +181,81 @@ describe("buildSurvivalPlan", () => {
     }
   });
 });
+
+describe("medical leave in the survival plan", () => {
+  /**
+   * The plan already computed against the condoned bar — that went in
+   * with migration 023 — but nothing on the page said so. A plan worked
+   * out to 65% and presented as though it were 75% gives you the right
+   * instruction for a reason you cannot see, and "attend everything"
+   * reads very differently once you know medical leave is the only
+   * thing keeping the subject alive.
+   */
+  const subject = (id: string, ml = false): Subject => ({
+    id,
+    device_id: "0000",
+    code: id.toUpperCase(),
+    name: id,
+    credits: 4,
+    type: "theory",
+    faculty: null,
+    color_hex: "#888",
+    medical_leave: ml,
+  });
+
+  const slots = (subjectId: string): TimetableSlot[] =>
+    [1, 2, 3, 4, 5].map((day_order) => ({
+      id: `${subjectId}-${day_order}`,
+      device_id: "0000",
+      subject_id: subjectId,
+      day_order,
+      start_time: "08:00:00",
+      end_time: "08:50:00",
+      room: null,
+    }));
+
+  const effMap: Record<string, number> = {};
+  for (let i = 1; i <= 40; i++) {
+    effMap[`2026-10-${String(i).padStart(2, "0")}`] = ((i - 1) % 5) + 1;
+  }
+
+  it("names the subjects it planned to a condoned bar", () => {
+    const plan = buildSurvivalPlan(
+      [
+        { subject: subject("ml", true), attended: 10, held: 40 },
+        { subject: subject("normal"), attended: 35, held: 40 },
+      ],
+      [...slots("ml"), ...slots("normal")],
+      effMap,
+      "2026-10-01"
+    );
+    expect(plan.onMedicalLeave.map((s) => s.id)).toEqual(["ml"]);
+  });
+
+  it("says nothing when every subject is on the usual bar", () => {
+    const plan = buildSurvivalPlan(
+      [{ subject: subject("normal"), attended: 35, held: 40 }],
+      slots("normal"),
+      effMap,
+      "2026-10-01"
+    );
+    expect(plan.onMedicalLeave).toEqual([]);
+  });
+
+  it("carries each subject's bar on its outlook", () => {
+    const plan = buildSurvivalPlan(
+      [
+        { subject: subject("ml", true), attended: 10, held: 40 },
+        { subject: subject("normal"), attended: 10, held: 40 },
+      ],
+      [...slots("ml"), ...slots("normal")],
+      effMap,
+      "2026-10-01"
+    );
+    const byId = new Map(plan.subjects.map((o) => [o.subject.id, o]));
+    expect(byId.get("ml")!.min).toBe(65);
+    expect(byId.get("normal")!.min).toBe(75);
+    // And the lower bar asks for fewer classes back.
+    expect(byId.get("ml")!.needed).toBeLessThan(byId.get("normal")!.needed);
+  });
+});

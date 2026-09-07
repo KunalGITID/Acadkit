@@ -1,5 +1,5 @@
 import { MIN } from "@/lib/projections";
-import { minAttendanceFor } from "@/lib/attendance";
+import { MIN_ATTENDANCE, minAttendanceFor } from "@/lib/attendance";
 import type { Subject, TimetableSlot } from "@/types";
 
 /**
@@ -63,7 +63,9 @@ export interface SubjectOutlook {
   needed: number;
   /** Remaining classes you can still miss. Never negative. */
   slack: number;
-  /** False when even attending everything left falls short of MIN. */
+  /** The bar this subject must clear — 65 on medical leave, else 75. */
+  min: number;
+  /** False when even attending everything left falls short of `min`. */
   reachable: boolean;
   /** Percentage if every remaining class is attended. */
   ceiling: number;
@@ -84,8 +86,18 @@ export interface SurvivalPlan {
    * you a subject. Null when nothing is required at all.
    */
   firstRequiredDate: string | null;
-  /** Subjects that can no longer reach MIN however hard you try. */
+  /** Subjects that can no longer reach their bar however hard you try. */
   lost: Subject[];
+  /**
+   * Subjects planned against a condoned bar rather than the usual one.
+   *
+   * Carried on the plan rather than left for each screen to re-derive,
+   * because a plan computed to 65% and presented as though it were 75%
+   * is telling you the right number for a reason you cannot see — and
+   * "attend everything" reads very differently once you know it is
+   * medical leave keeping the subject alive at all.
+   */
+  onMedicalLeave: Subject[];
 }
 
 /**
@@ -146,7 +158,8 @@ export function buildSurvivalPlan(
     // Each subject against its own bar — a subject on medical leave is
     // planned to 65%, which is often the difference between a plan and
     // a write-off.
-    const needed = classesNeeded(attended, held, remaining, minAttendanceFor(subject) / 100);
+    const min = minAttendanceFor(subject);
+    const needed = classesNeeded(attended, held, remaining, min / 100);
     const reachable = needed <= remaining;
     const slack = reachable ? remaining - needed : remaining;
     const ceiling =
@@ -167,6 +180,7 @@ export function buildSurvivalPlan(
       remaining,
       needed,
       slack,
+      min,
       reachable,
       ceiling,
       lastSkippable: reachable && spend.length ? spend[spend.length - 1].date : null,
@@ -205,5 +219,8 @@ export function buildSurvivalPlan(
     freeDays: days.filter((d) => d.free).map((d) => d.date),
     firstRequiredDate: days.find((d) => !d.free)?.date ?? null,
     lost: outlooks.filter((o) => !o.reachable).map((o) => o.subject),
+    onMedicalLeave: outlooks
+      .filter((o) => o.min !== MIN_ATTENDANCE)
+      .map((o) => o.subject),
   };
 }
