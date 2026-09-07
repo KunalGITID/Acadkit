@@ -52,24 +52,6 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
 
   return (
     <div className="space-y-4">
-      {/* The bracket, not a point estimate: what you've banked, where
-          your current rate lands you, and the best still available. */}
-      <section className="card grid grid-cols-3 divide-x p-5">
-        {[
-          { label: "Banked", value: report.floorSgpa, sub: "nothing more", cls: "text-bad-deep" },
-          { label: "At your pace", value: report.predictedSgpa, sub: "current rate", cls: "accent-gradient-text" },
-          { label: "Ceiling", value: report.ceilingSgpa, sub: "ace what's left", cls: "text-good-deep" },
-        ].map((s) => (
-          <div key={s.label} className="px-2 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted">{s.label}</p>
-            <p className={cn("mt-1 text-3xl font-extrabold tabular", s.cls)}>
-              {s.value === null ? "—" : <AnimatedNumber value={s.value} decimals={2} />}
-            </p>
-            <p className="mt-0.5 text-[10px] text-muted">{s.sub}</p>
-          </div>
-        ))}
-      </section>
-
       {/* The per-subject targets are chosen one card at a time. Nothing
           was adding them up, so you could set six of them and never
           find out they came to 7.9. */}
