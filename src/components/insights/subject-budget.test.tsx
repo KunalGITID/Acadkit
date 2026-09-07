@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import { SubjectBudgetCard } from "@/components/insights/subject-budget";
 import { buildProjection } from "@/lib/projections";
 import type { AttendanceRecord, Deadline, Mark, Subject, TimetableSlot } from "@/types";
@@ -73,9 +74,13 @@ function renderFor(subject: Subject, marks: Mark[], extras: Extras = {}): string
   );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderToStaticMarkup(
-    <QueryClientProvider client={qc}>
-      <SubjectBudgetCard p={report.gradeProjections[0]} index={0} />
-    </QueryClientProvider>
+    // The card links to /marks when nothing is graded, so it needs a
+    // router the same way it needs a query client.
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>
+        <SubjectBudgetCard p={report.gradeProjections[0]} index={0} />
+      </QueryClientProvider>
+    </MemoryRouter>
   );
 }
 
@@ -311,9 +316,11 @@ describe("SubjectBudgetCard", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const t = text(
       renderToStaticMarkup(
-        <QueryClientProvider client={qc}>
-          <SubjectBudgetCard p={report.gradeProjections[0]} index={0} />
-        </QueryClientProvider>
+        <MemoryRouter>
+          <QueryClientProvider client={qc}>
+            <SubjectBudgetCard p={report.gradeProjections[0]} index={0} />
+          </QueryClientProvider>
+        </MemoryRouter>
       )
     );
     expect(t).toContain("End semester assumed 34/40");
@@ -348,5 +355,30 @@ describe("SubjectBudgetCard", () => {
     expect(t).toContain("End semester assumed 34/40");
     // 71 − 34 = 37 across the 60 internal marks, not 71 across all 100.
     expect(t).toContain("CT-1 9.5/15");
+  });
+
+  it("does not tell you you're failing a subject that hasn't started", () => {
+    // Every subject is in this state for the first weeks of a semester,
+    // which is exactly when someone opens this page. There is no pace
+    // yet, so the pace cell used to report the floor — and the floor of
+    // an untouched course is an F.
+    const t = text(render([]));
+    expect(t).toContain("At your pace — no marks yet");
+    expect(t).not.toContain("At your pace 0/100 F");
+    expect(t).not.toContain("Banked 0/100 F");
+    // The ceiling still means something on day one, and keeps its grade.
+    expect(t).toContain("Ace what's left 100/100 O");
+  });
+
+  it("offers the thing it is waiting for", () => {
+    expect(text(render([]))).toContain("Add a mark");
+    // Once something is graded the card has an answer, not a request.
+    expect(text(render([mark("Assignment", 5, 5)]))).not.toContain("Add a mark");
+  });
+
+  it("puts the grades back as soon as there is something to grade", () => {
+    const t = text(render([mark("Assignment", 5, 5)]));
+    expect(t).toContain("At your pace 100/100 O");
+    expect(t).toContain("Banked 5/100 F");
   });
 });

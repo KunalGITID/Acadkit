@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { CalendarClock, Check, Gauge, Lock, TriangleAlert, UserX } from "lucide-react";
+import { CalendarClock, Check, Gauge, Lock, Plus, TriangleAlert, UserX } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useUpdateSubject } from "@/hooks/useData";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
@@ -252,30 +253,67 @@ function EndSemRow({ p, c }: { p: SubjectGradeProjection; c: SolvedComponent }) 
   );
 }
 
-/** floor · pace · ceiling, the three totals the budget brackets. */
+/**
+ * floor · pace · ceiling, the three totals the budget brackets.
+ *
+ * With nothing graded, two of the three are noise. "Banked 0/100" is
+ * true but says only what the header already said, and "At your pace
+ * 0/100 · F" is worse than useless: there is no pace, so it reports the
+ * floor, and the floor of an untouched subject is an F. Being told you
+ * are failing a course that has not started is alarming and wrong, and
+ * it is the state every subject is in for the first weeks of a
+ * semester — exactly when someone opens this page.
+ *
+ * So the grades come off until there is something to grade, the pace
+ * cell says what it is waiting for, and the ceiling stays, because
+ * "ace what's left" is the one of the three that means anything on day
+ * one.
+ */
 function Bracket({ p }: { p: SubjectGradeProjection }) {
   const band = p.plan.band;
+  const graded = p.plan.hasAnyMarks;
   const cells = [
-    { label: "Banked", value: p.worstTotal, grade: p.worstGrade, cls: "text-muted" },
-    { label: "At your pace", value: p.predictedTotal, grade: p.predictedGrade, cls: "text-ink" },
-    { label: "Ace what's left", value: p.bestTotal, grade: p.bestGrade, cls: "text-good-deep" },
+    {
+      label: "Banked",
+      value: p.worstTotal,
+      grade: graded ? p.worstGrade : null,
+      cls: "text-muted",
+    },
+    {
+      label: "At your pace",
+      value: graded ? p.predictedTotal : null,
+      grade: graded ? p.predictedGrade : null,
+      cls: "text-ink",
+    },
+    {
+      label: "Ace what's left",
+      value: p.bestTotal,
+      grade: p.bestGrade,
+      cls: "text-good-deep",
+    },
   ];
   return (
     <div className="mt-3 grid grid-cols-3 gap-2">
       {cells.map((c) => (
         <div key={c.label} className="rounded-xl bg-surface-2/40 px-2 py-2 text-center">
           <p className="text-[9px] font-bold uppercase tracking-wider text-muted">{c.label}</p>
-          <p className={cn("mt-0.5 text-sm font-extrabold tabular", c.cls)}>
-            {floorTotal(c.value)}
-            <span className="text-[10px] font-bold text-muted">/100</span>
-          </p>
-          <p className="text-[10px] font-bold" style={{ color: GRADE_COLORS[c.grade] }}>
-            {c.grade}
-          </p>
-          {/* How much your own results actually swing. A pace line with
-              nothing beside it reads more certain than it is: a 14/15
-              and a 2/15 average to the same place as two 8/15s and mean
-              something very different about the forecast. */}
+          {c.value === null ? (
+            <p className="mt-0.5 text-sm font-extrabold text-muted">—</p>
+          ) : (
+            <p className={cn("mt-0.5 text-sm font-extrabold tabular", c.cls)}>
+              {floorTotal(c.value)}
+              <span className="text-[10px] font-bold text-muted">/100</span>
+            </p>
+          )}
+          {c.grade ? (
+            <p className="text-[10px] font-bold" style={{ color: GRADE_COLORS[c.grade] }}>
+              {c.grade}
+            </p>
+          ) : (
+            <p className="text-[10px] font-semibold text-muted">
+              {c.label === "At your pace" ? "no marks yet" : "\u00a0"}
+            </p>
+          )}
           {c.label === "At your pace" && band && (
             <p
               className="mt-0.5 text-[10px] font-semibold tabular text-muted"
@@ -494,6 +532,19 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
         )}
       >
         <Verdict p={p} />
+
+        {/* The card is waiting on one thing; it may as well offer it.
+            Every route here is a dead end otherwise — you read that
+            nothing is graded, and then go looking for the page that
+            fixes it. */}
+        {!p.plan.hasAnyMarks && p.plan.status !== "final" && (
+          <Link
+            to="/marks"
+            className="mt-2.5 inline-flex h-9 items-center gap-1.5 rounded-xl bg-surface px-3 text-xs font-bold text-ink"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add a mark
+          </Link>
+        )}
       </div>
 
       {p.plan.next && (
