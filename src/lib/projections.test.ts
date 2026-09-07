@@ -92,10 +92,7 @@ describe("buildProjection — grade budgets", () => {
 
     expect(g.worstTotal).toBe(12); // score nothing from here
     expect(g.bestTotal).toBe(97); // ace everything from here
-    // An 80% pace, tempered for the fact that 15 of 100 marks is a
-    // thin basis for extending it over the other 85.
-    expect(g.plan.pace).toBeCloseTo(80, 5);
-    expect(g.predictedTotal).toBeCloseTo(76.22, 2);
+    expect(g.predictedTotal).toBeCloseTo(80, 5); // 80% pace extended over the pool
     expect(g.predictedGrade).toBe("A");
 
     // Default target comes from the target SGPA, not from the subject.

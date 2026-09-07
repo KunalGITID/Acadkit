@@ -266,9 +266,6 @@ export interface SubjectPlan {
   /** Keep scoring at the rate you've managed so far. */
   pace: number | null;
   paceRate: number | null;
-  /** Sample-size-tempered projection — the one worth showing. */
-  projected: number | null;
-  projectedRate: number | null;
   floorGrade: Grade;
   ceilingGrade: Grade;
   paceGrade: Grade | null;
@@ -340,15 +337,8 @@ export interface SubjectBudget {
   ceiling: number;
   /** Share of what's been played that you've actually taken, 0–1. */
   paceRate: number | null;
-  /** /100 if you keep scoring at exactly that share. Null with nothing graded. */
+  /** /100 if you keep scoring at that share. Null with nothing graded. */
   pace: number | null;
-  /**
-   * The same projection, tempered by how little has actually been
-   * played. This is the one worth showing; `pace` is the raw
-   * observation it is built from.
-   */
-  projected: number | null;
-  projectedRate: number | null;
   scaled: boolean;
   hasAnyMarks: boolean;
   /**
@@ -376,31 +366,6 @@ export interface ConfidenceBand {
 
 /** Below this a "spread" is one result disagreeing with another. */
 const MIN_BAND_SAMPLES = 3;
-
-/**
- * How much evidence it takes before your results speak for themselves.
- *
- * Extending an observed rate over the whole course is only sensible
- * once there is a rate to extend. Off one 5/5 assignment the raw
- * arithmetic says you will take 100 of 100 and finish on an O; off one
- * 2/15 it says 13 and an F. Neither is a forecast — they are a single
- * data point wearing one.
- *
- * So the rate is pulled toward a neutral expectation, by an amount that
- * depends on how little has been played: the prior counts as
- * `PRIOR_WEIGHT` marks scored at `PRIOR_RATE`, and washes out as real
- * marks accumulate. Five marks in, it is most of the answer; sixty
- * marks in, it barely registers. This is the standard fix for a mean
- * over a tiny sample and it costs one line of arithmetic.
- *
- * 0.70 sits around the A/B+ boundary — an unremarkable outcome, which
- * is the right thing to assume about someone you know nothing about.
- * A refinement worth making later: use *your* rate across every other
- * subject instead of a constant, so a strong semester pulls a thin
- * subject up rather than toward the middle.
- */
-const PRIOR_WEIGHT = 12;
-const PRIOR_RATE = 0.7;
 
 /**
  * Titles that mean the end-sem rather than an internal component.
@@ -726,13 +691,6 @@ export function budgetFor(
   const pool = pending.reduce((s, c) => s + c.max, 0);
 
   const paceRate = gradedMax > 1e-9 ? banked / gradedMax : null;
-  // Tempered toward the prior by how little has been played — see
-  // PRIOR_WEIGHT above. This is the projection worth showing; paceRate
-  // is the raw observation it is built from.
-  const projectedRate =
-    paceRate === null
-      ? null
-      : (banked + PRIOR_WEIGHT * PRIOR_RATE) / (gradedMax + PRIOR_WEIGHT);
   // "Next" means next, so a date that has already passed is not a
   // candidate however soon it once was. A test sat last week with its
   // marks not yet entered is still owed — it stays in the list, flagged
@@ -752,8 +710,6 @@ export function budgetFor(
     ceiling: banked + pool,
     paceRate,
     pace: paceRate === null ? null : banked + paceRate * pool,
-    projected: projectedRate === null ? null : banked + projectedRate * pool,
-    projectedRate,
     scaled,
     hasAnyMarks: graded.length > 0,
     band: confidenceBand(components, banked, pool, paceRate),
@@ -774,7 +730,7 @@ export interface SubjectOutlook extends SubjectBudget {
   internalObtained: number;
   internalMax: number;
   internalComponents: Mark[];
-  /** /100 projected, tempered for sample size; the floor with nothing graded. */
+  /** /100 at your current rate; the floor when nothing is graded yet. */
   predictedTotal: number;
   grade: Grade;
   points: number;
@@ -788,7 +744,7 @@ export function subjectOutlook(
 ): SubjectOutlook {
   const budget = budgetFor(subject, marks, deadlines, today);
   const internalComponents = marks.filter((m) => !m.is_external);
-  const predictedTotal = budget.projected ?? budget.banked;
+  const predictedTotal = budget.pace ?? budget.banked;
   const { grade, points } = gradeForTotal(predictedTotal);
   return {
     ...budget,
@@ -888,8 +844,6 @@ export function solveSubjectPlan(
     ceiling,
     paceRate,
     pace,
-    projected,
-    projectedRate,
     scaled,
     hasAnyMarks,
     band,
@@ -972,11 +926,9 @@ export function solveSubjectPlan(
     ceiling,
     pace,
     paceRate,
-    projected,
-    projectedRate,
     floorGrade: gradeForTotal(floor).grade,
     ceilingGrade: gradeForTotal(ceiling).grade,
-    paceGrade: projected === null ? null : gradeForTotal(projected).grade,
+    paceGrade: pace === null ? null : gradeForTotal(pace).grade,
     bestReachable,
     slack: ceiling >= target.min - 1e-9 ? ceiling - target.min : null,
     assumedExternal,

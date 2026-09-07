@@ -409,12 +409,10 @@ function projectSubjectGrade(
   });
   const eligibility = eligibilityFrom(attendance);
 
-  // Tempered for sample size — see PRIOR_WEIGHT in plan.ts. Extending a
-  // raw rate off one component says an O from a single 5/5 and an F
-  // from a single 2/15, and neither is a forecast. With nothing graded
-  // at all there is no rate to temper, so the honest answer is the
-  // floor: you have banked nothing.
-  const predictedTotal = plan.projected ?? plan.banked;
+  // The pace read: keep taking the same share of every mark you have so
+  // far. With nothing graded there is no rate to extend, so the honest
+  // prediction is the floor — you have banked nothing.
+  const predictedTotal = plan.pace ?? plan.banked;
   const pg = gradeForTotal(predictedTotal);
 
   // One grade up, and only if the arithmetic still allows it.

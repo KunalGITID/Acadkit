@@ -257,7 +257,7 @@ function Bracket({ p }: { p: SubjectGradeProjection }) {
   const band = p.plan.band;
   const cells = [
     { label: "Banked", value: p.worstTotal, grade: p.worstGrade, cls: "text-muted" },
-    { label: "Projected", value: p.predictedTotal, grade: p.predictedGrade, cls: "text-ink" },
+    { label: "At your pace", value: p.predictedTotal, grade: p.predictedGrade, cls: "text-ink" },
     { label: "Ace what's left", value: p.bestTotal, grade: p.bestGrade, cls: "text-good-deep" },
   ];
   return (
@@ -276,7 +276,7 @@ function Bracket({ p }: { p: SubjectGradeProjection }) {
               nothing beside it reads more certain than it is: a 14/15
               and a 2/15 average to the same place as two 8/15s and mean
               something very different about the forecast. */}
-          {c.label === "Projected" && band && (
+          {c.label === "At your pace" && band && (
             <p
               className="mt-0.5 text-[10px] font-semibold tabular text-muted"
               title={`±1 SD of your ${band.samples} graded components`}

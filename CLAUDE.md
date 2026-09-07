@@ -226,25 +226,6 @@ whether the grade is reachable at all and at what rate, which is
 your current pace always costs something, by definition, so there is no
 such thing as a free one.
 
-**A projection has to earn its confidence** (`PRIOR_WEIGHT` /
-`PRIOR_RATE` in plan.ts). Extending an observed rate over a whole
-course is only sensible once there is a rate to extend: off one 5/5 the
-raw arithmetic says 100/100 and an O, off one 2/15 it says 13 and an F,
-and neither is a forecast — they are a single data point wearing one.
-So `projectedRate` pulls the observed rate toward a neutral 0.70 by a
-prior worth 12 marks, which dominates at five marks played and barely
-registers at sixty. `paceRate` and `pace` keep the raw observation,
-because "you're taking 35% so far" is a fact and belongs in the copy;
-`predictedTotal` is the tempered one and is what every screen shows.
-
-Banked and ceiling are never touched by it — tempering is a statement
-about unplayed marks, and the floor and ceiling are facts. Note the
-limit, too: no defensible prior turns 2/15 into a pass, so that still
-reads F. What it buys is 35 instead of 13, next to a ceiling saying the
-semester isn't over. Worth doing later: shrink toward *your* rate across
-the other subjects rather than a constant, so a strong semester lifts a
-thin subject instead of the middle doing it.
-
 **Rounding has a direction.** A mark you must reach rounds up
 (`ceilHalf` — 10.4 needed means 10.5); a mark you already hold rounds
 down (`floorHalf` — banking 42.4 and printing 42.5 hands you half a
