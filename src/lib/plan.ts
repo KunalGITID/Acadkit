@@ -29,6 +29,7 @@
  * with no plan at all still solves — it just answers in one lump
  * instead of per test.
  */
+import { todayISO } from "@/lib/dates";
 import { GRADE_TABLE, gradeForTotal } from "@/lib/grades";
 import type {
   Assessment,
@@ -122,6 +123,7 @@ export function assessmentFor(subject: Subject): Assessment {
   return {
     internal,
     complete: raw?.complete ?? false,
+    assumedExternalPct: raw?.assumedExternalPct ?? null,
     components: (raw?.components ?? []).filter(
       (c) => c && Number.isFinite(c.max) && c.max > 0
     ),
@@ -160,6 +162,7 @@ export function editableAssessment(
       internal: internalOnly ? 100 : DEFAULT_INTERNAL_WEIGHT,
       complete: false,
       components: [],
+      assumedExternalPct: null,
     }
   );
 }
@@ -198,6 +201,11 @@ export interface SolvedComponent {
    * app what to expect of it.
    */
   assumed: number | null;
+  /**
+   * Dated, still ungraded, and the date has passed — the test happened
+   * and its marks aren't in yet.
+   */
+  overdue: boolean;
   /**
    * When this component happens, if a deadline says so. The plan
    * carries weights; the deadlines table carries dates, and a list of
@@ -487,7 +495,8 @@ function confidenceBand(
 export function budgetFor(
   subject: Subject,
   marks: Mark[],
-  deadlines: Deadline[] = []
+  deadlines: Deadline[] = [],
+  today: string = todayISO()
 ): SubjectBudget {
   const assessment = assessmentFor(subject);
   const internalWeight = assessment.internal;
@@ -601,6 +610,7 @@ export function budgetFor(
     requiredPct: null,
     assumed: null,
     date: c.date,
+    overdue: c.date !== null && c.date < today,
   }));
 
   // ---- whatever internal weight nobody has claimed ----
@@ -618,6 +628,7 @@ export function budgetFor(
       requiredPct: null,
       assumed: null,
       date: null,
+      overdue: false,
     });
   }
 
@@ -637,6 +648,7 @@ export function budgetFor(
       requiredPct: null,
       assumed: null,
       date: null,
+      overdue: false,
     });
   }
 
@@ -650,7 +662,10 @@ export function budgetFor(
         (EXTERNAL_ALIASES.has(normLabel(d.title)) ||
           normLabel(d.title) === normLabel(external.label))
     );
-    if (hit) external.date = hit.due_date.slice(0, 10);
+    if (hit) {
+      external.date = hit.due_date.slice(0, 10);
+      external.overdue = external.date < today;
+    }
   }
 
   // Keys become React keys downstream, and a plan can carry duplicates
@@ -676,8 +691,12 @@ export function budgetFor(
   const pool = pending.reduce((s, c) => s + c.max, 0);
 
   const paceRate = gradedMax > 1e-9 ? banked / gradedMax : null;
+  // "Next" means next, so a date that has already passed is not a
+  // candidate however soon it once was. A test sat last week with its
+  // marks not yet entered is still owed — it stays in the list, flagged
+  // overdue — but announcing it as what is coming up is just wrong.
   const upcoming = components
-    .filter((c) => c.obtained === null && c.date !== null)
+    .filter((c) => c.obtained === null && c.date !== null && c.date >= today)
     .sort((a, b) => (a.date as string).localeCompare(b.date as string));
 
   return {
@@ -720,9 +739,10 @@ export interface SubjectOutlook extends SubjectBudget {
 export function subjectOutlook(
   subject: Subject,
   marks: Mark[],
-  deadlines: Deadline[] = []
+  deadlines: Deadline[] = [],
+  today: string = todayISO()
 ): SubjectOutlook {
-  const budget = budgetFor(subject, marks, deadlines);
+  const budget = budgetFor(subject, marks, deadlines, today);
   const internalComponents = marks.filter((m) => !m.is_external);
   const predictedTotal = budget.pace ?? budget.banked;
   const { grade, points } = gradeForTotal(predictedTotal);
@@ -786,6 +806,8 @@ export function computeSgpa(
  */
 export interface SolveOptions {
   deadlines?: Deadline[];
+  /** Reference date for "next" and "overdue". Defaults to today. */
+  today?: string;
   /**
    * What you expect the end-sem to return, as a percentage of it.
    *
@@ -826,13 +848,17 @@ export function solveSubjectPlan(
     hasAnyMarks,
     band,
     next,
-  } = budgetFor(subject, marks, options.deadlines ?? []);
+  } = budgetFor(subject, marks, options.deadlines ?? [], options.today);
 
   // The end-sem, handed a fixed contribution instead of a share of the
   // ask. Everything below then solves the internals against what is
   // left of the threshold — which is the question actually being asked.
   const externalRow = components.find((c) => c.kind === "external" && c.obtained === null);
-  const assumedPct = options.assumedExternalPct;
+  // The subject's own expectation wins over the semester-wide one: some
+  // papers are a formality and some are not, and one number for all of
+  // them is a default, not an answer.
+  const assumedPct =
+    assessmentFor(subject).assumedExternalPct ?? options.assumedExternalPct;
   const assumedExternal =
     externalRow && assumedPct != null && Number.isFinite(assumedPct)
       ? clamp(assumedPct, 0, 100) / 100 * externalRow.max

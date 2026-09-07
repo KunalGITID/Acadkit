@@ -1,9 +1,16 @@
 import { motion } from "framer-motion";
 import { CalendarClock, Check, Gauge, Lock, TriangleAlert, UserX } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useUpdateSubject } from "@/hooks/useData";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { listEntry } from "@/lib/enter";
-import { ceilHalf, floorHalf, floorTotal, type SolvedComponent } from "@/lib/plan";
+import {
+  ceilHalf,
+  editableAssessment,
+  floorHalf,
+  floorTotal,
+  type SolvedComponent,
+} from "@/lib/plan";
 import { GRADE_COLORS, GRADE_TABLE } from "@/lib/grades";
 import type { SubjectGradeProjection } from "@/lib/projections";
 import { Dot } from "@/components/ui/misc";
@@ -111,8 +118,16 @@ function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
           </span>
         )}
         {c.date && (
-          <span className="shrink-0 text-[10px] font-semibold text-muted">
+          <span
+            className={cn(
+              "shrink-0 text-[10px] font-semibold",
+              c.overdue ? "text-warn-deep" : "text-muted"
+            )}
+          >
             {formatDate(c.date, { day: "numeric", month: "short" })}
+            {/* It has happened and its marks aren't in — which is why it
+                is still asking for something, and why it is not "next". */}
+            {c.overdue && " · marks not in"}
           </span>
         )}
       </span>
@@ -140,6 +155,98 @@ function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
             <span className="font-semibold text-muted">/{have(c.max)}</span>
           </span>
         )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The end-sem row, which you can answer instead of being asked.
+ *
+ * Every other component is solved for. This one you can simply state:
+ * type what you expect the paper to return and the internals above
+ * re-solve against whatever is left of the target. Blank hands it back
+ * to the even spread, and the placeholder is what the spread is
+ * currently asking — so the field shows the answer it would give you
+ * before you overrule it.
+ *
+ * Committed on blur or Enter rather than per keystroke: it is a write
+ * that syncs across devices, not a slider.
+ */
+function EndSemRow({ p, c }: { p: SubjectGradeProjection; c: SolvedComponent }) {
+  const update = useUpdateSubject();
+  const stored = c.assumed === null ? "" : String(floorHalf(c.assumed));
+  const [draft, setDraft] = useState(stored);
+
+  useEffect(() => setDraft(stored), [stored]);
+
+  function commit() {
+    const trimmed = draft.trim();
+    if (trimmed === stored) return;
+    const base = editableAssessment(p.subject.assessment, !!p.subject.internal_only);
+    const marks = Number(trimmed);
+    const next =
+      trimmed === "" || !Number.isFinite(marks)
+        ? null
+        : Math.max(0, Math.min(100, (marks / c.max) * 100));
+    if (trimmed !== "" && !Number.isFinite(marks)) {
+      setDraft(stored);
+      return;
+    }
+    update.mutate({
+      id: p.subject.id,
+      patch: { assessment: { ...base, assumedExternalPct: next } },
+    });
+  }
+
+  return (
+    <div className="flex items-baseline justify-between gap-3 rounded-xl bg-surface-2/70 px-3 py-2 text-sm">
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span
+          aria-hidden
+          className={cn(
+            "h-1.5 w-1.5 shrink-0 translate-y-[-2px] rounded-full",
+            c.assumed !== null ? "bg-muted" : "bg-accent"
+          )}
+        />
+        <span className="truncate font-semibold text-ink">{c.label}</span>
+        {c.date && (
+          <span className="shrink-0 text-[10px] font-semibold text-muted">
+            {formatDate(c.date, { day: "numeric", month: "short" })}
+          </span>
+        )}
+      </span>
+
+      <span className="flex shrink-0 items-baseline gap-1 font-bold tabular">
+        {/* Say the word. The field alone shows a number and not what
+            kind of number it is. */}
+        {c.assumed !== null && (
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
+            assumed
+          </span>
+        )}
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          max={c.max}
+          step={0.5}
+          aria-label={`Expected end-sem score for ${p.subject.name}, out of ${have(c.max)}`}
+          placeholder={c.required === null ? "—" : need(c.required)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") setDraft(stored);
+          }}
+          className={cn(
+            "w-12 rounded-lg bg-transparent px-1 py-0.5 text-right font-bold tabular outline-none",
+            "focus-visible:bg-surface focus-visible:ring-2 focus-visible:ring-accent",
+            c.assumed !== null ? "text-muted" : "text-accent placeholder:text-accent"
+          )}
+        />
+        <span className="font-semibold text-muted">/{have(c.max)}</span>
       </span>
     </div>
   );
@@ -398,9 +505,8 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
       {p.plan.assumedExternal !== null && (
         <p className="mt-2 flex items-start gap-1.5 text-[11px] font-medium text-muted">
           <Gauge className="mt-0.5 h-3 w-3 shrink-0" />
-          Solved assuming the end-sem returns{" "}
-          <b className="text-ink">{have(p.plan.assumedExternal)}/{have(100 - p.internalWeight)}</b>{" "}
-          — so these are what the internals have to carry. Change it in Settings → Academics.
+          The internals below are carrying whatever the end-sem doesn't. Clear the end-sem
+          field to go back to spreading the target across it too.
         </p>
       )}
 
@@ -421,9 +527,13 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
               {p.plan.status === "final" ? "Scored" : `Needed for ${p.targetGrade}`}
             </span>
           </div>
-          {p.plan.components.map((c) => (
-            <ComponentRow key={c.key} c={c} status={p.plan.status} />
-          ))}
+          {p.plan.components.map((c) =>
+            c.kind === "external" && c.obtained === null ? (
+              <EndSemRow key={c.key} p={p} c={c} />
+            ) : (
+              <ComponentRow key={c.key} c={c} status={p.plan.status} />
+            )
+          )}
         </div>
       )}
 

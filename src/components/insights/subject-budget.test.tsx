@@ -88,6 +88,14 @@ const render = (marks: Mark[]) => renderFor(SUBJECT, marks);
  */
 const text = (html: string) =>
   html
+    // The end-sem row is an editable field, so its number lives in an
+    // attribute rather than in text. Surface it before stripping tags,
+    // or these assertions would stop checking the thing they exist for.
+    .replace(/<input\b[^>]*>/g, (tag) => {
+      const value = /\bvalue="([^"]*)"/.exec(tag)?.[1];
+      const placeholder = /\bplaceholder="([^"]*)"/.exec(tag)?.[1];
+      return ` ${value || placeholder || ""} `;
+    })
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ")
     .replace(/\s+\/\s*/g, "/")
@@ -147,7 +155,9 @@ describe("SubjectBudgetCard", () => {
       ])
     );
     expect(t).toContain("C is banked");
-    expect(t).toContain("anything");
+    // Every internal is graded, so the end-sem is all that's pending —
+    // and it is asked for nothing.
+    expect(t).toContain("End semester 0/40");
   });
 
   it("names the best still reachable when the target is gone", () => {
@@ -307,8 +317,36 @@ describe("SubjectBudgetCard", () => {
       )
     );
     expect(t).toContain("End semester assumed 34/40");
-    expect(t).toContain("Solved assuming the end-sem returns 34/40");
+    expect(t).toContain("The internals below are carrying whatever the end-sem doesn't");
     // 71 − 34 = 37 across the 60 internal marks.
+    expect(t).toContain("CT-1 9.5/15");
+  });
+
+  it("does not announce a test that already happened as what's next", () => {
+    // Reported from a phone: "Next up: 21MAB201T Exam on 3 Sep" while it
+    // was the 7th. The list was sorted by date and never filtered by it.
+    const past: Deadline = {
+      id: "dp", device_id: "1234", subject_id: "s1", title: "CT-1",
+      type: "exam", due_date: "2026-09-03T09:00:00.000Z",
+      status: "pending", priority: "high", max_marks: 15,
+    };
+    const future: Deadline = { ...past, id: "df", title: "CT-2", due_date: "2026-10-12T09:00:00.000Z" };
+
+    const t = text(renderFor(SUBJECT, [], { deadlines: [past, future] }));
+    expect(t).toContain("Next up: CT-2 on 12 Oct");
+    expect(t).not.toContain("Next up: CT-1");
+    // It stays in the budget, marked for what it is.
+    expect(t).toContain("CT-1 3 Sept · marks not in"); // Intl renders September as "Sept"
+  });
+
+  it("lets you answer the end-sem instead of being asked", () => {
+    const withTarget: Subject = {
+      ...SUBJECT,
+      assessment: { ...SUBJECT.assessment!, assumedExternalPct: 85 },
+    };
+    const t = text(renderFor(withTarget, []));
+    expect(t).toContain("End semester assumed 34/40");
+    // 71 − 34 = 37 across the 60 internal marks, not 71 across all 100.
     expect(t).toContain("CT-1 9.5/15");
   });
 });

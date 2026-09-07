@@ -165,6 +165,17 @@ shows as two rows you merge by renaming one. Prefer the visible error.
 Titles that mean the end-sem are never adopted — that paper is the
 external weight already.
 
+The end-sem expectation is editable **on the Insights card itself** —
+the End semester row is a field, not a number. Type what you expect the
+paper to return and the internals above re-solve against what is left
+of the target; clear it and the even spread comes back. The placeholder
+is what the spread is currently asking, so the field shows the answer
+it would give before you overrule it. Stored per subject in
+`assessment.assumedExternalPct`, which overrides the semester-wide
+setting — some papers are a formality and some are not, and one number
+for all of them is a default rather than an answer. Committed on blur
+or Enter, because it syncs across devices.
+
 **`settings.assumed_external_pct` hands the end-sem a fixed score**
 (migration 022). The even spread is the right default when you know
 nothing about the exam and the wrong question at SRM, where the papers

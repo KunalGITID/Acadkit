@@ -7,7 +7,6 @@ import {
   ArrowRight,
   Ban,
   BadgeCheck,
-  CalendarCheck2,
   Check,
   Clock3,
   PartyPopper,
@@ -21,7 +20,6 @@ import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { GradeBadge } from "@/components/viz/grade-badge";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
-import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
 import { DayOrderChip } from "@/components/layout/day-order-chip";
 import {
   useAttendance,
@@ -96,7 +94,6 @@ function TodayCard() {
     const classes = (timetable ?? []).filter((t) => t.day_order === next.dayOrder).length;
     return { ...next, classes };
   }, [info.kind, date, declared, settings, timetable]);
-  const [markOpen, setMarkOpen] = useState(false);
 
   // Live clock for now/next/past styling
   const [now, setNow] = useState(() => new Date());
@@ -128,7 +125,6 @@ function TodayCard() {
         <h2 className="mt-0.5 text-lg font-extrabold">{formatDateLong(date)}</h2>
       </div>
 
-      <MarkDaySheet date={markOpen ? date : null} onClose={() => setMarkOpen(false)} />
 
       <LiveClassCard
         slots={slots}
@@ -309,11 +305,6 @@ function TodayCard() {
                 </SwipeToAbsent>
               );
             })}
-            {!isNextDay && (
-              <Button className="mt-1 w-full" onClick={() => setMarkOpen(true)}>
-                <CalendarCheck2 className="h-4 w-4" /> Mark today's attendance
-              </Button>
-            )}
           </div>
         )}
       </div>

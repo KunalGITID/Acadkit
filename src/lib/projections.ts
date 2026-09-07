@@ -380,12 +380,14 @@ function projectSubjectGrade(
   targetSgpa: number,
   attendance: SubjectProjection | undefined,
   deadlines: Deadline[],
-  assumedExternalPct: number | null
+  assumedExternalPct: number | null,
+  today: string
 ): SubjectGradeProjection {
   const targetGrade = subject.target_grade ?? gradeForTargetSgpa(targetSgpa);
   const plan = solveSubjectPlan(subject, marks, targetGrade, {
     deadlines,
     assumedExternalPct,
+    today,
   });
   const eligibility = eligibilityFrom(attendance);
 
@@ -525,7 +527,8 @@ export function buildProjection(
       targetSgpa,
       attendanceById.get(s.id),
       deadlinesBySubject.get(s.id) ?? [],
-      assumedExternalPct
+      assumedExternalPct,
+      from
     )
   );
 

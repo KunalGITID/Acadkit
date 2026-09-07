@@ -28,6 +28,13 @@ export interface Assessment {
   /** True when `components` is the whole internal breakdown. */
   complete: boolean;
   components: PlannedComponent[];
+  /**
+   * What to expect of this subject's end-sem, as a percentage of it.
+   * Overrides `settings.assumed_external_pct`; null falls back to it.
+   * Lives here rather than in its own column because migration 021
+   * already put this object on every subject.
+   */
+  assumedExternalPct?: number | null;
 }
 
 export interface Subject {

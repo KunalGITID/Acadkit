@@ -775,3 +775,76 @@ describe("assuming the end-sem, and solving the internals against it", () => {
   });
 });
 
+
+describe("what's next has to actually be next", () => {
+  const dl = (title: string, due: string, max: number | null = 15): Deadline => ({
+    id: `d-${title}`,
+    device_id: "0000",
+    subject_id: "s1",
+    title,
+    type: "exam",
+    due_date: `${due}T09:00:00.000Z`,
+    status: "pending",
+    priority: "medium",
+    max_marks: max,
+  });
+  const s = subject({ internal: 60, components: plan([["CT-1", 15], ["CT-2", 15]]) });
+  const at = (today: string, deadlines: Deadline[]) =>
+    solveSubjectPlan(s, [], "A", { deadlines, today });
+
+  it("skips a date that has already gone by", () => {
+    // The bug this exists for: a test sat on 3 Sep was announced as
+    // "next up" on 7 Sep, because the list was sorted but never filtered.
+    const p = at("2026-09-07", [dl("CT-1", "2026-09-03"), dl("CT-2", "2026-10-12")]);
+    expect(p.next?.label).toBe("CT-2");
+    expect(p.next?.date).toBe("2026-10-12");
+  });
+
+  it("has no next when everything dated is behind you", () => {
+    expect(at("2026-09-07", [dl("CT-1", "2026-09-03")]).next).toBeNull();
+  });
+
+  it("counts today as still to come", () => {
+    expect(at("2026-09-07", [dl("CT-1", "2026-09-07")]).next?.label).toBe("CT-1");
+  });
+
+  it("keeps an overdue test in the budget, flagged", () => {
+    // It happened and it still owes marks; what it is not, is next.
+    const p = at("2026-09-07", [dl("CT-1", "2026-09-03")]);
+    const ct1 = p.components.find((c) => c.label === "CT-1")!;
+    expect(ct1.overdue).toBe(true);
+    expect(ct1.required).toBeGreaterThan(0);
+    expect(p.components.find((c) => c.label === "CT-2")!.overdue).toBe(false);
+  });
+
+  it("does not call a graded component overdue", () => {
+    const p = solveSubjectPlan(s, [mark("CT-1", 12, 15)], "A", {
+      deadlines: [dl("CT-1", "2026-09-03")],
+      today: "2026-09-07",
+    });
+    expect(p.components.find((c) => c.label === "CT-1")!.overdue).toBe(false);
+  });
+});
+
+describe("a subject can expect something different of its own end-sem", () => {
+  const s = (pct: number | null) =>
+    subject({ internal: 60, components: plan([["CT-1", 60]]), assumedExternalPct: pct });
+
+  it("overrides the semester-wide expectation", () => {
+    const p = solveSubjectPlan(s(50), [], "A", { assumedExternalPct: 90 });
+    expect(p.assumedExternal).toBe(20); // its own 50%, not the global 90%
+  });
+
+  it("falls back to the semester-wide one when it has no opinion", () => {
+    const p = solveSubjectPlan(s(null), [], "A", { assumedExternalPct: 90 });
+    expect(p.assumedExternal).toBe(36);
+  });
+
+  it("changes what the internals are asked for, and nothing else", () => {
+    const easy = solveSubjectPlan(s(90), [], "A");
+    const hard = solveSubjectPlan(s(40), [], "A");
+    expect(easy.requiredRate!).toBeLessThan(hard.requiredRate!);
+    expect(easy.ceiling).toBe(hard.ceiling);
+    expect(easy.banked).toBe(hard.banked);
+  });
+});
