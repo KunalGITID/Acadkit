@@ -26,7 +26,6 @@ import {
   useAttendance,
   usePortalSnapshots,
   useDeadlines,
-  useMarkAttendance,
   useMarks,
   useSettings,
   useSubjects,
@@ -73,7 +72,6 @@ const stagger = {
 
 function TodayCard() {
   const tone = useTone();
-  const markAttendance = useMarkAttendance();
   const { date, info, slots, isNextDay, declared } = useToday();
   const { data: attendance } = useAttendance();
   const { data: settings } = useSettings();
@@ -137,15 +135,6 @@ function TodayCard() {
               r.date === date &&
               r.start_time === slot.start_time
           )?.status ?? null
-        }
-        onMark={({ slot }, status) =>
-          markAttendance.mutate({
-            subject_id: slot.subject_id,
-            date,
-            start_time: slot.start_time,
-            end_time: slot.end_time,
-            status,
-          })
         }
       />
 

@@ -24,14 +24,19 @@ import type { AttendanceStatus } from "@/types";
 interface Props {
   slots: LiveSlot[];
   nowMinutes: number;
-  /** Null while the class hasn't been marked yet. */
+  /**
+   * Null while the class hasn't been marked yet.
+   *
+   * Read-only: this card reports what attendance says, it does not
+   * write it. Marking lives in one place — auto-marked present, and
+   * corrected on the Calendar for the day you actually missed.
+   */
   statusFor: (slot: LiveSlot) => AttendanceStatus | null;
-  onMark: (slot: LiveSlot, status: AttendanceStatus) => void;
   /** Suppressed when the dashboard has rolled forward to tomorrow. */
   disabled?: boolean;
 }
 
-export function LiveClassCard({ slots, nowMinutes, statusFor, onMark, disabled }: Props) {
+export function LiveClassCard({ slots, nowMinutes, statusFor, disabled }: Props) {
   const tone = useTone();
   const state = liveState(slots, nowMinutes);
 
@@ -93,24 +98,7 @@ export function LiveClassCard({ slots, nowMinutes, statusFor, onMark, disabled }
             {marked === "od" ? <BadgeCheck className="h-3.5 w-3.5" strokeWidth={2.6} /> : null}
             {marked === "holiday" ? "cancelled" : marked === "od" ? "on duty" : marked}
           </span>
-        ) : (
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => onMark(current, "present")}
-              aria-label="Mark present"
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-good/15 text-good-deep transition-transform active:scale-90"
-            >
-              <Check className="h-4 w-4" strokeWidth={2.6} />
-            </button>
-            <button
-              onClick={() => onMark(current, "absent")}
-              aria-label="Mark absent"
-              className="flex h-9 w-9 items-center justify-center rounded-xl bg-bad/15 text-bad-deep transition-transform active:scale-90"
-            >
-              <X className="h-4 w-4" strokeWidth={2.6} />
-            </button>
-          </div>
-        )
+        ) : null
       }
     />
   );
