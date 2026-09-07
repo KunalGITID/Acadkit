@@ -160,7 +160,13 @@ back to the letter already in the course code (`21CSS202T` theory,
 Generating "CT-1" meant every plan had to be renamed by hand to match
 what faculty announce, and a plan whose labels don't match your
 deadlines cannot be matched *to* them either. `inferType` reads the
-same vocabulary in reverse.
+same vocabulary in reverse, and `labelMatchKey` treats `CT-1`, `FT-1`
+and `FJ-1` as one component — a mark recorded under the old naming
+would otherwise stop matching the plan row it belongs to and become a
+*second* component, so the same test would be reported twice, once
+graded and once still owed, with the internal weight spent twice over.
+Migration 024 renames the stored rows; the match key is what makes the
+app right whether or not it has been run.
 
 **A test logged in Deadlines is an announced component.** You already
 record every exam there, and the optional "out of" field is exactly the

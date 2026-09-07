@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AUTO_LABEL,
   isLabIntegrated,
+  labelMatchKey,
   labelPrefix,
   nextComponentLabel,
 } from "@/lib/componentLabel";
@@ -106,5 +107,45 @@ describe("AUTO_LABEL", () => {
     for (const l of ["Surprise quiz", "FT1", "My FT-1", "FT-"]) {
       expect(AUTO_LABEL.test(l), l).toBe(false);
     }
+  });
+});
+
+describe("labelMatchKey", () => {
+  /**
+   * The case this exists for: a mark recorded as CT-1 before the rename,
+   * against a plan row now called FT-1. Matching on raw text made them
+   * two components — the same test reported twice, once graded and once
+   * still owed — and no amount of renaming the plan would fix a device
+   * that had already synced the old label.
+   */
+  it("treats the three names for one component as one component", () => {
+    const key = labelMatchKey("CT-1");
+    expect(labelMatchKey("FT-1")).toBe(key);
+    expect(labelMatchKey("FJ-1")).toBe(key);
+    expect(labelMatchKey("ct 1")).toBe(key);
+    expect(labelMatchKey("  Ft_1 ")).toBe(key);
+  });
+
+  it("does the same for the life-long-learning family", () => {
+    const key = labelMatchKey("Lab-2");
+    expect(labelMatchKey("LLT-2")).toBe(key);
+    expect(labelMatchKey("LLJ-2")).toBe(key);
+  });
+
+  it("keeps the two families apart", () => {
+    expect(labelMatchKey("FT-1")).not.toBe(labelMatchKey("LLT-1"));
+  });
+
+  it("keeps different numbers apart", () => {
+    expect(labelMatchKey("FT-1")).not.toBe(labelMatchKey("FT-2"));
+  });
+
+  it("leaves anything it doesn't recognise as itself", () => {
+    // A hand-typed name is not a dialect of anything.
+    expect(labelMatchKey("Surprise quiz")).toBe("surprisequiz");
+    expect(labelMatchKey("Model exam")).toBe("modelexam");
+    // No number: not one of the numbered families.
+    expect(labelMatchKey("FT")).toBe("ft");
+    expect(labelMatchKey("Lab")).toBe("lab");
   });
 });

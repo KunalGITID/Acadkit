@@ -848,3 +848,47 @@ describe("a subject can expect something different of its own end-sem", () => {
     expect(easy.banked).toBe(hard.banked);
   });
 });
+
+describe("a mark recorded under the old naming still finds its plan row", () => {
+  /**
+   * Before SRM's names were used, components came out as CT-1. A plan
+   * written today says FT-1. Without dialect-aware matching the two are
+   * different components, so the subject reports the same test twice —
+   * once graded, once still owed — and the internal weight is spent
+   * twice over.
+   */
+  const planned = subject({
+    internal: 60,
+    components: plan([["FT-1", 15], ["FT-2", 15], ["LLT-1", 10]]),
+  });
+
+  it("matches an old CT-n mark onto the new FT-n row", () => {
+    const p = solveSubjectPlan(planned, [mark("CT-1", 12, 15)], "A");
+    const ft1 = p.components.find((c) => c.label === "FT-1")!;
+    expect(ft1.obtained).toBe(12);
+    expect(p.components.some((c) => c.kind === "extra")).toBe(false);
+    expect(p.banked).toBe(12);
+  });
+
+  it("matches an old Lab-n mark onto the new LLT-n row", () => {
+    const p = solveSubjectPlan(planned, [mark("Lab-1", 8, 10)], "A");
+    expect(p.components.find((c) => c.label === "LLT-1")!.obtained).toBe(8);
+    expect(p.components.some((c) => c.kind === "extra")).toBe(false);
+  });
+
+  it("does not spend the weight twice", () => {
+    // The failure it prevents: one test counted as two components, so
+    // 15 marks of the internal 60 are claimed by a row that is really
+    // the same row.
+    const both = solveSubjectPlan(planned, [mark("CT-1", 12, 15)], "A");
+    const clean = solveSubjectPlan(planned, [mark("FT-1", 12, 15)], "A");
+    expect(both.components).toHaveLength(clean.components.length);
+    expect(both.pool).toBe(clean.pool);
+  });
+
+  it("still keeps genuinely different components apart", () => {
+    const p = solveSubjectPlan(planned, [mark("CT-2", 9, 15)], "A");
+    expect(p.components.find((c) => c.label === "FT-1")!.obtained).toBeNull();
+    expect(p.components.find((c) => c.label === "FT-2")!.obtained).toBe(9);
+  });
+});

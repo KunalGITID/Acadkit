@@ -60,3 +60,28 @@ export function nextComponentLabel(
   const count = existing.filter((m) => !m.is_external && m.component_type === type).length;
   return `${prefix}-${count + 1}`;
 }
+
+/**
+ * A label reduced to the thing it names, ignoring dialect.
+ *
+ * `CT-1`, `FT-1` and `FJ-1` are the same component written three ways:
+ * the app's old auto-name, and SRM's names for a theory and a
+ * lab-integrated course. Matching on the raw text meant a mark recorded
+ * before the rename stopped matching the plan row it belongs to, and
+ * silently became a second component — so a subject would report the
+ * same test twice, once graded and once still owed.
+ *
+ * Migration 024 renames the stored rows, but this is what makes the
+ * app correct whether or not that has been run, and on a device that
+ * synced before it was. Case and separators go the same way they do in
+ * `normLabel`.
+ */
+export function labelMatchKey(label: string): string {
+  const flat = label.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  const family = /^(?:ct|ft|fj)(\d+)$/.exec(flat);
+  if (family) return `f${family[1]}`;
+  const learning = /^(?:lab|llt|llj)(\d+)$/.exec(flat);
+  if (learning) return `ll${learning[1]}`;
+  return flat;
+}
+

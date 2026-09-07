@@ -29,6 +29,7 @@
  * with no plan at all still solves — it just answers in one lump
  * instead of per test.
  */
+import { labelMatchKey } from "@/lib/componentLabel";
 import { todayISO } from "@/lib/dates";
 import { GRADE_TABLE, gradeForTotal } from "@/lib/grades";
 import type {
@@ -100,9 +101,15 @@ function share(obtained: number, max: number, weight: number): number {
   return clamp(obtained / max, 0, 1) * weight;
 }
 
-/** Labels match case- and space-insensitively: "CT-1" ≡ "ct 1". */
+/**
+ * Labels match case- and space-insensitively, and across dialects:
+ * "CT-1" ≡ "ct 1" ≡ "FT-1" ≡ "FJ-1". The last part matters because
+ * marks recorded under the old auto-naming would otherwise stop
+ * matching the plan rows they belong to and become second components —
+ * the same test reported twice, once graded and once still owed.
+ */
 export function normLabel(s: string): string {
-  return s.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  return labelMatchKey(s);
 }
 
 /**
