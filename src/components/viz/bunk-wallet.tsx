@@ -1,6 +1,7 @@
 import { STAGGER_CAP } from "@/lib/enter";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dot } from "@/components/ui/misc";
+import { MIN_ATTENDANCE } from "@/lib/attendance";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { buildWallet, pipsFor } from "@/lib/bunkWallet";
 import { useSurvivalPlan } from "@/hooks/useSurvivalPlan";
@@ -157,6 +158,14 @@ export function BunkWallet({ stats }: { stats: SubjectAttendance[] }) {
                 <span className="line-clamp-1 min-w-0 flex-1 text-sm font-bold">
                   {subject.subject.name}
                 </span>
+                {/* Which bar this row is counting against. Without it a
+                    subject on ML looks like it is being let off, when it
+                    is being measured against a different, real rule. */}
+                {subject.min !== MIN_ATTENDANCE && (
+                  <span className="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 text-[10px] font-bold text-muted">
+                    ML {subject.min}%
+                  </span>
+                )}
                 <span className="shrink-0 text-xs font-bold text-bad-deep">
                   {say(VOICE.walletOwed, tone, owed)}
                 </span>

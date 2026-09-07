@@ -109,14 +109,15 @@ function SubjectProjectionCard({ p, index }: { p: SubjectProjection; index: numb
         {!p.reachable ? (
           <p className="flex items-start gap-2 text-sm font-bold text-bad-deep">
             <Siren className="mt-0.5 h-4 w-4 shrink-0" />
-            Can't reach 75% even attending all {p.remaining} remaining — best you can end is{" "}
-            {Math.round(p.bestPct)}%.
+            Can't reach {p.min}% even attending all {p.remaining} remaining — best you can end
+            is {Math.round(p.bestPct)}%.
           </p>
-        ) : p.currentPct !== null && p.currentPct < 75 ? (
+        ) : p.currentPct !== null && p.currentPct < p.min ? (
           <div className="text-sm font-bold text-warn-deep">
             <p className="flex items-start gap-2">
               <TrendingUp className="mt-0.5 h-4 w-4 shrink-0" />
-              Attend the next {p.mustAttendStreak} in a row to climb back to 75%
+              Attend the next {p.mustAttendStreak} in a row to climb back to {p.min}%
+              {p.min !== 75 && <span className="font-semibold text-muted"> (ML)</span>}
             </p>
             {p.recoveryDate && (
               <p className="ml-6 mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-muted">

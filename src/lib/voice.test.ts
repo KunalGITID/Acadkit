@@ -32,8 +32,8 @@ describe("greeting", () => {
 
 describe("attendanceBelow", () => {
   it("agrees with itself on plurals", () => {
-    expect(say(VOICE.attendanceBelow, "plain", 1)).toBe("1 subject below 75%");
-    expect(say(VOICE.attendanceBelow, "plain", 3)).toBe("3 subjects below 75%");
+    expect(say(VOICE.attendanceBelow, "plain", 1)).toBe("1 subject below the minimum");
+    expect(say(VOICE.attendanceBelow, "plain", 3)).toBe("3 subjects below the minimum");
     expect(say(VOICE.attendanceBelow, "brutal", 1)).toBe("1 subject is cooked");
     expect(say(VOICE.attendanceBelow, "brutal", 3)).toBe("3 subjects are cooked");
   });

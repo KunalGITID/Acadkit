@@ -111,13 +111,13 @@ export const VOICE = {
     brutal: (n) => `${n} already burned`,
   }),
 
-  /** Heading over the subjects that are below 75%. */
+  /** Heading over the subjects that are below their minimum. */
   walletDebt: pick({
     plain: () => "Overdrawn",
     brutal: () => "in debt",
   }),
 
-  /** `n` is classes needed to climb back to 75%. */
+  /** `n` is classes needed to climb back to the subject's minimum. */
   walletOwed: pick<[n: number]>({
     plain: (n) => `${n} straight to recover`,
     brutal: (n) => `${n} in a row. no misses.`,
@@ -385,13 +385,15 @@ export const VOICE = {
 
   /** Every subject is at or above the minimum. */
   attendanceHealthy: pick({
-    plain: () => "All subjects are at or above 75%. Keep it up.",
+    // Not "75%": medical leave puts some subjects on 65, so naming one
+    // number would be wrong on any semester where ML has been granted.
+    plain: () => "Every subject is above its minimum. Keep it up.",
     brutal: () => "somehow, everything's fine.",
   }),
 
   /** `n` subjects are below the minimum. */
   attendanceBelow: pick<[n: number]>({
-    plain: (n) => `${n} subject${n > 1 ? "s" : ""} below 75%`,
+    plain: (n) => `${n} subject${n > 1 ? "s" : ""} below the minimum`,
     brutal: (n) => `${n} subject${n > 1 ? "s are" : " is"} cooked`,
   }),
 
@@ -488,40 +490,6 @@ export const VOICE = {
     brutal: (attended, held) => `${attended} / ${held} hrs wasted`,
   }),
 
-  /**
-   * The per-subject verdict, with the bunk budget spelled out — the one
-   * number anybody actually wants. `budget` is future classes you can
-   * still miss and finish at or above the minimum.
-   */
-  diagnosis: pick<[budget: number, safe: boolean, needed: number]>({
-    plain: (budget, safe, needed) =>
-      safe
-        ? `${budget} class${budget === 1 ? "" : "es"} you can skip`
-        : `${needed} needed to reach 75%`,
-    brutal: (budget, safe, needed) => {
-      // Below the line, the number that matters is how many in a row it
-      // takes to climb back — "cooked" on every subject says nothing.
-      if (!safe) {
-        if (needed <= 0) return "cooked";
-        if (needed === 1) return "one class from safe";
-        // No "doomed" here, however large the number gets. This view
-        // knows how many classes you need but not how many remain, so
-        // it cannot tell brutal apart from impossible — and claiming
-        // impossible when it isn't would be the one lie this voice
-        // doesn't get to tell. The survival plan does know, and says so.
-        return `${needed} straight to survive`;
-      }
-      if (budget === 0) return "barely safe (0 bunks left)";
-      if (budget >= 5) return `nerd (${budget} free bunks)`;
-      return `${budget} free bunk${budget === 1 ? "" : "s"}`;
-    },
-  }),
-
-  /** Shown when a subject can no longer reach the minimum at all. */
-  unreachable: pick({
-    plain: () => "75% is no longer reachable",
-    brutal: () => "mathematically doomed",
-  }),
 
   /** Footer, and the only place the app admits what it is. */
   footer: pick({
