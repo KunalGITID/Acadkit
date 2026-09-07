@@ -1,12 +1,14 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { useNavCollapsed } from "@/hooks/useNavCollapsed";
 import { useSwipe } from "@/hooks/useSwipe";
 import { cn, haptic } from "@/lib/utils";
 
 export function BottomNav() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const collapsed = useNavCollapsed();
 
   // Swiping the bar itself walks the tabs, so you can change page
   // without aiming at a 44px target one-handed.
@@ -32,7 +34,12 @@ export function BottomNav() {
       data-swipe
       {...swipe}
     >
-      <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 pb-1 pt-1.5">
+      <div
+        className={cn(
+          "mx-auto flex max-w-lg items-stretch justify-around px-1 transition-[padding] duration-200",
+          collapsed ? "pb-0.5 pt-1" : "pb-1 pt-1.5"
+        )}
+      >
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.to;
           return (
@@ -58,14 +65,23 @@ export function BottomNav() {
                 )}
                 strokeWidth={active ? 2.4 : 2}
               />
-              <span
+              {/* The label is what goes. The icon and the pill are what
+                  make a tab findable at a glance; the word underneath is
+                  reassurance you stop needing after the first week. */}
+              <motion.span
+                initial={false}
+                animate={{
+                  height: collapsed ? 0 : "auto",
+                  opacity: collapsed ? 0 : 1,
+                }}
+                transition={{ type: "spring", stiffness: 400, damping: 34 }}
                 className={cn(
-                  "relative z-10 text-[9.5px] font-bold transition-colors",
+                  "relative z-10 overflow-hidden text-[9.5px] font-bold leading-[1.2] transition-colors",
                   active ? "text-accent" : "text-muted"
                 )}
               >
                 {item.label}
-              </span>
+              </motion.span>
             </NavLink>
           );
         })}
