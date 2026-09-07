@@ -298,24 +298,30 @@ function Bracket({ p }: { p: SubjectGradeProjection }) {
  * "the mark you need". But once one component remains, which is where
  * every subject ends up in the last week, the share *is* a mark out of
  * that component, and "A+ 36/40" is the sentence people actually want.
+ *
+ * Six fixed columns, not a wrapping row of chips. Six labels of uneven
+ * width never tile evenly across a phone, so the last grade dropped to
+ * a line of its own — worse in marks mode, where "A+ 36/40" is half
+ * again as wide as "A+ 77%". Stacking the value under the grade halves
+ * the width each cell needs, so the ladder holds one line at any size
+ * in either unit, and six columns of the same shape read as a table you
+ * can scan across, which is what this always was.
  */
 function GradeRates({ p }: { p: SubjectGradeProjection }) {
   const pending = p.plan.components.filter((c) => c.obtained === null);
   const lone = pending.length === 1 ? pending[0] : null;
 
   return (
-    <div className="mt-3 flex flex-wrap gap-1.5">
+    <div className="mt-3 grid grid-cols-6 gap-1">
       {p.plan.perGrade.map((g) => {
         const color = GRADE_COLORS[g.grade];
         const text = g.secured
           ? "locked"
-          : !g.achievable
-            ? "—"
-            : g.rate === null
-              ? "—"
-              : lone
-                ? `${need(g.needed)}/${have(lone.max)}`
-                : pct(g.rate);
+          : !g.achievable || g.rate === null
+            ? "\u2014"
+            : lone
+              ? `${need(g.needed)}/${have(lone.max)}`
+              : pct(g.rate);
         return (
           <span
             key={g.grade}
@@ -327,12 +333,15 @@ function GradeRates({ p }: { p: SubjectGradeProjection }) {
                   : `${g.grade} needs ${need(g.needed)} of the ${have(p.pool)} marks left`
             }
             className={cn(
-              "rounded-lg px-2 py-1 text-[11px] font-bold tabular",
+              "flex min-w-0 flex-col items-center rounded-lg px-0.5 py-1.5",
               !g.achievable && "opacity-40"
             )}
             style={{ backgroundColor: `${color}1f`, color }}
           >
-            {g.grade} {text}
+            <span className="text-[11px] font-extrabold leading-none">{g.grade}</span>
+            <span className="mt-1 w-full truncate text-center text-[10px] font-bold leading-none tabular">
+              {text}
+            </span>
           </span>
         );
       })}
