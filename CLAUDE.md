@@ -178,7 +178,11 @@ are prefilled and stay editable, because a component is not always
 assessed in one sitting — an LLJ worth 10 can arrive two marks at a
 time, each instalment its own deadline against the same component, and
 the date shown is the soonest of them. The plan's weight wins over the
-instalment's: the plan is the contract.
+instalment's for the *budget* — the plan is the contract — but the
+deadline row quotes what that sitting owes, scaled by its share of the
+component. FJ-1 worth 15 with a 10-mark test on the 10th reads "8/10",
+not the component's "11.5/15": the same equal-effort rate against the
+marks actually in front of you.
 
 **A test logged in Deadlines is an announced component.** You already
 record every exam there, and the optional "out of" field is exactly the

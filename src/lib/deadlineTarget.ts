@@ -66,13 +66,30 @@ export function deadlineNeed(
   // Already marked, or not in the budget at all: nothing to ask for.
   if (!component || component.obtained !== null || component.required === null) return null;
 
-  const required = ceilHalf(component.required);
+  /**
+   * A component is not always assessed in one sitting.
+   *
+   * FJ-1 can be worth 15 while the test on the 10th is 10 of them, the
+   * rest arriving later. Quoting the component's 11.5/15 next to that
+   * date answers a question nobody asked: what the whole component
+   * owes, on the day you sit part of it. The share this sitting owes is
+   * the same equal-effort rate applied to its own marks.
+   *
+   * A deadline claiming more marks than the component has is bad data,
+   * not an instalment, so it is capped rather than believed.
+   */
+  const share = Math.min(max, component.max);
+  const scale = component.max > 1e-9 ? share / component.max : 1;
+  const needed = component.required * scale;
+
   return {
-    required,
-    max: component.max,
+    required: ceilHalf(needed),
+    max: share,
     grade,
+    // Reachability is a property of the component, not of one sitting:
+    // a target out of reach overall is not rescued by acing this part.
     reachable: component.required <= component.max + 1e-9,
-    secured: required <= 0,
+    secured: needed <= 1e-9,
   };
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deadlineNeed, describeNeed } from "@/lib/deadlineTarget";
+import { ceilHalf } from "@/lib/plan";
 import type { Assessment, Deadline, Grade, Mark, Subject } from "@/types";
 
 /**
@@ -140,5 +141,76 @@ describe("describeNeed", () => {
 
   it("says so when one test cannot get there", () => {
     expect(describeNeed(need({ reachable: false }))).toBe("A needs more than this test");
+  });
+});
+
+describe("a component assessed in more than one sitting", () => {
+  /**
+   * Reported from a phone: FJ-1 is a 15-mark component, the test on the
+   * 10th is 10 of those marks, and the deadline row read "11.5/15 for
+   * A+" — the whole component's requirement, quoted next to a date on
+   * which you sit two thirds of it. The number was right about the
+   * wrong thing.
+   */
+  const planned = (max: number): Assessment => ({
+    internal: 60,
+    complete: false,
+    components: [{ key: "fj1", label: "FJ-1", type: "CT", max }],
+  });
+
+  const partial = (marks: number): Deadline => ({
+    ...dl("FJ-1", marks),
+    id: "d-part",
+  });
+
+  it("asks for this sitting's share, not the whole component's", () => {
+    const whole = deadlineNeed(dl("FJ-1", 15), sub({ target_grade: "A+" }, planned(15)), [], {
+      deadlines: [dl("FJ-1", 15)],
+    })!;
+    const part = deadlineNeed(partial(10), sub({ target_grade: "A+" }, planned(15)), [], {
+      deadlines: [partial(10)],
+    })!;
+
+    expect(whole.max).toBe(15);
+    expect(part.max).toBe(10);
+    // Two thirds of the component, so two thirds of what it owes.
+    expect(part.required).toBeCloseTo(ceilHalf((whole.required * 10) / 15), 5);
+    expect(part.required).toBeLessThan(whole.required);
+    expect(describeNeed(part)).toContain("/10 for A+");
+  });
+
+  it("keeps the rate the same, which is the point", () => {
+    // The share is the same effort against fewer marks — not a discount
+    // and not a harder ask. Only rounding separates them: marks are
+    // awarded in halves and a number you must reach rounds up, which
+    // moves the rate further on a small sitting than a large one. That
+    // is the right direction to be wrong in.
+    const whole = deadlineNeed(dl("FJ-1", 15), sub({ target_grade: "A" }, planned(15)), [], {
+      deadlines: [dl("FJ-1", 15)],
+    })!;
+    const part = deadlineNeed(partial(5), sub({ target_grade: "A" }, planned(15)), [], {
+      deadlines: [partial(5)],
+    })!;
+    const wholeRate = whole.required / whole.max;
+    const partRate = part.required / part.max;
+    expect(partRate).toBeGreaterThanOrEqual(wholeRate);
+    expect(partRate - wholeRate).toBeLessThanOrEqual(0.5 / part.max + 1e-9);
+  });
+
+  it("does not believe a deadline worth more than its component", () => {
+    // Bad data rather than an instalment: capped, not trusted.
+    const p = deadlineNeed(partial(40), sub({ target_grade: "A" }, planned(15)), [], {
+      deadlines: [partial(40)],
+    })!;
+    expect(p.max).toBe(15);
+  });
+
+  it("still reports a target that is gone overall", () => {
+    // Acing one sitting does not rescue a component that cannot get
+    // there, so reachability stays a property of the component.
+    const p = deadlineNeed(partial(2), sub({ target_grade: "O" }, planned(5)), [mark("Other", 0, 55)], {
+      deadlines: [partial(2)],
+    })!;
+    expect(p.reachable).toBe(false);
   });
 });
