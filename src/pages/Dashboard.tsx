@@ -5,8 +5,9 @@ import { motion } from "framer-motion";
 import {
   AlertTriangle,
   ArrowRight,
-  Ban,
   BadgeCheck,
+  Ban,
+  CalendarCheck2,
   Check,
   Clock3,
   PartyPopper,
@@ -42,7 +43,6 @@ import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
 import { ColourBlock } from "@/components/viz/colour-block";
-import { SwipeToAbsent } from "@/components/sheets/swipe-absent";
 import { LiveClassCard } from "@/components/viz/live-class";
 import { ExamCountdown } from "@/components/viz/exam-countdown";
 import { SurvivalCard } from "@/components/viz/survival-card";
@@ -149,6 +149,24 @@ function TodayCard() {
         }
       />
 
+      {/* Removing the swipe made auto-marking the only thing writing
+          attendance from this screen, so it has to be obvious when it
+          is off. Silently recording nothing is worse than the mess the
+          swipe was. */}
+      {settings && settings.auto_mark_present !== true && !isNextDay && (
+        <Link
+          to="/settings"
+          className="mx-4 mt-3 flex items-start gap-2 rounded-2xl border border-warn/25 bg-warn/10 p-3 text-xs font-semibold"
+        >
+          <CalendarCheck2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            Attendance isn't being marked automatically. Turn on{" "}
+            <b>auto-mark present</b> in Settings, and correct the days you missed from the
+            Calendar.
+          </span>
+        </Link>
+      )}
+
       <div className="p-4">
         {info.kind === "pre-semester" ? (
           <EmptyState
@@ -241,22 +259,15 @@ function TodayCard() {
                   r.start_time === slot.start_time
               );
               return (
-                <SwipeToAbsent
-                  key={slot.id}
-                  // A class that hasn't happened can't have been missed,
-                  // and one already marked absent has nothing to add.
-                  disabled={st === "upcoming" || record?.status === "absent"}
-                  onAbsent={() =>
-                    markAttendance.mutate({
-                      subject_id: slot.subject_id,
-                      date,
-                      start_time: slot.start_time,
-                      end_time: slot.end_time,
-                      status: "absent",
-                    })
-                  }
-                >
+                // Read-only. Marking used to live here as a swipe, which
+                // put a red "absent" panel behind every row and left
+                // half of them peeking out mid-gesture — a list you read
+                // ten times a day should not look like it is about to
+                // delete something. Attendance is auto-marked present
+                // and corrected from the Calendar, where you are already
+                // looking at the day you missed.
                 <motion.div
+                  key={slot.id}
                   layout
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: st === "past" ? 0.5 : 1, y: 0 }}
@@ -302,7 +313,6 @@ function TodayCard() {
                     <Badge className="bg-accent/15 text-accent">next</Badge>
                   ) : null}
                 </motion.div>
-                </SwipeToAbsent>
               );
             })}
           </div>
