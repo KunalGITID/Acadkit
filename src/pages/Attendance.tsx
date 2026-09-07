@@ -422,9 +422,12 @@ export default function Attendance() {
         </section>
       </div>
 
-      <BunkWallet stats={overall.subjects} />
-
-      {/* Per subject */}
+      {/* Per subject, then the wallet.
+      
+          The wallet is a summary of the rows below it — how much slack
+          each subject has, ranked. Above them it asked you to take its
+          word for the numbers before you had seen any of them; after
+          them it reads as the conclusion it is. */}
       <div className="space-y-3">
         <p className="px-1 text-xs font-bold uppercase tracking-widest text-muted">By subject</p>
         {overall.subjects.map((s, i) => (
@@ -436,6 +439,8 @@ export default function Attendance() {
           />
         ))}
       </div>
+
+      <BunkWallet stats={overall.subjects} />
 
     </div>
   );
