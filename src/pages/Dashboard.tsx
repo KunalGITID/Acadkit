@@ -37,7 +37,7 @@ import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
 import { daysUntilSemesterStart, nextWorkingDate, semesterWindow } from "@/lib/calendar";
 import { formatDate, formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
 import { deadlineLabel } from "@/lib/deadlines";
-import { deadlineTarget, describeTarget } from "@/lib/deadlineTarget";
+import { deadlineNeed, describeNeed } from "@/lib/deadlineTarget";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
@@ -440,6 +440,7 @@ function DeadlinesCard() {
   const settled = useHasAnimated("dashboard-deadlines");
   const { data: deadlines, isLoading } = useDeadlines();
   const { data: subjects } = useSubjects();
+  const { data: settings } = useSettings();
   const updateDeadline = useUpdateDeadline();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Deadline | null>(null);
@@ -481,11 +482,22 @@ function DeadlinesCard() {
         <div className="space-y-2">
           {upcoming.map((d, i) => {
             const subject = subjects?.find((s) => s.id === d.subject_id);
-            const outlook =
+            // The same number the subject's Insights card shows for
+            // this test, against the grade you set there.
+            const need =
               d.max_marks && subject
-                ? deadlineTarget(d, subject, (marks ?? []).filter((m) => m.subject_id === d.subject_id))
+                ? deadlineNeed(
+                    d,
+                    subject,
+                    (marks ?? []).filter((m) => m.subject_id === d.subject_id),
+                    {
+                      deadlines: (deadlines ?? []).filter((x) => x.subject_id === d.subject_id),
+                      targetSgpa: settings?.target_sgpa ?? 8.5,
+                      assumedExternalPct: settings?.assumed_external_pct ?? null,
+                    }
+                  )
                 : null;
-            const target = outlook ? describeTarget(outlook, Number(d.max_marks)) : null;
+            const target = need ? describeNeed(need) : null;
             const due = new Date(d.due_date);
             const days = Math.ceil((due.getTime() - Date.now()) / 86_400_000);
             const urgent = days <= 2;

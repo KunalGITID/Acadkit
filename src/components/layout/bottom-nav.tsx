@@ -22,11 +22,17 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="glass fixed inset-x-0 bottom-0 z-30 border-t pb-safe-b lg:hidden"
+      /* The safe-area inset is a clearance requirement, not a margin.
+         Honouring it in full left a dead strip of background under the
+         bar taller than the labels themselves — real screen area spent
+         on a home indicator that needs a fraction of it. Trimmed to
+         what actually keeps the tap targets clear of the gesture bar,
+         with a floor so a device reporting nothing still gets some. */
+      className="glass fixed inset-x-0 bottom-0 z-30 border-t pb-[max(0.25rem,calc(env(safe-area-inset-bottom)-0.6rem))] lg:hidden"
       data-swipe
       {...swipe}
     >
-      <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-2">
+      <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 pb-1 pt-1.5">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.to;
           return (

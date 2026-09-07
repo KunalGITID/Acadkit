@@ -1,19 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { deadlineTarget, describeTarget } from "@/lib/deadlineTarget";
-import type { Assessment, Mark, Subject } from "@/types";
+import { deadlineNeed, describeNeed } from "@/lib/deadlineTarget";
+import type { Assessment, Deadline, Grade, Mark, Subject } from "@/types";
 
 /**
- * These numbers moved when deadlines came off the rate model.
- *
- * The old version asked "what fraction of my entered marks have I
- * earned, and what does adding this test do to it" — which quietly
- * treats the marks you happen to have as the whole course. That is why
- * it used to call a grade safe on the strength of 45/50 with a whole
- * semester unplayed. Deadlines now read the same budget the Insights
- * card does, so the answers agree with it and with each other.
+ * These read off the subject's budget rather than recomputing anything,
+ * so what they really pin is that a deadline row and the subject's
+ * Insights card give the same answer — and that the answer is for the
+ * grade you chose, not the one your current pace implies.
  */
 
-const sub = (assessment: Assessment | null = null): Subject => ({
+const sub = (over: Partial<Subject> = {}, assessment?: Assessment): Subject => ({
   id: "s1",
   device_id: "0404",
   code: "X",
@@ -22,103 +18,127 @@ const sub = (assessment: Assessment | null = null): Subject => ({
   type: "theory",
   faculty: null,
   color_hex: "#000",
-  assessment,
+  assessment: assessment ?? { internal: 60, complete: false, components: [] },
+  ...over,
 });
 
-const mark = (obtained: number, max: number): Mark => ({
-  id: `${obtained}-${max}`,
+const dl = (title: string, max: number | null, id = "d1"): Deadline => ({
+  id,
+  device_id: "0404",
+  subject_id: "s1",
+  title,
+  type: "exam",
+  due_date: "2026-10-12T09:00:00.000Z",
+  status: "pending",
+  priority: "medium",
+  max_marks: max,
+});
+
+const mark = (label: string, obtained: number, max: number): Mark => ({
+  id: `${label}`,
   device_id: "0404",
   subject_id: "s1",
   component_type: "CT",
-  label: "CT",
+  label,
   marks_obtained: obtained,
   max_marks: max,
   is_external: false,
 });
 
-describe("deadlineTarget", () => {
+describe("deadlineNeed", () => {
   it("says nothing when the test carries no marks", () => {
     // A lab record with no denominator has no target to compute.
-    expect(deadlineTarget({ max_marks: null }, sub(), [mark(20, 25)])).toBeNull();
-    expect(deadlineTarget({ max_marks: 0 }, sub(), [mark(20, 25)])).toBeNull();
+    expect(deadlineNeed(dl("CT-1", null), sub(), [], { deadlines: [dl("CT-1", null)] })).toBeNull();
+    expect(deadlineNeed(dl("CT-1", 0), sub(), [], { deadlines: [dl("CT-1", 0)] })).toBeNull();
   });
 
-  it("says nothing before there is a pace to hold", () => {
-    // Every grade is still open; a target here would be arithmetic, not
-    // advice.
-    expect(deadlineTarget({ max_marks: 25 }, sub(), [])).toBeNull();
+  it("answers before a single mark exists", () => {
+    // The old version refused until there was a pace to hold, so a test
+    // in week two — exactly when knowing the number is most useful —
+    // showed nothing at all.
+    const d = dl("CT-1", 15);
+    const need = deadlineNeed(d, sub({ target_grade: "A" }), [], { deadlines: [d] })!;
+    expect(need.grade).toBe("A");
+    expect(need.required).toBe(11); // 71% of 15 is 10.65, and 10.5 is not enough
+    expect(need.reachable).toBe(true);
   });
 
-  it("offers exactly the grade you're on and the one above", () => {
-    // 20/25 is 80%, which is an A — A+ starts at 81, not 80.
-    const t = deadlineTarget({ max_marks: 25 }, sub(), [mark(20, 25)])!;
-    expect(t.current).toBe("A");
-    expect(t.hold?.grade).toBe("A");
-    expect(t.reach?.grade).toBe("A+");
+  it("asks for the grade you chose, not the one you're tracking", () => {
+    const d = dl("CT-1", 15);
+    const marks = [mark("Assignment", 1, 20)]; // an F pace
+    const aiming = deadlineNeed(d, sub({ target_grade: "A+" }), marks, { deadlines: [d] })!;
+    expect(aiming.grade).toBe("A+");
+    // 81 − 1 banked, spread over the 79 remaining marks, times 15.
+    expect(aiming.required).toBe(15);
   });
 
-  it("has nothing above the top grade", () => {
-    const t = deadlineTarget({ max_marks: 25 }, sub(), [mark(25, 25)])!;
-    expect(t.current).toBe("O");
-    expect(t.reach).toBeNull();
+  it("falls back to the semester target when the subject has no view", () => {
+    const d = dl("CT-1", 15);
+    expect(deadlineNeed(d, sub(), [], { deadlines: [d], targetSgpa: 9 })!.grade).toBe("A+");
+    expect(deadlineNeed(d, sub(), [], { deadlines: [d], targetSgpa: 6 })!.grade).toBe("B");
   });
 
-  it("will not call a grade banked while the semester is still open", () => {
-    // 25/25 is a perfect pace, and 25 of the 100 marks. Under the old
-    // model that was "O is safe"; in fact 75 marks are unplayed and O
-    // still has to be earned across them.
-    const t = deadlineTarget({ max_marks: 25 }, sub(), [mark(25, 25)])!;
-    expect(t.hold?.secured).toBe(false);
-    expect(describeTarget(t, 25)).toBe("22/25 to hold O");
+  it("reads the number off a component the plan already declares", () => {
+    // Named the same as a planned component, so it dates that one rather
+    // than becoming a second — and the number is that component's.
+    const planned: Assessment = {
+      internal: 60,
+      complete: false,
+      components: [{ key: "c1", label: "CT-1", type: "CT", max: 15 }],
+    };
+    const d = dl("CT-1", 15);
+    const need = deadlineNeed(d, sub({ target_grade: "A" }, planned), [], { deadlines: [d] })!;
+    expect(need.max).toBe(15);
+    expect(need.required).toBe(11);
+  });
+
+  it("follows the end-sem assumption, like the card does", () => {
+    const d = dl("CT-1", 15);
+    const even = deadlineNeed(d, sub({ target_grade: "A" }), [], { deadlines: [d] })!;
+    const assumed = deadlineNeed(d, sub({ target_grade: "A" }), [], {
+      deadlines: [d],
+      assumedExternalPct: 90,
+    })!;
+    // Expecting a good exam moves the ask down, not up.
+    expect(assumed.required).toBeLessThan(even.required);
+  });
+
+  it("goes quiet once the mark is in", () => {
+    const d = dl("CT-1", 15);
+    expect(
+      deadlineNeed(d, sub({ target_grade: "A" }), [mark("CT-1", 12, 15)], { deadlines: [d] })
+    ).toBeNull();
+  });
+
+  it("admits when the test cannot carry the target on its own", () => {
+    const d = dl("CT-1", 5);
+    const need = deadlineNeed(d, sub({ target_grade: "O" }), [mark("Assignment", 0, 55)], {
+      deadlines: [d],
+    })!;
+    expect(need.reachable).toBe(false);
   });
 });
 
-describe("describeTarget", () => {
-  it("leads with the improvement when it's reachable", () => {
-    // Banked 20 of 100, 75 left. A+ wants 61 of those 75 — 81% of
-    // everything remaining, so 20.5 of this 25-mark test.
-    const t = deadlineTarget({ max_marks: 25 }, sub(), [mark(20, 25)])!;
-    expect(describeTarget(t, 25)).toBe("20.5/25 for A+");
+describe("describeNeed", () => {
+  const need = (over: Partial<ReturnType<typeof deadlineNeed>> = {}) =>
+    ({
+      required: 10.5,
+      max: 15,
+      grade: "A" as Grade,
+      reachable: true,
+      secured: false,
+      ...over,
+    }) as NonNullable<ReturnType<typeof deadlineNeed>>;
+
+  it("puts the marks in front of the grade", () => {
+    expect(describeNeed(need())).toBe("10.5/15 for A");
   });
 
-  it("scales with the size of the test", () => {
-    // Same equal-effort share, a bigger slice of it.
-    const t = deadlineTarget({ max_marks: 50 }, sub(), [mark(8, 10)])!;
-    expect(describeTarget(t, 50)).toBe("41/50 for A+");
+  it("says a grade is safe rather than demanding nothing for it", () => {
+    expect(describeNeed(need({ secured: true, required: 0 }))).toBe("A is safe");
   });
 
-  it("says a grade is safe only once it truly cannot be lost", () => {
-    // 98 of the internal 100 are marked at 92, so O is banked with two
-    // marks outstanding: the one case where "safe" is the honest word.
-    const nearlyDone = sub({
-      internal: 100,
-      complete: false,
-      components: [
-        { key: "a", label: "CT", type: "CT", max: 98 },
-        { key: "b", label: "Lab", type: "Lab", max: 2 },
-      ],
-    });
-    const t = deadlineTarget({ max_marks: 2 }, nearlyDone, [mark(92, 98)])!;
-    expect(t.hold?.secured).toBe(true);
-    expect(describeTarget(t, 2)).toBe("O is safe");
-  });
-
-  it("speaks up on an F pace, where there is no grade to hold", () => {
-    // The grade table omits F — "what do I need to keep failing" isn't a
-    // question — so this would otherwise fall through and say nothing.
-    const t = deadlineTarget({ max_marks: 5 }, sub(), [mark(2, 50)])!;
-    expect(t.current).toBe("F");
-    expect(t.hold).toBeNull();
-    // 2 banked, 50 left, C wants 48 of them: 96% of everything, which
-    // this 5-mark test owes all of.
-    expect(describeTarget(t, 5)).toBe("5/5 for C");
-  });
-
-  it("keeps its footing when a test is worth more than what's left", () => {
-    // A 100-mark test in a subject with 50 marks unplayed is a data
-    // disagreement, not a question — but it must still answer, and the
-    // equal-effort share is the best available answer.
-    const t = deadlineTarget({ max_marks: 100 }, sub(), [mark(2, 50)])!;
-    expect(describeTarget(t, 100)).toBe("96/100 for C");
+  it("says so when one test cannot get there", () => {
+    expect(describeNeed(need({ reachable: false }))).toBe("A needs more than this test");
   });
 });

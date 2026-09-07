@@ -3,12 +3,12 @@ import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { Dot } from "@/components/ui/misc";
 import { countdownLabel, examUrgency, nextExam } from "@/lib/examCountdown";
-import { deadlineTarget, describeTarget } from "@/lib/deadlineTarget";
+import { deadlineNeed, describeNeed } from "@/lib/deadlineTarget";
 import { deadlineLabel } from "@/lib/deadlines";
 import { formatDate } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
-import { useDeadlines, useMarks, useSubjects } from "@/hooks/useData";
+import { useDeadlines, useMarks, useSettings, useSubjects } from "@/hooks/useData";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,6 +29,7 @@ export function ExamCountdown() {
   const { data: deadlines } = useDeadlines();
   const { data: subjects } = useSubjects();
   const { data: marks } = useMarks();
+  const { data: settings } = useSettings();
 
   const upcoming = nextExam(deadlines);
   if (!upcoming) return null;
@@ -37,14 +38,19 @@ export function ExamCountdown() {
   const subject = subjects?.find((s) => s.id === deadline.subject_id);
   const urgency = examUrgency(daysAway);
 
-  const target = subject
-    ? deadlineTarget(
+  const need = subject
+    ? deadlineNeed(
         deadline,
         subject,
-        (marks ?? []).filter((m) => m.subject_id === deadline.subject_id)
+        (marks ?? []).filter((m) => m.subject_id === deadline.subject_id),
+        {
+          deadlines: (deadlines ?? []).filter((d) => d.subject_id === deadline.subject_id),
+          targetSgpa: settings?.target_sgpa ?? 8.5,
+          assumedExternalPct: settings?.assumed_external_pct ?? null,
+        }
       )
     : null;
-  const advice = target ? describeTarget(target, Number(deadline.max_marks)) : null;
+  const advice = need ? describeNeed(need) : null;
 
   return (
     <motion.section

@@ -101,7 +101,7 @@ function share(obtained: number, max: number, weight: number): number {
 }
 
 /** Labels match case- and space-insensitively: "CT-1" ≡ "ct 1". */
-function normLabel(s: string): string {
+export function normLabel(s: string): string {
   return s.trim().toLowerCase().replace(/[\s_-]+/g, "");
 }
 
