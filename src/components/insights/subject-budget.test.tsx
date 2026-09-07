@@ -210,7 +210,7 @@ describe("SubjectBudgetCard", () => {
       },
     };
     const t = text(renderFor(oneBigCT, [mark("CT-1", 42.36, 60)]));
-    expect(t).toContain("At your pace 70/100 B+");
+    expect(t).toContain("Projected 70/100 B+");
     expect(t).not.toContain("71/100 B+");
     // And what is banked is floored too, not rounded up to 42.5.
     expect(t).toContain("42 banked");
@@ -280,11 +280,11 @@ describe("SubjectBudgetCard", () => {
     const swingy = text(
       render([mark("Assignment", 5, 5), mark("CT-1", 14, 15), mark("CT-2", 2, 15)])
     );
-    expect(swingy).toMatch(/At your pace \d+\/100 \w\+? \d+–\d+/);
+    expect(swingy).toMatch(/Projected \d+\/100 \w\+? \d+–\d+/);
 
     // Two components is not a spread, it is two numbers disagreeing.
     const tooFew = text(render([mark("Assignment", 5, 5), mark("CT-1", 14, 15)]));
-    expect(tooFew).not.toMatch(/At your pace \d+\/100 \w\+? \d+–\d+/);
+    expect(tooFew).not.toMatch(/Projected \d+\/100 \w\+? \d+–\d+/);
   });
 
   it("adopts a deadline you logged with marks, without retyping it", () => {

@@ -379,7 +379,11 @@ describe("subjectOutlook — the number every screen outside Insights shows", ()
 
     const withoutExt = subjectOutlook(s, [mark("CT-1", 30, 60)]);
     expect(withoutExt.pool).toBe(40);
-    expect(withoutExt.predictedTotal).toBe(50); // half of everything, projected
+    // Half of everything played, projected over the rest — nudged a
+    // little toward the prior because 60 of 100 marks is good evidence
+    // but not conclusive. See PRIOR_WEIGHT in plan.ts.
+    expect(withoutExt.predictedTotal).toBeCloseTo(51.33, 2);
+    expect(withoutExt.paceRate).toBe(0.5); // the raw observation is untouched
   });
 
   it("keeps the raw sums the Marks page prints", () => {
@@ -418,49 +422,51 @@ describe("computeSgpa on the budget model", () => {
     const r = computeSgpa(subjects, map);
     expect(r.totalCredits).toBe(8);
     expect(r.countedSubjects).toBe(2);
-    expect(r.sgpa).toBeCloseTo((9 * 4 + 8 * 4) / 8, 5);
+    // Both land on an A. 13/15 is an A+ pace, but it is fifteen marks
+    // of a hundred-mark course, and one strong component is not a
+    // semester — the projection is tempered accordingly.
+    expect(r.sgpa).toBeCloseTo(8, 5);
     // Raw sums still span every marked subject, audit included.
     expect(r.totalObtained).toBe(40);
     expect(r.totalMax).toBe(45);
   });
 
-  it("brackets the same pace differently on different splits", () => {
-    // Worth being precise about what the split does and does not move.
-    // The *pace* read is scale-invariant — keep taking half of every
-    // mark and you finish on 50 whatever the course looks like — so the
-    // headline SGPA is unchanged. What the split changes is how much of
-    // that 50 is already yours, which is the difference between "on
-    // course for a C" and "a C is banked".
+  it("trusts a nearly-finished subject more than a barely-started one", () => {
+    // Identical raw rates, very different amounts of evidence. One
+    // course is effectively over at half marks; the other has banked 10
+    // of 100 and could still go anywhere, so its projection is pulled
+    // further toward a neutral expectation. Reporting both as the same
+    // grade — which is what an untempered rate does — treats a finished
+    // subject and a rumour as the same kind of fact.
     const marks = new Map([["a", [mark("CT-1", 20, 40)]]]);
-    const mostlyInternal = computeSgpa(
+    const nearlyDone = computeSgpa(
       [{ ...s("a", 4), assessment: { internal: 100, complete: true, components: [{ key: "k", label: "CT-1", type: "CT", max: 40 }] } }],
       marks
     );
-    const mostlyExternal = computeSgpa(
+    const barelyStarted = computeSgpa(
       [{ ...s("a", 4), assessment: { internal: 20, complete: true, components: [{ key: "k", label: "CT-1", type: "CT", max: 40 }] } }],
       marks
     );
 
-    const internalRow = mostlyInternal.rows[0].marks;
-    const externalRow = mostlyExternal.rows[0].marks;
+    const done = nearlyDone.rows[0].marks;
+    const started = barelyStarted.rows[0].marks;
 
-    // Identical pace, therefore identical predicted grade.
-    expect(mostlyInternal.sgpa).toBe(mostlyExternal.sgpa);
-    expect(internalRow.predictedTotal).toBe(50);
-    expect(externalRow.predictedTotal).toBe(50);
+    expect(done.paceRate).toBeCloseTo(started.paceRate!, 9); // same observation
+    expect(done.pool).toBe(0);
+    expect(started.pool).toBe(80);
 
-    // And almost nothing else about them is the same. One course is
-    // over — a C, banked, nothing left to change it. The other has
-    // banked 10 and has 80 marks in play, so it can still finish
-    // anywhere from an F to an A+. Reporting both as "C" and stopping
-    // there is what the old model did.
-    expect(internalRow.banked).toBe(50);
-    expect(internalRow.pool).toBe(0);
-    expect(internalRow.ceiling).toBe(50);
+    // Nothing is left to move the finished one, so it reports what it is.
+    expect(done.predictedTotal).toBe(50);
+    // The other is pulled up toward the prior, because 10 banked marks
+    // are not evidence of a 50% semester.
+    expect(started.predictedTotal).toBeGreaterThan(50);
+    expect(started.grade).not.toBe(done.grade);
 
-    expect(externalRow.banked).toBe(10);
-    expect(externalRow.pool).toBe(80);
-    expect(externalRow.ceiling).toBe(90);
+    // What neither of them does is move the bracket.
+    expect(done.banked).toBe(50);
+    expect(started.banked).toBe(10);
+    expect(done.ceiling).toBe(50);
+    expect(started.ceiling).toBe(90);
   });
 
   it("returns null rather than 0 when nothing can be projected", () => {
@@ -848,3 +854,73 @@ describe("a subject can expect something different of its own end-sem", () => {
     expect(easy.banked).toBe(hard.banked);
   });
 });
+
+describe("calibration — a projection has to earn its confidence", () => {
+  const s = subject({ internal: 60, components: [] });
+
+  it("does not call one perfect assignment an O", () => {
+    // The complaint this exists for. 5 of 100 marks at full credit is
+    // not a semester on course for a 10; it is one good morning.
+    const p = subjectOutlook(s, [mark("Assignment", 5, 5)]);
+    expect(p.paceRate).toBe(1); // the raw observation stands
+    expect(p.pace).toBe(100); // and so does the untempered extension
+    expect(p.predictedTotal).toBeLessThan(85); // but this is what's shown
+    expect(p.grade).not.toBe("O");
+  });
+
+  it("softens one bad test without pretending it was fine", () => {
+    // Worth being clear about the limit of this. 2/15 is 13%, and no
+    // defensible prior turns that into a pass — reaching 50 from two
+    // banked marks would need the prior to outweigh the evidence four
+    // to one, which would make the projection useless once there *is*
+    // evidence. So it still reads F, and it should. What tempering buys
+    // is the difference between "13/100" and "35/100", and the card
+    // carries a ceiling of 87 next to it saying the semester is not
+    // over. An honest F beats a comforting B.
+    const p = subjectOutlook(s, [mark("CT-1", 2, 15)]);
+    expect(p.pace).toBeCloseTo(13.33, 2);
+    expect(p.predictedTotal).toBeGreaterThan(30);
+    expect(p.predictedTotal).toBeLessThan(50);
+    expect(p.ceiling).toBe(87);
+  });
+
+  it("converges on the raw rate as marks accumulate", () => {
+    // The prior is a stand-in for evidence you don't have yet. Once you
+    // have the evidence it has to get out of the way.
+    // Maxes stay inside the internal weight: a component bigger than
+    // the weight is scaled to fit, which would make two of these
+    // identical and the comparison meaningless.
+    const gaps = [5, 15, 30, 45, 60].map((max) => {
+      const o = subjectOutlook(s, [mark("CT-1", max * 0.8, max)]);
+      return Math.abs(o.predictedTotal - o.pace!);
+    });
+    for (let i = 1; i < gaps.length; i++) {
+      expect(gaps[i]).toBeLessThan(gaps[i - 1]);
+    }
+    expect(gaps.at(-1)!).toBeLessThan(1.5);
+  });
+
+  it("never touches what is actually banked or actually possible", () => {
+    // Tempering is a statement about the unplayed marks. The floor and
+    // the ceiling are facts and must survive it untouched.
+    const p = subjectOutlook(s, [mark("Assignment", 5, 5)]);
+    expect(p.banked).toBe(5);
+    expect(p.ceiling).toBe(100);
+    expect(p.predictedTotal).toBeGreaterThanOrEqual(p.banked);
+    expect(p.predictedTotal).toBeLessThanOrEqual(p.ceiling);
+  });
+
+  it("has nothing to temper with nothing played", () => {
+    const p = subjectOutlook(s, []);
+    expect(p.predictedTotal).toBe(0);
+    expect(p.projected).toBeNull();
+  });
+
+  it("stops mattering once the course is over", () => {
+    const done = subject({ internal: 100, complete: true, components: plan([["CT-1", 100]]) });
+    const p = subjectOutlook(done, [mark("CT-1", 62, 100)]);
+    expect(p.pool).toBe(0);
+    expect(p.predictedTotal).toBe(62); // no unplayed marks to be unsure about
+  });
+});
+
