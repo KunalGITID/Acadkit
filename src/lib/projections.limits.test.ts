@@ -431,3 +431,111 @@ describe("what the targets you picked actually add up to", () => {
     expect(r.onTargetSgpa).toBeCloseTo(5, 9);
   });
 });
+
+describe("medical leave condones the attendance bar", () => {
+  /**
+   * SRM allows 65% instead of 75% for a subject where ML is granted.
+   * It matters most in the situation nobody wants: a subject too far
+   * below the line to climb back is reported lost, and every mark
+   * projection under it is fiction. At 65% the same subject is often
+   * reachable by attending everything — a completely different
+   * instruction, and the one worth acting on.
+   */
+  const WINDOW = { start: "2026-09-01", end: "2026-11-30" };
+  const FROM = "2026-09-15";
+
+  const slots = [1, 2, 3, 4, 5].map((day_order) => ({
+    id: `slot${day_order}`,
+    device_id: "0000",
+    subject_id: "ml",
+    day_order,
+    start_time: "08:00:00",
+    end_time: "08:50:00",
+    room: null,
+  }));
+
+  /** `attended` of `held`, on dates already behind `FROM`. */
+  const history = (attended: number, held: number) =>
+    Array.from({ length: held }, (_, i) => ({
+      id: `a${i}`,
+      device_id: "0000",
+      subject_id: "ml",
+      date: `2026-09-${String((i % 9) + 1).padStart(2, "0")}`,
+      start_time: `0${(i % 8) + 1}:00:00`,
+      end_time: `0${(i % 8) + 1}:50:00`,
+      status: i < attended ? ("present" as const) : ("absent" as const),
+    }));
+
+  const run = (ml: boolean, attended: number, held: number, timetable = slots) =>
+    buildProjection(
+      [{ ...subj(4, split(60)), id: "ml", medical_leave: ml }],
+      history(attended, held),
+      timetable,
+      [],
+      [],
+      FROM,
+      WINDOW,
+      8.5
+    ).gradeProjections[0];
+
+  it("reports the bar it is actually holding the subject to", () => {
+    expect(run(false, 5, 20).eligibility.min).toBe(75);
+    expect(run(true, 5, 20).eligibility.min).toBe(65);
+  });
+
+  it("cannot rescue a subject with no classes left to attend", () => {
+    // ML lowers the bar; it does not invent opportunities to clear it.
+    const strict = run(false, 30, 60, []);
+    const condoned = run(true, 30, 60, []);
+    expect(strict.eligibility.status).toBe("barred");
+    expect(condoned.eligibility.status).toBe("barred");
+  });
+
+  it("turns a barred subject into a recoverable one", () => {
+    // The whole point, and the case that prompted it: 10 of 40 with a
+    // term of classes ahead. Clearing 75% would take 80 consecutive
+    // attends and there are not 80 classes left, so it is written off.
+    // Clearing 65% takes 46, which there is room for — so the answer
+    // stops being "this is gone" and becomes "attend everything".
+    const strict = run(false, 10, 40);
+    const condoned = run(true, 10, 40);
+
+    expect(strict.eligibility.status).toBe("barred");
+    expect(condoned.eligibility.status).toBe("at-risk");
+
+    // 75%: (0.75·40 − 10)/0.25 = 80. 65%: (0.65·40 − 10)/0.35 → 46.
+    expect(strict.eligibility.needToAttend).toBe(80);
+    expect(condoned.eligibility.needToAttend).toBe(46);
+    expect(condoned.eligibility.clearBy).not.toBeNull();
+
+    // And the grade plan stops being fiction along with it.
+    expect(strict.riskLevel).toBe("critical");
+    expect(condoned.riskLevel).not.toBe("critical");
+  });
+
+  it("calls a subject safe at 68% only when ML is granted", () => {
+    const attended = 68;
+    const held = 100;
+    expect(run(false, attended, held).eligibility.status).toBe("at-risk");
+    expect(run(true, attended, held).eligibility.status).toBe("safe");
+  });
+
+  it("leaves every other subject on 75", () => {
+    const report = buildProjection(
+      [
+        { ...subj(4, split(60)), id: "ml", medical_leave: true },
+        { ...subj(4, split(60)), id: "normal" },
+      ],
+      [],
+      [],
+      [],
+      [],
+      FROM,
+      WINDOW,
+      8.5
+    );
+    const byId = new Map(report.gradeProjections.map((p) => [p.subject.id, p]));
+    expect(byId.get("ml")!.eligibility.min).toBe(65);
+    expect(byId.get("normal")!.eligibility.min).toBe(75);
+  });
+});

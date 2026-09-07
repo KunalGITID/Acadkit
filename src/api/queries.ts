@@ -86,6 +86,7 @@ alter table subjects
   add column if not exists assessment jsonb,
   add column if not exists target_grade text;
 alter table settings add column if not exists assumed_external_pct numeric;
+alter table subjects add column if not exists medical_leave boolean;
 alter table subjects drop constraint if exists subjects_target_grade_check;
 alter table subjects add constraint subjects_target_grade_check
   check (target_grade is null or target_grade in ('O','A+','A','B+','B','C'));`;
@@ -95,6 +96,7 @@ const OPTIONAL_COLUMNS: Array<{ table: string; column: string; enables: string }
   { table: "timetable_slots", column: "slot_type", enables: "theory/lab class tags" },
   { table: "subjects", column: "internal_only", enables: "internal-only subjects" },
   { table: "subjects", column: "assessment", enables: "per-subject mark split & test plan" },
+  { table: "subjects", column: "medical_leave", enables: "medical-leave attendance (65%)" },
   { table: "settings", column: "assumed_external_pct", enables: "assumed end-sem score" },
   { table: "semester_archives", column: "id", enables: "semester history & CGPA" },
   { table: "portal_snapshots", column: "id", enables: "portal attendance sync" },
@@ -235,7 +237,7 @@ export async function insertSubject(
 ): Promise<void> {
   await withColumnFallback(
     { ...subject, device_id: pin },
-    ["internal_only", "assessment", "target_grade"],
+    ["internal_only", "assessment", "target_grade", "medical_leave"],
     (payload) =>
       supabase.from("subjects").insert(payload)
   );
@@ -244,7 +246,7 @@ export async function insertSubject(
 export async function updateSubject(id: string, patch: Partial<Subject>): Promise<void> {
   await withColumnFallback(
     { ...patch },
-    ["internal_only", "assessment", "target_grade"],
+    ["internal_only", "assessment", "target_grade", "medical_leave"],
     (payload) => supabase.from("subjects").update(payload).eq("id", id)
   );
 }

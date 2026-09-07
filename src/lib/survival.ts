@@ -1,4 +1,5 @@
 import { MIN } from "@/lib/projections";
+import { minAttendanceFor } from "@/lib/attendance";
 import type { Subject, TimetableSlot } from "@/types";
 
 /**
@@ -87,9 +88,20 @@ export interface SurvivalPlan {
   lost: Subject[];
 }
 
-/** Classes needed out of `remaining` to finish at or above MIN. */
-export function classesNeeded(attended: number, held: number, remaining: number): number {
-  const target = MIN * (held + remaining);
+/**
+ * Classes needed out of `remaining` to finish at or above the bar.
+ *
+ * `min` is a fraction and defaults to the standard 75%. A subject with
+ * medical leave granted passes 0.65, which is frequently the difference
+ * between a plan and a write-off.
+ */
+export function classesNeeded(
+  attended: number,
+  held: number,
+  remaining: number,
+  min: number = MIN
+): number {
+  const target = min * (held + remaining);
   return Math.max(0, Math.ceil(target - attended));
 }
 
@@ -131,7 +143,10 @@ export function buildSurvivalPlan(
   for (const { subject, attended, held } of states) {
     const occurrences = upcoming.get(subject.id) ?? [];
     const remaining = occurrences.length;
-    const needed = classesNeeded(attended, held, remaining);
+    // Each subject against its own bar — a subject on medical leave is
+    // planned to 65%, which is often the difference between a plan and
+    // a write-off.
+    const needed = classesNeeded(attended, held, remaining, minAttendanceFor(subject) / 100);
     const reachable = needed <= remaining;
     const slack = reachable ? remaining - needed : remaining;
     const ceiling =

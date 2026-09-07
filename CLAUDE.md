@@ -246,6 +246,19 @@ can't silently disagree.
 
 ### Attendance — `src/lib/attendance.ts`
 
+**The bar is per subject.** 75% by default, condoned to 65% where
+medical leave has been granted (`subjects.medical_leave`, migration
+023) — SRM grants ML per case, so one subject can sit at 65 while the
+rest are held to 75. Every threshold asks `minAttendanceFor(subject)`
+rather than assuming: skip budgets, recovery streaks, risk levels,
+colour bands, the survival plan and whether you may sit the end-sem.
+It matters most where it changes the instruction rather than the
+number — 10 of 40 needs 80 consecutive attends to clear 75%, which is
+more classes than remain, so the subject reads as lost; the same
+subject needs 46 to clear 65%, which there is room for, so the answer
+becomes "attend everything" instead.
+
+
 75% minimum. Computes per-subject `canBunk` / `needToAttend`. Color signal: ≥75% `#4ade80`, 65–74% `#facc15`, <65% `#fb7185`. The DB status value `"holiday"` means "cancelled/no class" in the UI and is excluded from totals. Attendance upsert key: `(device_id, subject_id, date, start_time)`.
 
 ### Pages & layout

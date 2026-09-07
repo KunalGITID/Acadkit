@@ -3,6 +3,22 @@ import type { AttendanceRecord, AttendanceStatus, PortalSnapshot, Subject } from
 export const MIN_ATTENDANCE = 75;
 
 /**
+ * The condoned bar where medical leave has been granted.
+ *
+ * SRM allows 65% instead of 75% for a subject on ML. It is per case,
+ * so it lives on the subject rather than in settings, and every
+ * threshold in the app asks the subject rather than assuming — which
+ * is the difference between reporting a subject lost and reporting it
+ * recoverable by attending everything from here.
+ */
+export const ML_ATTENDANCE = 65;
+
+/** The bar this particular subject has to clear, as a percentage. */
+export function minAttendanceFor(subject: Pick<Subject, "medical_leave">): number {
+  return subject.medical_leave ? ML_ATTENDANCE : MIN_ATTENDANCE;
+}
+
+/**
  * What each status means for the maths, in one place.
  *
  * This used to be `status === "present" || status === "absent"` spelled
@@ -30,9 +46,11 @@ export interface SubjectAttendance {
   attended: number;
   total: number; // present + absent (cancelled classes don't count)
   percentage: number | null;
-  /** Classes you can skip and stay ≥ 75%. */
+  /** The bar this subject has to clear — 65 on medical leave, else 75. */
+  min: number;
+  /** Classes you can skip and stay at or above `min`. */
   canBunk: number;
-  /** Consecutive classes needed to climb back to 75%. */
+  /** Consecutive classes needed to climb back to `min`. */
   needToAttend: number;
   /** "portal" when a snapshot supplied the baseline. */
   source: AttendanceSource;
@@ -42,23 +60,32 @@ export interface SubjectAttendance {
   portalAsOf?: string;
 }
 
-export function attendanceColor(pct: number | null): string {
+/**
+ * Colour bands run relative to the subject's own bar, so a subject on
+ * ML at 68% reads as safe rather than as the amber it would be under
+ * the standard threshold. The warning band is the ten points below.
+ */
+export function attendanceColor(pct: number | null, min: number = MIN_ATTENDANCE): string {
   if (pct === null) return "hsl(var(--muted))";
-  if (pct >= 75) return "#4ade80";
-  if (pct >= 65) return "#facc15";
+  if (pct >= min) return "#4ade80";
+  if (pct >= min - 10) return "#facc15";
   return "#fb7185";
 }
 
-export function attendanceTextClass(pct: number | null): string {
+export function attendanceTextClass(pct: number | null, min: number = MIN_ATTENDANCE): string {
   if (pct === null) return "text-muted";
-  if (pct >= 75) return "text-good-deep";
-  if (pct >= 65) return "text-warn-deep";
+  if (pct >= min) return "text-good-deep";
+  if (pct >= min - 10) return "text-warn-deep";
   return "text-bad-deep";
 }
 
 /** Classes you can skip / must attend from here, given a running tally. */
-function project(attended: number, total: number): { canBunk: number; needToAttend: number } {
-  const threshold = MIN_ATTENDANCE / 100;
+function project(
+  attended: number,
+  total: number,
+  min: number
+): { canBunk: number; needToAttend: number } {
+  const threshold = min / 100;
   if (total <= 0) return { canBunk: 0, needToAttend: 0 };
   if (attended / total >= threshold) {
     // attended / (total + b) >= t  →  b <= attended/t − total
@@ -96,13 +123,15 @@ export function computeSubjectAttendance(
   }
 
   const percentage = total > 0 ? (attended / total) * 100 : null;
-  const { canBunk, needToAttend } = project(attended, total);
+  const min = minAttendanceFor(subject);
+  const { canBunk, needToAttend } = project(attended, total, min);
 
   return {
     subject,
     attended,
     total,
     percentage,
+    min,
     canBunk,
     needToAttend,
     source,
@@ -152,7 +181,10 @@ export function computeOverallAttendance(
     total,
     percentage: total > 0 ? (attended / total) * 100 : null,
     subjects: subjectStats,
-    below75: subjectStats.filter((s) => s.percentage !== null && s.percentage < MIN_ATTENDANCE),
+    // Each subject against its own bar: a subject on ML at 68% is not
+    // below the line, and counting it as such would send you to fix
+    // something that is already fine.
+    below75: subjectStats.filter((s) => s.percentage !== null && s.percentage < s.min),
     portalAsOf: asOfDates.length ? asOfDates.sort()[0] : null,
   };
 }

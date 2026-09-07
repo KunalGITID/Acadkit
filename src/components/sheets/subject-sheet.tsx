@@ -36,6 +36,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
   const [credits, setCredits] = useState("3");
   const [color, setColor] = useState(PALETTE[0]);
   const [assessment, setAssessment] = useState<Assessment>(() => editableAssessment(null, false));
+  const [medicalLeave, setMedicalLeave] = useState(false);
 
   /**
    * Load the subject into the form when the sheet opens — and only
@@ -56,6 +57,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
     setCredits(String(subject?.credits ?? 3));
     setColor(subject?.color_hex ?? PALETTE[0]);
     setAssessment(editableAssessment(subject?.assessment, subject?.internal_only ?? false));
+    setMedicalLeave(subject?.medical_leave ?? false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, subject?.id]);
 
@@ -83,6 +85,7 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
           .map((c) => ({ ...c, label: c.label.trim(), type: inferType(c.label) })),
       },
       target_grade: subject?.target_grade ?? null,
+      medical_leave: medicalLeave,
       // Blank means "derive it", not "call it nothing".
       short_name: shortNameInput.trim() || null,
     };
@@ -127,6 +130,25 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
         </div>
         <Field label="Marks structure">
           <AssessmentEditor value={assessment} onChange={setAssessment} />
+        </Field>
+
+        <Field label="Attendance">
+          <label className="flex items-start gap-2.5 rounded-2xl bg-surface-2/40 p-3 text-xs font-medium">
+            <input
+              type="checkbox"
+              checked={medicalLeave}
+              onChange={(e) => setMedicalLeave(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--accent))]"
+            />
+            <span>
+              <b className="text-ink">Medical leave granted (ML)</b>
+              <span className="mt-0.5 block text-muted">
+                Condones the bar for this subject from 75% to 65%. Everything that reads
+                attendance — the survival plan, the bunk wallet, whether you can sit the
+                end-sem — uses 65% here and leaves your other subjects at 75%.
+              </span>
+            </span>
+          </label>
         </Field>
 
         <Field label="Color">

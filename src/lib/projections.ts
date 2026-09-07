@@ -6,7 +6,7 @@
  * subject until the semester ends, then derives skip budgets, recovery
  * needs, end-of-term projections, risk and what-if scenarios from that.
  */
-import { isAttended, isCounted, MIN_ATTENDANCE } from "@/lib/attendance";
+import { isAttended, isCounted, minAttendanceFor, MIN_ATTENDANCE } from "@/lib/attendance";
 import type {
   AttendanceRecord,
   Deadline,
@@ -54,6 +54,8 @@ export interface SubjectProjection {
   safeUntil: string | null; // last date you could skip everything until
   riskLevel: RiskLevel;
   riskScore: number; // 0 (safe) – 100 (doomed)
+  /** The bar this subject must clear — 65 on medical leave, else 75. */
+  min: number;
 }
 
 export interface OverallProjection {
@@ -105,15 +107,17 @@ function riskFrom(
   currentPct: number | null,
   pacePct: number | null,
   bestPct: number,
-  skipBudget: number
+  skipBudget: number,
+  min: number
 ): { level: RiskLevel; score: number } {
-  if (bestPct < 75) return { level: "critical", score: 100 };
+  if (bestPct < min) return { level: "critical", score: 100 };
   const ref = pacePct ?? currentPct;
   if (ref === null) return { level: "safe", score: 10 };
-  if (ref >= 75 && skipBudget >= 2) return { level: "safe", score: Math.max(0, Math.round(40 - (ref - 75) * 2)) };
-  if (ref >= 75) return { level: "watch", score: 55 };
-  // below 75 at current pace but still reachable
-  return { level: "watch", score: Math.min(95, Math.round(60 + (75 - ref) * 2)) };
+  if (ref >= min && skipBudget >= 2)
+    return { level: "safe", score: Math.max(0, Math.round(40 - (ref - min) * 2)) };
+  if (ref >= min) return { level: "watch", score: 55 };
+  // below the bar at current pace but still reachable
+  return { level: "watch", score: Math.min(95, Math.round(60 + (min - ref) * 2)) };
 }
 
 export function projectSubject(
@@ -124,6 +128,11 @@ export function projectSubject(
   from: string,
   semEnd: string = semesterWindow().end
 ): SubjectProjection {
+  // The bar this subject has to clear. Medical leave condones it to
+  // 65%, which routinely turns "cannot be saved" into "attend
+  // everything from here and you sit the exam".
+  const min = minAttendanceFor(subject) / 100;
+
   const counted = records.filter((r) => isCounted(r.status));
   const attended = counted.filter((r) => isAttended(r.status)).length;
   const held = counted.length;
@@ -141,14 +150,14 @@ export function projectSubject(
     rate !== null && finalTotal > 0 ? ((attended + rate * remaining) / finalTotal) * 100 : null;
 
   // S future skips keep you ≥75%:  (attended + remaining − S)/finalTotal ≥ 0.75
-  const skipBudget = Math.max(0, Math.floor(attended + remaining - MIN * finalTotal));
+  const skipBudget = Math.max(0, Math.floor(attended + remaining - min * finalTotal));
 
   // If below: smallest streak K of future attends so (attended+K)/(held+K) ≥ 0.75
   let mustAttendStreak = 0;
-  if (currentPct !== null && currentPct < 75) {
-    mustAttendStreak = Math.max(0, Math.ceil((MIN * held - attended) / (1 - MIN)));
+  if (currentPct !== null && currentPct < min * 100) {
+    mustAttendStreak = Math.max(0, Math.ceil((min * held - attended) / (1 - min)));
   }
-  const reachable = bestPct >= 75 - 1e-9;
+  const reachable = bestPct >= min * 100 - 1e-9;
 
   // The date of the mustAttendStreak-th future class — attend every class up to and
   // including this date and the subject crosses back over 75%.
@@ -159,7 +168,7 @@ export function projectSubject(
   let safeUntil: string | null = null;
   if (skipBudget > 0 && future[skipBudget - 1]) safeUntil = future[skipBudget - 1].date;
 
-  const { level, score } = riskFrom(currentPct, pacePct, bestPct, skipBudget);
+  const { level, score } = riskFrom(currentPct, pacePct, bestPct, skipBudget, min * 100);
 
   return {
     subject,
@@ -178,6 +187,7 @@ export function projectSubject(
     safeUntil,
     riskLevel: level,
     riskScore: score,
+    min: min * 100,
   };
 }
 
@@ -332,6 +342,8 @@ export interface Eligibility {
   needToAttend: number;
   /** Date that streak lands on, when there is one. */
   clearBy: string | null;
+  /** The bar in play — 65 where medical leave is granted, else 75. */
+  min: number;
 }
 
 export interface SubjectGradeProjection {
@@ -383,13 +395,20 @@ function gradeRisk(grade: Grade): RiskLevel {
 /** Read off the attendance projection this subject already has. */
 function eligibilityFrom(attendance: SubjectProjection | undefined): Eligibility {
   if (!attendance || (attendance.held === 0 && attendance.remaining === 0)) {
-    return { pct: null, bestPct: 0, status: "unknown", needToAttend: 0, clearBy: null };
+    return {
+      pct: null,
+      bestPct: 0,
+      status: "unknown",
+      needToAttend: 0,
+      clearBy: null,
+      min: attendance?.min ?? MIN_ATTENDANCE,
+    };
   }
-  const { currentPct, bestPct, mustAttendStreak, recoveryDate } = attendance;
+  const { currentPct, bestPct, mustAttendStreak, recoveryDate, min } = attendance;
   const status: Eligibility["status"] =
     !attendance.reachable
       ? "barred"
-      : currentPct === null || currentPct >= MIN * 100 - 1e-9
+      : currentPct === null || currentPct >= min - 1e-9
         ? "safe"
         : "at-risk";
   return {
@@ -398,6 +417,7 @@ function eligibilityFrom(attendance: SubjectProjection | undefined): Eligibility
     status,
     needToAttend: mustAttendStreak,
     clearBy: recoveryDate,
+    min,
   };
 }
 

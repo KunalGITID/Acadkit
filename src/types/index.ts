@@ -57,6 +57,12 @@ export interface Subject {
    */
   assessment?: Assessment | null;
   /**
+   * Medical leave granted for this subject (migration 023), which
+   * condones the attendance bar from 75% down to 65%. Per subject
+   * because ML is granted per case.
+   */
+  medical_leave?: boolean | null;
+  /**
    * What you're actually aiming for here, which is not always what the
    * target SGPA implies — a subject you're weak in gets its own number
    * (migration 021). Null = derive it from settings.target_sgpa.

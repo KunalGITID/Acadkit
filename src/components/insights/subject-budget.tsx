@@ -472,7 +472,7 @@ function Attendance({ p }: { p: SubjectGradeProjection }) {
         {barred ? (
           <>
             Attendance is <b className="tabular">{Math.round(e.pct ?? 0)}%</b> and cannot reach
-            75% — attending everything left tops out at{" "}
+            {" "}<b className="tabular">{e.min}%</b> — attending everything left tops out at{" "}
             <b className="tabular">{Math.round(e.bestPct)}%</b>. The end-sem is{" "}
             {Math.round(p.internalWeight === 100 ? 0 : 100 - p.internalWeight)} of the marks
             below, and this plan assumes you can sit it.
@@ -481,7 +481,9 @@ function Attendance({ p }: { p: SubjectGradeProjection }) {
           <>
             Attendance is <b className="tabular">{Math.round(e.pct ?? 0)}%</b>. Attend the next{" "}
             <b className="tabular">{e.needToAttend}</b> class
-            {e.needToAttend === 1 ? "" : "es"} to clear 75%
+            {e.needToAttend === 1 ? "" : "es"} to clear{" "}
+            <b className="tabular">{e.min}%</b>
+            {e.min !== 75 && <span className="font-medium"> (ML)</span>}
             {e.clearBy && <> by {formatDate(e.clearBy, { day: "numeric", month: "short" })}</>} —
             below it the end-sem is off the table and none of this applies.
           </>
