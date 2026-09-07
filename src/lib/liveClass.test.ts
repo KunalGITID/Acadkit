@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classProgress, formatGap, liveState, type LiveSlot } from "@/lib/liveClass";
+import { classProgress, formatGap, liveState, stillScheduled, type LiveSlot } from "@/lib/liveClass";
 import type { Subject, TimetableSlot } from "@/types";
 
 const slot = (start: string, end: string, name: string): LiveSlot => ({
@@ -112,5 +112,64 @@ describe("classProgress", () => {
   it("is zero when you are not in a class", () => {
     expect(classProgress(liveState(DAY, at(10, 0)))).toBe(0);
     expect(classProgress(liveState([], at(10, 0)))).toBe(0);
+  });
+});
+
+describe("stillScheduled", () => {
+  /**
+   * Reported from a phone: the card read "next: Transforms, 32 min of
+   * freedom" while the same screen showed that class cancelled two rows
+   * below. The countdown was running down to a room nobody was going to.
+   */
+  const at = (start: string, end: string, id = start): LiveSlot => ({
+    slot: {
+      id,
+      device_id: "0000",
+      subject_id: `s-${id}`,
+      day_order: 1,
+      start_time: start,
+      end_time: end,
+      room: null,
+    },
+    subject: undefined,
+  });
+
+  const morning = at("09:00:00", "09:50:00", "a");
+  const afternoon = at("16:00:00", "16:50:00", "b");
+
+  it("drops a cancelled class", () => {
+    const kept = stillScheduled([morning, afternoon], (s) =>
+      s.slot.id === "b" ? "holiday" : null
+    );
+    expect(kept.map((s) => s.slot.id)).toEqual(["a"]);
+  });
+
+  it("keeps a class nobody has marked yet", () => {
+    // Most of the day is in this state; dropping it would empty the card.
+    expect(stillScheduled([morning, afternoon], () => null)).toHaveLength(2);
+  });
+
+  it("keeps a class that happened, however it went", () => {
+    for (const status of ["present", "absent", "od"] as const) {
+      expect(stillScheduled([morning], () => status)).toHaveLength(1);
+    }
+  });
+
+  it("stops a cancelled class being announced as next", () => {
+    // 15:28, the afternoon class cancelled: the day is done, not
+    // counting down to something that isn't happening.
+    const now = 15 * 60 + 28;
+    const all = liveState([morning, afternoon], now);
+    expect(all.kind).toBe("gap");
+
+    const real = liveState(
+      stillScheduled([morning, afternoon], (s) => (s.slot.id === "b" ? "holiday" : null)),
+      now
+    );
+    expect(real.kind).toBe("done");
+  });
+
+  it("says nothing at all when the whole day is cancelled", () => {
+    expect(liveState(stillScheduled([morning], () => "holiday"), 600).kind).toBe("none");
   });
 });

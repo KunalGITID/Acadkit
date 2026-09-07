@@ -1,6 +1,12 @@
 import { motion } from "framer-motion";
 import { BadgeCheck, Check, X } from "lucide-react";
-import { classProgress, formatGap, liveState, type LiveSlot } from "@/lib/liveClass";
+import {
+  classProgress,
+  formatGap,
+  liveState,
+  stillScheduled,
+  type LiveSlot,
+} from "@/lib/liveClass";
 import { formatTimeRange } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
@@ -38,7 +44,9 @@ interface Props {
 
 export function LiveClassCard({ slots, nowMinutes, statusFor, disabled }: Props) {
   const tone = useTone();
-  const state = liveState(slots, nowMinutes);
+  // A cancelled class is not a class, so it is neither what you are in
+  // nor what is next.
+  const state = liveState(stillScheduled(slots, statusFor), nowMinutes);
 
   if (disabled || state.kind === "none") return null;
 

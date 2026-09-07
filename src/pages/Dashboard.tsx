@@ -50,7 +50,7 @@ import { gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { computeSgpa } from "@/lib/plan";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
-import type { Deadline } from "@/types";
+import type { Deadline, TimetableSlot } from "@/types";
 
 const stagger = {
   hidden: { opacity: 0, y: 16 },
@@ -100,6 +100,12 @@ function TodayCard() {
     return () => clearInterval(t);
   }, []);
   const nowMin = now.getHours() * 60 + now.getMinutes();
+  /** What attendance says about one of today's slots, if anything. */
+  const statusOfSlot = (slot: TimetableSlot) =>
+    attendance?.find(
+      (r) =>
+        r.subject_id === slot.subject_id && r.date === date && r.start_time === slot.start_time
+    )?.status ?? null;
   // Once we've rolled over to the next day's schedule, none of its slots
   // have happened yet — minute-of-day comparisons against "now" no longer apply.
   const statusOf = (start: string, end: string) =>
@@ -110,9 +116,15 @@ function TodayCard() {
         : nowMin >= timeToMinutes(start)
           ? "now"
           : "upcoming";
+  // "Next" skips anything cancelled, for the same reason the live card
+  // does: a class that isn't happening isn't the one coming up.
   const nextId = isNextDay
     ? undefined
-    : slots.find(({ slot }) => statusOf(slot.start_time, slot.end_time) === "upcoming")?.slot.id;
+    : slots.find(
+        ({ slot }) =>
+          statusOf(slot.start_time, slot.end_time) === "upcoming" &&
+          statusOfSlot(slot) !== "holiday"
+      )?.slot.id;
 
   return (
     <section className="card overflow-hidden">
@@ -128,14 +140,7 @@ function TodayCard() {
         slots={slots}
         nowMinutes={nowMin}
         disabled={isNextDay}
-        statusFor={({ slot }) =>
-          attendance?.find(
-            (r) =>
-              r.subject_id === slot.subject_id &&
-              r.date === date &&
-              r.start_time === slot.start_time
-          )?.status ?? null
-        }
+        statusFor={({ slot }) => statusOfSlot(slot)}
       />
 
       {/* Removing the swipe made auto-marking the only thing writing

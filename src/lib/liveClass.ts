@@ -1,5 +1,6 @@
+import { isCounted } from "@/lib/attendance";
 import { timeToMinutes } from "@/lib/dates";
-import type { Subject, TimetableSlot } from "@/types";
+import type { AttendanceStatus, Subject, TimetableSlot } from "@/types";
 
 /**
  * Where you are in the day, right now.
@@ -30,6 +31,29 @@ export type LiveState =
   | { kind: "done"; last: LiveSlot }
   /** Nothing scheduled — a holiday, a weekend, or an empty day order. */
   | { kind: "none" };
+
+/**
+ * The classes that are still going to happen.
+ *
+ * A cancelled class is not a class. Without this the day rolls on as
+ * though it were: the card announced "next: Transforms, 32 min of
+ * freedom" for a slot the same screen was showing with a cancelled
+ * mark two rows below, and the countdown ran down to a room nobody was
+ * going to.
+ *
+ * A slot with no record yet is still scheduled — most of the day is in
+ * that state — and `isCounted` is the one place that knows "holiday" is
+ * the stored word for cancelled.
+ */
+export function stillScheduled(
+  slots: LiveSlot[],
+  statusFor: (slot: LiveSlot) => AttendanceStatus | null
+): LiveSlot[] {
+  return slots.filter((s) => {
+    const status = statusFor(s);
+    return status === null || isCounted(status);
+  });
+}
 
 /**
  * A class counts as "now" from its start up to *but not including* its
