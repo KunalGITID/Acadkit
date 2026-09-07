@@ -492,7 +492,7 @@ function confidenceBand(
   };
 }
 
-export function budgetFor(
+function budgetFor(
   subject: Subject,
   marks: Mark[],
   deadlines: Deadline[] = [],

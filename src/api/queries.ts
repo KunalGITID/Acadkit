@@ -5,7 +5,6 @@ import { SEED_SUBJECTS, SEMESTER_START, SEMESTER_END } from "@/data/semester";
 import type {
   AttendanceRecord,
   Deadline,
-  DeclaredHoliday,
   Mark,
   PortalSnapshot,
   SemesterArchive,
@@ -19,12 +18,11 @@ function throwIf(error: { message: string } | null): void {
 }
 
 /**
- * Columns added by migrations 007/008 (`name`, `slot_type`,
- * `internal_only`). If a migration hasn't been run yet, writes retry
- * without these fields so the core flow keeps working, and we hint
- * once per session.
+ * Columns arrive by migration, so a write naming one the project
+ * hasn't got retries without it rather than failing outright — and
+ * says which field it dropped, since a value that silently reverts to
+ * its previous state is the most confusing thing this can do.
  */
-let migrationHintShown = false;
 
 /** Everything pending, as one paste for the Supabase SQL editor. */
 export const PENDING_MIGRATIONS_SQL = `-- AcadKit setup: greeting name, lab tags, internal-only subjects, history
@@ -161,7 +159,6 @@ async function withColumnFallback<T extends Record<string, unknown>>(
       "That column isn't visible to the API yet. Settings → Finish setup has the SQL; if you've already run it, reload the schema cache (Supabase → API → Reload).",
     duration: 10000,
   });
-  if (!migrationHintShown) migrationHintShown = true;
 }
 
 // ---------- settings / account ----------
@@ -188,11 +185,6 @@ export async function updateSettings(pin: string, patch: Partial<Settings>): Pro
     (payload) => supabase.from("settings").update(payload).eq("device_id", pin)
   );
 }
-
-export async function setDeclaredHolidays(pin: string, holidays: DeclaredHoliday[]) {
-  await updateSettings(pin, { declared_holidays: holidays });
-}
-
 /** Does any data exist under this PIN? (settings row or subjects) */
 export async function accountExists(pin: string): Promise<boolean> {
   const settings = await fetchSettings(pin);
@@ -222,14 +214,6 @@ export async function seedAccount(pin: string): Promise<void> {
     .from("subjects")
     .insert(SEED_SUBJECTS.map((s) => ({ ...s, device_id: pin })));
   throwIf(subErr);
-}
-
-/** Ensure a settings row exists (e.g. syncing into a PIN that has subjects only). */
-export async function ensureSettings(pin: string): Promise<void> {
-  const { error } = await supabase
-    .from("settings")
-    .upsert({ device_id: pin }, { onConflict: "device_id", ignoreDuplicates: true });
-  throwIf(error);
 }
 
 // ---------- subjects ----------
@@ -528,7 +512,7 @@ export async function fetchPortalSnapshots(pin: string): Promise<PortalSnapshot[
   return (data as PortalSnapshot[]) ?? [];
 }
 
-export async function clearPortalSnapshots(pin: string): Promise<void> {
+async function clearPortalSnapshots(pin: string): Promise<void> {
   await supabase.from("portal_snapshots").delete().eq("device_id", pin);
 }
 
@@ -806,15 +790,6 @@ export async function importData(
   return { subjects: createdSubjects, slots: createdSlots, deadlines: createdDeadlines };
 }
 
-
-/** A row of your own share list. The payload is not needed to manage it. */
-export interface SharedRow {
-  code: string;
-  created_at: string;
-  expires_at: string;
-  revoked: boolean;
-}
-
 // ---------------------------------------------------------------------
 // Shared comparison cards
 // ---------------------------------------------------------------------
@@ -835,31 +810,6 @@ export async function createShare(
     device_id: pin,
     payload,
   });
-  if (error) throw error;
-}
-
-/** Your own live shares, newest first. */
-export async function fetchMyShares(pin: string): Promise<SharedRow[]> {
-  const { data, error } = await supabase
-    .from("shared_cards")
-    .select("code,created_at,expires_at,revoked")
-    .eq("device_id", pin)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as SharedRow[];
-}
-
-/**
- * Stop a code working.
- *
- * A flag rather than a delete, so a revoked code stays taken and cannot
- * later be handed to someone else by chance.
- */
-export async function revokeShare(code: string): Promise<void> {
-  const { error } = await supabase
-    .from("shared_cards")
-    .update({ revoked: true })
-    .eq("code", code);
   if (error) throw error;
 }
 

@@ -2,7 +2,7 @@
  * Web Push client helpers. The VAPID public key is safe to embed; the
  * matching private key lives only as a Supabase Edge Function secret.
  */
-export const VAPID_PUBLIC_KEY =
+const VAPID_PUBLIC_KEY =
   "BBPr8Odr2qN7A9q-IqeNs3N_Pj1E_qnMOl-b6mhSG51wH6_JUl-5r3VoFyeAQ2EGbUAdqwjNBfq7bizwMyp6iQQ";
 
 export const pushSupported =

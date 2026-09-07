@@ -6,7 +6,7 @@
  * subject until the semester ends, then derives skip budgets, recovery
  * needs, end-of-term projections, risk and what-if scenarios from that.
  */
-import { isAttended, isCounted } from "@/lib/attendance";
+import { isAttended, isCounted, MIN_ATTENDANCE } from "@/lib/attendance";
 import type {
   AttendanceRecord,
   Deadline,
@@ -20,7 +20,16 @@ import { parseISODate, todayISO } from "@/lib/dates";
 import { gradeForTotal, GRADE_TABLE, groupMarksBySubject, type Grade } from "@/lib/grades";
 import { gradeForTargetSgpa, solveSubjectPlan, type SubjectPlan } from "@/lib/plan";
 
-export const MIN = 0.75;
+/**
+ * The attendance minimum as a fraction.
+ *
+ * Derived rather than written down again: attendance.ts already holds
+ * it as a percentage, and the two spent this file's whole life as
+ * separate literals — 75 in one module, 0.75 in another, the exact
+ * "two definitions of one thing, drifting while both suites stay
+ * green" this repo warns about elsewhere.
+ */
+export const MIN = MIN_ATTENDANCE / 100;
 
 export type RiskLevel = "safe" | "watch" | "critical";
 

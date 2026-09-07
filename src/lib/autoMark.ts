@@ -25,7 +25,7 @@ export interface PendingMark {
 }
 
 /** `subject|date|start_time` — the natural key of an attendance row. */
-export function markKey(
+function markKey(
   subject_id: string,
   date: string,
   start_time: string

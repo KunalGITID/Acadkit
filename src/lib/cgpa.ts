@@ -18,7 +18,7 @@ import type { SemesterArchive } from "@/types";
  * rearranged for the only unknown.
  */
 
-export const MAX_GRADE_POINT = 10;
+const MAX_GRADE_POINT = 10;
 
 export interface CompletedRecord {
   /** Σ (sgpa × credits) over archived semesters. */
@@ -76,7 +76,7 @@ export function sgpaNeededFor(
 }
 
 /** The usual rungs, with anything already secured or unreachable marked. */
-export const LADDER = [7.5, 8, 8.5, 9, 9.5] as const;
+const LADDER = [7.5, 8, 8.5, 9, 9.5] as const;
 
 export interface Rung {
   target: number;

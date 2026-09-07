@@ -19,7 +19,7 @@ export function clearPin(): void {
   localStorage.removeItem(PIN_KEY);
 }
 
-export function isValidPin(pin: string): boolean {
+function isValidPin(pin: string): boolean {
   return /^\d{4}$/.test(pin);
 }
 

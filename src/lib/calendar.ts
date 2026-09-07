@@ -120,17 +120,4 @@ export function nextWorkingDate(
   return next ? { date: next, kind: "working", dayOrder: effective[next] } : null;
 }
 
-/** All working dates (with day orders) up to and including `date`. */
-export function workingDatesThrough(
-  date: string,
-  declared: DeclaredHoliday[] = [],
-  window: SemesterWindow = semesterWindow()
-): Array<{ date: string; dayOrder: number }> {
-  const effective = buildEffectiveMap(declared, window);
-  return Object.keys(effective)
-    .sort()
-    .filter((d) => d <= date)
-    .map((d) => ({ date: d, dayOrder: effective[d] }));
-}
-
 export { SEMESTER_START, SEMESTER_END, OFFICIAL_HOLIDAYS };

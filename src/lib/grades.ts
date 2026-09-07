@@ -53,12 +53,6 @@ export const GRADE_COLORS: Record<Grade, string> = {
  * @see subjectOutlook, computeSgpa in src/lib/plan.ts
  */
 
-/** Lowest grade whose points reach `points`, or null if even O can't. */
-export function minGradeForPoints(points: number) {
-  const candidates = [...GRADE_TABLE].reverse().filter((g) => g.grade !== "F");
-  return candidates.find((g) => g.points >= points) ?? null;
-}
-
 /** Group marks by subject id (shared by Marks page and Dashboard). */
 export function groupMarksBySubject(marks: Mark[]): Map<string, Mark[]> {
   const map = new Map<string, Mark[]>();

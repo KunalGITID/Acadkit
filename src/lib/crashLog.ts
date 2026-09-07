@@ -83,7 +83,7 @@ function writePending(reports: CrashReport[]): void {
 }
 
 /** Queue a report for the next sign-in. */
-export function holdReport(report: CrashReport): void {
+function holdReport(report: CrashReport): void {
   writePending([...readPending(), report]);
 }
 
