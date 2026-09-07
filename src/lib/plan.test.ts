@@ -892,3 +892,66 @@ describe("a mark recorded under the old naming still finds its plan row", () => 
     expect(p.components.find((c) => c.label === "FT-2")!.obtained).toBe(9);
   });
 });
+
+describe("a deadline that names a component you already planned", () => {
+  /**
+   * The collision this fixes. A deadline's title is derived from the
+   * course code — "21CSS202T Exam" — which matches no component, so a
+   * 15-mark exam looked like a sixth component on a plan that was
+   * already full and rescaled every existing row to fit. Naming the
+   * component instead turns it into a date for something the budget
+   * already knows about.
+   */
+  const full = subject({
+    internal: 60,
+    components: plan([["FT-1", 5], ["FT-2", 15], ["FT-3", 15], ["FT-4", 15], ["LLJ-1", 10]]),
+  });
+  const dl = (title: string, due: string, max: number, id = title): Deadline => ({
+    id,
+    device_id: "0000",
+    subject_id: "s1",
+    title,
+    type: "exam",
+    due_date: `${due}T09:00:00.000Z`,
+    status: "pending",
+    priority: "medium",
+    max_marks: max,
+  });
+
+  it("dates the component instead of becoming another one", () => {
+    const p = solveSubjectPlan(full, [], "A", { deadlines: [dl("FT-2", "2026-09-16", 15)] });
+    expect(p.components.find((c) => c.label === "FT-2")!.date).toBe("2026-09-16");
+    expect(p.components.some((c) => c.kind === "deadline")).toBe(false);
+    expect(p.scaled).toBe(false);
+    // Every row still reports its declared weight.
+    expect(p.components.find((c) => c.label === "FT-1")!.max).toBe(5);
+    expect(p.components.find((c) => c.label === "LLJ-1")!.max).toBe(10);
+  });
+
+  it("takes the soonest date when a component is assessed in instalments", () => {
+    // An LLJ worth 10 can arrive two marks at a time. Each instalment is
+    // its own deadline against the same component, and the date worth
+    // showing is the next one.
+    const p = solveSubjectPlan(full, [], "A", {
+      today: "2026-09-01",
+      deadlines: [
+        dl("LLJ-1", "2026-10-20", 2, "wk3"),
+        dl("LLJ-1", "2026-10-06", 2, "wk1"),
+        dl("LLJ-1", "2026-10-13", 2, "wk2"),
+      ],
+    });
+    expect(p.components.find((c) => c.label === "LLJ-1")!.date).toBe("2026-10-06");
+    // Still one component, still worth its declared 10.
+    expect(p.components.filter((c) => c.label === "LLJ-1")).toHaveLength(1);
+    expect(p.components.find((c) => c.label === "LLJ-1")!.max).toBe(10);
+    expect(p.scaled).toBe(false);
+  });
+
+  it("keeps the plan's weight, not the instalment's", () => {
+    // The deadline says 2 because that is this week's share; the budget
+    // is spending the component's 10. The plan is the contract.
+    const p = solveSubjectPlan(full, [], "A", { deadlines: [dl("LLJ-1", "2026-10-06", 2)] });
+    expect(p.components.find((c) => c.label === "LLJ-1")!.max).toBe(10);
+    expect(p.pool).toBe(100);
+  });
+});

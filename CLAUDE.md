@@ -168,6 +168,18 @@ graded and once still owed, with the internal weight spent twice over.
 Migration 024 renames the stored rows; the match key is what makes the
 app right whether or not it has been run.
 
+**A deadline can name a component instead of being one.** The sheet
+offers the subject's declared components; picking one sets the
+deadline's title to that label, which is what the matcher keys on, so
+it dates a row the budget already has rather than looking for room to
+add another. Without it the title is derived from the course code
+("21CSS202T Exam"), which matches nothing by construction. The marks
+are prefilled and stay editable, because a component is not always
+assessed in one sitting — an LLJ worth 10 can arrive two marks at a
+time, each instalment its own deadline against the same component, and
+the date shown is the soonest of them. The plan's weight wins over the
+instalment's: the plan is the contract.
+
 **A test logged in Deadlines is an announced component.** You already
 record every exam there, and the optional "out of" field is exactly the
 weight the budget wants, so a deadline the plan has never heard of is

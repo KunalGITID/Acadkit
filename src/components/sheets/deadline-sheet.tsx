@@ -11,6 +11,7 @@ import {
   useUpdateDeadline,
 } from "@/hooks/useData";
 import { derivedTitle } from "@/lib/deadlines";
+import { assessmentFor, normLabel } from "@/lib/plan";
 import { todayISO } from "@/lib/dates";
 import type { Deadline, DeadlinePriority, DeadlineType } from "@/types";
 
@@ -34,6 +35,8 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
   const [date, setDate] = useState(todayISO());
   const [time, setTime] = useState("23:59");
   const [maxMarks, setMaxMarks] = useState("");
+  /** Key of the planned component this deadline is, or "" for none. */
+  const [componentKey, setComponentKey] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -49,6 +52,15 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
         `${String(due.getHours()).padStart(2, "0")}:${String(due.getMinutes()).padStart(2, "0")}`
       );
       setMaxMarks(deadline.max_marks != null ? String(deadline.max_marks) : "");
+      // Re-select the component this deadline names, so editing doesn't
+      // silently demote it back to a free-standing test.
+      const owner = (subjects ?? []).find((s) => s.id === deadline.subject_id);
+      const match = owner
+        ? assessmentFor(owner).components.find(
+            (c) => normLabel(c.label) === normLabel(deadline.title)
+          )
+        : undefined;
+      setComponentKey(match?.key ?? "");
     } else {
       setSubjectId("");
       setType("assignment");
@@ -56,16 +68,43 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
       setDate(defaultDate ?? todayISO());
       setTime("23:59");
       setMaxMarks("");
+      setComponentKey("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, deadline, defaultDate]);
+
+  const subject = (subjects ?? []).find((s) => s.id === subjectId);
+  const components = subject ? assessmentFor(subject).components : [];
+  const picked = components.find((c) => c.key === componentKey);
+
+  /**
+   * Point a deadline at a component you have already declared.
+   *
+   * Without this the title is derived — "21CSS202T Exam" — which
+   * matches no component, so a 15-mark exam looked like a *sixth*
+   * component on a plan that was already full. Naming the component is
+   * what turns a deadline into a date for something the budget knows
+   * about rather than another thing to find room for.
+   *
+   * The marks are prefilled and stay editable, because a component is
+   * not always assessed in one sitting: an LLJ worth 10 can arrive two
+   * marks at a time across the term, and each of those is its own
+   * deadline against the same component.
+   */
+  function pickComponent(key: string) {
+    setComponentKey(key);
+    const c = components.find((x) => x.key === key);
+    if (c) setMaxMarks(String(c.max));
+  }
 
   function save() {
     const due = new Date(`${date}T${time}:00`);
-    const subject = (subjects ?? []).find((s) => s.id === subjectId);
     const payload = {
       // `title` is NOT NULL and appears in the JSON export, so it's
       // derived rather than dropped now the field is gone.
-      title: derivedTitle(type, subject),
+      // Naming the component is what lets the budget match this to a
+      // row it already has, instead of treating it as a new one.
+      title: picked ? picked.label : derivedTitle(type, subject),
       subject_id: subjectId || null,
       type,
       priority,
@@ -97,6 +136,23 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
             ))}
           </Select>
         </Field>
+
+        {components.length > 0 && (
+          <Field label="Which component?">
+            <Select value={componentKey} onChange={(e) => pickComponent(e.target.value)}>
+              <option value="">Not one of the planned components</option>
+              {components.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label} · {c.max} marks
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1.5 text-[11px] text-muted">
+              Picking one dates a component the plan already has, instead of adding another.
+              Change the marks below if this is only part of it.
+            </p>
+          </Field>
+        )}
 
         <Field label="Type">
           <Segmented

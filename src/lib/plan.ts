@@ -434,7 +434,13 @@ function claimDeadlines(
   internalMarks: Mark[],
   internalWeight: number
 ): void {
-  const dated = deadlines.filter((d) => d.due_date);
+  // Soonest first. A component can be assessed in instalments — an LLJ
+  // worth 10 arriving two marks at a time — so several deadlines can
+  // name the same component, and the one worth showing as its date is
+  // the next one, not whichever the query happened to return first.
+  const dated = deadlines
+    .filter((d) => d.due_date)
+    .sort((a, b) => a.due_date.localeCompare(b.due_date));
   if (dated.length === 0) return;
   const weighed = dated.filter(
     (d) => Number.isFinite(Number(d.max_marks)) && Number(d.max_marks) > 0
