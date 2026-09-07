@@ -56,6 +56,29 @@ export function stillScheduled(
 }
 
 /**
+ * Whether today has nothing left to happen.
+ *
+ * Not "has every slot ended" — that counts a cancelled 4pm class as
+ * still to come and pins the dashboard to a finished day until the hour
+ * it was never going to run in. What matters is whether anything still
+ * scheduled is still ahead of you.
+ *
+ * A day with no classes at all is not "over": a Sunday should say
+ * weekend, not show you Monday. A day whose classes were all cancelled
+ * is over, because nothing is going to happen in it.
+ */
+export function dayIsOver(
+  slots: LiveSlot[],
+  nowMinutes: number,
+  statusFor: (slot: LiveSlot) => AttendanceStatus | null
+): boolean {
+  if (slots.length === 0) return false;
+  return stillScheduled(slots, statusFor).every(
+    (s) => nowMinutes > timeToMinutes(s.slot.end_time)
+  );
+}
+
+/**
  * A class counts as "now" from its start up to *but not including* its
  * end minute, so a 08:00–08:50 followed by 08:50–09:40 hands over cleanly
  * at 08:50 instead of both matching for a minute.

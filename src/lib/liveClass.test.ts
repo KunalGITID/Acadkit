@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classProgress, formatGap, liveState, stillScheduled, type LiveSlot } from "@/lib/liveClass";
+import { classProgress, dayIsOver, formatGap, liveState, stillScheduled, type LiveSlot } from "@/lib/liveClass";
 import type { Subject, TimetableSlot } from "@/types";
 
 const slot = (start: string, end: string, name: string): LiveSlot => ({
@@ -171,5 +171,60 @@ describe("stillScheduled", () => {
 
   it("says nothing at all when the whole day is cancelled", () => {
     expect(liveState(stillScheduled([morning], () => "holiday"), 600).kind).toBe("none");
+  });
+});
+
+describe("dayIsOver", () => {
+  /**
+   * Reported from a phone at 15:35: five classes done, the 16:00 one
+   * cancelled, and the dashboard still showing today's finished list
+   * because that last slot had not "ended" yet. It was never going to.
+   */
+  const at = (start: string, end: string, id = start): LiveSlot => ({
+    slot: {
+      id,
+      device_id: "0000",
+      subject_id: `s-${id}`,
+      day_order: 1,
+      start_time: start,
+      end_time: end,
+      room: null,
+    },
+    subject: undefined,
+  });
+
+  const morning = at("09:00:00", "09:50:00", "a");
+  const evening = at("16:00:00", "16:50:00", "b");
+  const at1535 = 15 * 60 + 35;
+
+  it("waits for a class that is still going to happen", () => {
+    expect(dayIsOver([morning, evening], at1535, () => null)).toBe(false);
+  });
+
+  it("is over once the only thing left is cancelled", () => {
+    expect(
+      dayIsOver([morning, evening], at1535, (s) => (s.slot.id === "b" ? "holiday" : null))
+    ).toBe(true);
+  });
+
+  it("is over when every class has genuinely ended", () => {
+    expect(dayIsOver([morning, evening], 23 * 60, () => null)).toBe(true);
+  });
+
+  it("is over when the whole day was cancelled", () => {
+    // Nothing is going to happen in it, so there is nothing to wait for.
+    expect(dayIsOver([morning, evening], 8 * 60, () => "holiday")).toBe(true);
+  });
+
+  it("is not over on a day that never had classes", () => {
+    // A Sunday should say weekend, not roll you forward to Monday.
+    expect(dayIsOver([], 23 * 60, () => null)).toBe(false);
+  });
+
+  it("counts a class you attended or missed as done, not pending", () => {
+    for (const status of ["present", "absent", "od"] as const) {
+      expect(dayIsOver([morning], 23 * 60, () => status)).toBe(true);
+      expect(dayIsOver([evening], at1535, () => status)).toBe(false);
+    }
   });
 });

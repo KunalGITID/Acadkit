@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { getDayInfo, nextWorkingDate, semesterWindow, type DayInfo } from "@/lib/calendar";
-import { timeToMinutes, toISODate } from "@/lib/dates";
-import { useSettings, useTimetable, useSubjects } from "@/hooks/useData";
+import { toISODate } from "@/lib/dates";
+import { dayIsOver } from "@/lib/liveClass";
+import { useAttendance, useSettings, useTimetable, useSubjects } from "@/hooks/useData";
 import type { DeclaredHoliday, Subject, TimetableSlot } from "@/types";
 
 export interface TodaySlot {
@@ -39,6 +40,7 @@ export function useToday() {
   const { data: settings } = useSettings();
   const { data: timetable } = useTimetable();
   const { data: subjects } = useSubjects();
+  const { data: attendance } = useAttendance();
 
   const declared: DeclaredHoliday[] = useMemo(
     () => settings?.declared_holidays ?? [],
@@ -63,8 +65,15 @@ export function useToday() {
     [todayInfo.dayOrder, timetable, subjects]
   );
 
-  const allClassesDone =
-    todaySlots.length > 0 && todaySlots.every(({ slot }) => nowMin > timeToMinutes(slot.end_time));
+  // A cancelled class is not something still to come, so it must not
+  // hold the dashboard on a finished day until the hour it was never
+  // going to run in.
+  const allClassesDone = dayIsOver(todaySlots, nowMin, ({ slot }) =>
+    attendance?.find(
+      (r) =>
+        r.subject_id === slot.subject_id && r.date === date && r.start_time === slot.start_time
+    )?.status ?? null
+  );
 
   const next = allClassesDone ? nextWorkingDate(date, declared, semWindow) : null;
   const isNextDay = next !== null;
