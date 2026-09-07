@@ -17,7 +17,7 @@ import type {
 } from "@/types";
 import { buildEffectiveMap, semesterWindow, type SemesterWindow } from "@/lib/calendar";
 import { parseISODate, todayISO } from "@/lib/dates";
-import { gradeForTotal, groupMarksBySubject, type Grade } from "@/lib/grades";
+import { gradeForTotal, GRADE_TABLE, groupMarksBySubject, type Grade } from "@/lib/grades";
 import { gradeForTargetSgpa, solveSubjectPlan, type SubjectPlan } from "@/lib/plan";
 
 export const MIN = 0.75;
@@ -265,6 +265,19 @@ export interface ProjectionReport {
   gradeProjections: SubjectGradeProjection[];
   /** The target SGPA these were solved against. */
   targetSgpa: number;
+  /**
+   * The SGPA you land on if every subject finishes on the grade you
+   * picked for it.
+   *
+   * Distinct from `targetSgpa`, which is the number you typed into
+   * Settings, and from `predictedSgpa`, which is where your current
+   * rate points. This is what the choices actually add up to — the
+   * per-subject targets are set one card at a time, and nothing was
+   * telling you what they came to together.
+   */
+  onTargetSgpa: number | null;
+  /** How many of those targets the arithmetic has already ruled out. */
+  targetsOutOfReach: number;
   /** The end-sem assumption these were solved under, if any. */
   assumedExternalPct: number | null;
   predictedSgpa: number | null;
@@ -345,6 +358,11 @@ export interface SubjectGradeProjection {
   /** The next grade up from predicted that is still reachable. */
   nextGrade: { grade: Grade; points: number; rate: number } | null;
   riskLevel: RiskLevel;
+}
+
+/** Points a grade is worth. One table, so nothing here can drift. */
+function pointsForGrade(grade: Grade): number {
+  return GRADE_TABLE.find((g) => g.grade === grade)?.points ?? 0;
 }
 
 function gradeRisk(grade: Grade): RiskLevel {
@@ -536,6 +554,14 @@ export function buildProjection(
   // averaging in a subject that has banked nothing yet would drag the
   // number toward zero and say nothing true.
   const scoreable = gradeProjections.filter((p) => p.plan.hasAnyMarks);
+  // Every credit-bearing subject, not just the marked ones: a target is
+  // set for all of them, so "if I hit my targets" is answerable for all
+  // of them.
+  const onTargetSgpa = sgpaFrom(gradeProjections, (p) => pointsForGrade(p.targetGrade));
+  const targetsOutOfReach = gradeProjections.filter(
+    (p) => p.subject.credits > 0 && p.plan.status === "out-of-reach"
+  ).length;
+
   const predictedSgpa = sgpaFrom(scoreable, (p) => p.predictedPoints);
   const ceilingSgpa = sgpaFrom(scoreable, (p) => gradeForTotal(p.bestTotal).points);
   const floorSgpa = sgpaFrom(scoreable, (p) => gradeForTotal(p.worstTotal).points);
@@ -552,6 +578,8 @@ export function buildProjection(
     atRisk,
     gradeProjections,
     targetSgpa,
+    onTargetSgpa,
+    targetsOutOfReach,
     assumedExternalPct,
     predictedSgpa,
     ceilingSgpa,

@@ -361,3 +361,73 @@ describe("attendance decides whether the grade plan is even possible", () => {
     expect(barred.requiredRate).toBe(safe.requiredRate);
   });
 });
+
+describe("what the targets you picked actually add up to", () => {
+  /**
+   * Per-subject targets are chosen one card at a time. Nothing was
+   * adding them up, so you could set six of them and never find out
+   * they came to 7.9 against an 8.5 semester.
+   */
+  const graded = () => {
+    const { subjects, marks } = semester();
+    return { subjects, marks };
+  };
+
+  it("weights the chosen grades by credits", () => {
+    const { subjects, marks } = graded();
+    const aimed = subjects.map((s) => ({ ...s, target_grade: "A" as Grade }));
+    const r = buildProjection(aimed, [], [], marks, [], undefined, undefined, 8.5);
+    // Every subject at an A is 8 points, whatever the credits.
+    expect(r.onTargetSgpa).toBeCloseTo(8, 9);
+  });
+
+  it("mixes different targets correctly", () => {
+    const { subjects, marks } = graded();
+    const aimed = subjects.map((s, i) => ({
+      ...s,
+      target_grade: (i === 0 ? "O" : "B") as Grade,
+    }));
+    const r = buildProjection(aimed, [], [], marks, [], undefined, undefined, 8.5);
+    const credited = aimed.filter((s) => s.credits > 0);
+    const cr = credited.reduce((a, s) => a + s.credits, 0);
+    const expected =
+      credited.reduce((a, s) => a + (s.target_grade === "O" ? 10 : 6) * s.credits, 0) / cr;
+    expect(r.onTargetSgpa).toBeCloseTo(expected, 9);
+  });
+
+  it("counts every credit-bearing subject, marked or not", () => {
+    // Unlike the predicted SGPA, which needs something to project from,
+    // "if I hit my targets" is answerable for a subject with no marks.
+    const { subjects } = graded();
+    const r = buildProjection(subjects, [], [], [], [], undefined, undefined, 9);
+    expect(r.predictedSgpa).toBeNull();
+    expect(r.onTargetSgpa).toBeCloseTo(9, 9); // 9.0 → A+ everywhere
+  });
+
+  it("excludes audits, like every other SGPA here", () => {
+    const { subjects, marks } = graded();
+    const audited = subjects.map((s) =>
+      s.credits === 0 ? { ...s, target_grade: "C" as Grade } : { ...s, target_grade: "O" as Grade }
+    );
+    const r = buildProjection(audited, [], [], marks, [], undefined, undefined, 8.5);
+    expect(r.onTargetSgpa).toBeCloseTo(10, 9); // the 0-credit C never lands
+  });
+
+  it("flags targets the arithmetic has already ruled out", () => {
+    const { subjects, marks } = graded();
+    const impossible = subjects.map((s) => ({ ...s, target_grade: "O" as Grade }));
+    const r = buildProjection(impossible, [], [], marks, [], undefined, undefined, 8.5);
+    expect(r.targetsOutOfReach).toBeGreaterThan(0);
+    r.gradeProjections
+      .filter((p) => p.subject.credits > 0 && p.plan.status === "out-of-reach")
+      .forEach((p) => expect(p.plan.bestReachable).not.toBe("O"));
+  });
+
+  it("reports none out of reach when every target is still live", () => {
+    const { subjects, marks } = graded();
+    const modest = subjects.map((s) => ({ ...s, target_grade: "C" as Grade }));
+    const r = buildProjection(modest, [], [], marks, [], undefined, undefined, 8.5);
+    expect(r.targetsOutOfReach).toBe(0);
+    expect(r.onTargetSgpa).toBeCloseTo(5, 9);
+  });
+});

@@ -70,6 +70,55 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
         ))}
       </section>
 
+      {/* The per-subject targets are chosen one card at a time. Nothing
+          was adding them up, so you could set six of them and never
+          find out they came to 7.9. */}
+      {report.onTargetSgpa !== null && (
+        <section className="card p-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                If you hit every target
+              </p>
+              <p className="mt-0.5 text-xs font-medium text-muted">
+                the grade you've set on each subject below
+              </p>
+            </div>
+            <p className="shrink-0 text-3xl font-extrabold tabular accent-gradient-text">
+              <AnimatedNumber value={report.onTargetSgpa} decimals={2} />
+            </p>
+          </div>
+
+          {report.targetsOutOfReach > 0 ? (
+            <p className="mt-3 flex items-start gap-1.5 text-xs font-semibold text-bad-deep">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {report.targetsOutOfReach === 1
+                ? "One of those targets is already out of reach, so this number isn't available any more."
+                : `${report.targetsOutOfReach} of those targets are already out of reach, so this number isn't available any more.`}{" "}
+              <span className="font-medium text-muted">Re-aim them and it'll be honest again.</span>
+            </p>
+          ) : (
+            <p className="mt-3 text-xs font-medium text-muted">
+              {report.onTargetSgpa >= report.targetSgpa ? (
+                <>
+                  That clears your{" "}
+                  <b className="text-ink tabular">{report.targetSgpa.toFixed(1)}</b> — the targets
+                  you've set are enough.
+                </>
+              ) : (
+                <>
+                  Short of your <b className="text-ink tabular">{report.targetSgpa.toFixed(1)}</b> by{" "}
+                  <b className="text-warn-deep tabular">
+                    {(report.targetSgpa - report.onTargetSgpa).toFixed(2)}
+                  </b>{" "}
+                  — aim higher somewhere, or aim the semester lower.
+                </>
+              )}
+            </p>
+          )}
+        </section>
+      )}
+
       {report.gradesAtRisk.length > 0 && (
         <section className="card border-bad/25 bg-bad/5 p-5">
           <p className="flex items-center gap-2 font-bold text-bad-deep">

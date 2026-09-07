@@ -37,6 +37,17 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
   const [color, setColor] = useState(PALETTE[0]);
   const [assessment, setAssessment] = useState<Assessment>(() => editableAssessment(null, false));
 
+  /**
+   * Load the subject into the form when the sheet opens — and only
+   * then.
+   *
+   * Keyed on the subject's *id*, not the object. `subjects` is a React
+   * Query list, so every refetch hands back new object identities:
+   * window focus, a realtime event, the settle of any other mutation.
+   * Depending on the object meant this effect re-ran while you were
+   * typing and reset every field to the server's copy mid-edit, which
+   * looks exactly like the app forgetting what you entered.
+   */
   useEffect(() => {
     if (!open) return;
     setName(subject?.name ?? "");
@@ -45,7 +56,8 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
     setCredits(String(subject?.credits ?? 3));
     setColor(subject?.color_hex ?? PALETTE[0]);
     setAssessment(editableAssessment(subject?.assessment, subject?.internal_only ?? false));
-  }, [open, subject]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, subject?.id]);
 
   function save() {
     if (!name.trim() || !code.trim()) {

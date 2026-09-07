@@ -149,13 +149,19 @@ async function withColumnFallback<T extends Record<string, unknown>>(
     if (i === optionalColumns.length - 1) throw new Error(last.message);
   }
 
-  if (!migrationHintShown) {
-    migrationHintShown = true;
-    toast.info("Saved — one field needs a quick setup step", {
-      description: "Settings → Finish setup: copy one SQL snippet, paste, done.",
-      duration: 8000,
-    });
-  }
+  // Loud, and it names the column. Silently dropping a field means the
+  // value you just typed reappears as whatever it was before, with no
+  // explanation — the single most confusing thing this fallback can do.
+  // Worth knowing: a column can be missing from PostgREST's *schema
+  // cache* even after the migration has run, in which case the fix is
+  // to reload the cache rather than to run anything again.
+  const dropped = optionalColumns.filter((col) => !(col in stripped) && col in payload);
+  toast.warning(`Saved without “${dropped.join("”, “")}”`, {
+    description:
+      "That column isn't visible to the API yet. Settings → Finish setup has the SQL; if you've already run it, reload the schema cache (Supabase → API → Reload).",
+    duration: 10000,
+  });
+  if (!migrationHintShown) migrationHintShown = true;
 }
 
 // ---------- settings / account ----------
