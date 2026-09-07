@@ -1,8 +1,5 @@
-import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { AlertTriangle, GraduationCap } from "lucide-react";
-import { allocateEffort } from "@/lib/effort";
-import { useSettings } from "@/hooks/useData";
 import { useTone } from "@/hooks/useTone";
 import { CgpaCard } from "@/components/insights/cgpa-card";
 import { SubjectBudgetCard } from "@/components/insights/subject-budget";
@@ -40,13 +37,6 @@ function have(n: number): string {
 
 export function GradesProjection({ report }: { report: ReturnType<typeof buildProjection> }) {
   const tone = useTone();
-  const { data: settings } = useSettings();
-  const target = settings?.target_sgpa ?? 8.5;
-  const plan = useMemo(
-    () => allocateEffort(report.gradeProjections, target),
-    [report.gradeProjections, target]
-  );
-
   if (report.gradeProjections.length === 0) {
     return (
       <section className="card">
@@ -79,71 +69,6 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
           </div>
         ))}
       </section>
-
-      {/* The three numbers above are a forecast. This is the only part
-          you can act on: which subjects have to move, and by how much
-          more than they are already tracking. */}
-      {plan.status !== "unknown" && (
-        <section className="card p-5">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
-              Target {plan.target.toFixed(1)}
-            </p>
-            <p className="text-xs font-semibold text-muted">
-              on pace for <b className="tabular text-ink">{plan.projected?.toFixed(2) ?? "—"}</b>
-            </p>
-          </div>
-
-          {plan.status === "met" ? (
-            <p className="mt-2 text-sm font-bold text-good-deep">
-              Already on pace. Hold this and it lands.
-            </p>
-          ) : plan.status === "out-of-reach" ? (
-            <p className="mt-2 text-sm font-semibold">
-              Out of reach this semester — acing everything left still tops out at{" "}
-              <b className="tabular">{plan.ceiling?.toFixed(2)}</b>.{" "}
-              <span className="text-muted">Worth re-aiming at something you can hit.</span>
-            </p>
-          ) : (
-            <>
-              <p className="mt-2 text-sm font-semibold">
-                {plan.moves.length === 1 ? "One lift gets there" : `${plan.moves.length} lifts get there`}
-                , for <b className="text-accent tabular">{need(plan.totalCost)}</b> marks more than
-                you're currently on track for:
-              </p>
-              <ul className="mt-2.5 space-y-2">
-                {plan.moves.map((move, i) => (
-                  <li
-                    key={`${move.subject.id}-${move.to}`}
-                    className="flex items-baseline justify-between gap-3 text-xs"
-                  >
-                    <span className="flex min-w-0 items-baseline gap-2">
-                      <span className="w-4 shrink-0 text-right font-bold text-muted tabular">
-                        {i + 1}
-                      </span>
-                      <Dot color={move.subject.color_hex} className="shrink-0" />
-                      <span className="truncate font-bold">{move.subject.name}</span>
-                    </span>
-                    <span className="shrink-0 font-semibold">
-                      {move.from} → <b className="text-accent">{move.to}</b>
-                      <span className="text-muted">
-                        {" "}
-                        · +{need(move.cost)} marks · {Math.round(move.requiredRate * 100)}% of
-                        what's left
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2.5 text-[11px] text-muted">
-                Ordered by SGPA bought per extra mark, so the first is where an hour goes
-                furthest — not simply the biggest number. Change the target in Settings →
-                Academics.
-              </p>
-            </>
-          )}
-        </section>
-      )}
 
       {report.gradesAtRisk.length > 0 && (
         <section className="card border-bad/25 bg-bad/5 p-5">

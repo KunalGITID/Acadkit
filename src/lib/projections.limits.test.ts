@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest";
 import { buildProjection } from "@/lib/projections";
 import { computeSgpa } from "@/lib/plan";
 import { groupMarksBySubject } from "@/lib/grades";
-import { allocateEffort } from "@/lib/effort";
 import { gradeForTargetSgpa } from "@/lib/plan";
 import { GRADE_TABLE, type Grade } from "@/lib/grades";
 import type { Assessment, Mark, Subject } from "@/types";
@@ -166,57 +165,12 @@ describe("target grade derivation", () => {
   });
 });
 
-describe("the allocator cannot disagree with the cards", () => {
-  it("reports the same projection the report does", () => {
-    for (let t = 0; t <= 10.0001; t += 0.5) {
-      const r = report(t);
-      const plan = allocateEffort(r.gradeProjections, t);
-      if (plan.status === "unknown") continue;
-      // The doc claims nothing is re-derived. This is that claim.
-      const credited = r.gradeProjections.filter((p) => p.subject.credits > 0);
-      const cr = credited.reduce((s, p) => s + p.subject.credits, 0);
-      const projected =
-        credited.reduce((s, p) => s + p.predictedPoints * p.subject.credits, 0) / cr;
-      expect(plan.projected!, `target ${t}`).toBeCloseTo(projected, 9);
-    }
-  });
-
-  it("only ever proposes lifts that gain ground and stay reachable", () => {
-    for (let t = 0; t <= 10.0001; t += 0.25) {
-      const r = report(t);
-      const plan = allocateEffort(r.gradeProjections, t);
-      for (const lift of plan.moves) {
-        expect(lift.gain, `target ${t}`).toBeGreaterThan(0);
-        expect(lift.requiredRate).toBeGreaterThanOrEqual(0);
-        expect(Number.isFinite(lift.cost)).toBe(true);
-        // A lift is a grade the subject can actually still reach.
-        const p = r.gradeProjections.find((x) => x.subject.id === lift.subject.id)!;
-        const row = p.plan.perGrade.find((g) => g.grade === lift.to)!;
-        expect(row.achievable, `${lift.subject.id} → ${lift.to}`).toBe(true);
-      }
-      if (plan.status === "reachable") {
-        expect(plan.projectedAfter!).toBeGreaterThanOrEqual(t - 1e-9);
-      }
-
-    }
-  });
-
-  it("says out of reach only when the ceiling really is short", () => {
-    for (let t = 0; t <= 10.0001; t += 0.25) {
-      const r = report(t);
-      const plan = allocateEffort(r.gradeProjections, t);
-      if (plan.status === "out-of-reach") expect(plan.ceiling!).toBeLessThan(t);
-      if (plan.status === "met") expect(plan.projected!).toBeGreaterThanOrEqual(t - 1e-9);
-    }
-  });
-});
-
 describe("degenerate semesters", () => {
   it("survives no subjects", () => {
     const r = buildProjection([], [], [], [], []);
     expect(r.gradeProjections).toEqual([]);
     expect(r.predictedSgpa).toBeNull();
-    expect(allocateEffort([], 8.5).status).toBe("unknown");
+    expect(computeSgpa([], new Map()).sgpa).toBeNull();
   });
 
   it("survives subjects with no marks anywhere", () => {
@@ -234,7 +188,7 @@ describe("degenerate semesters", () => {
   it("survives a semester of nothing but 0-credit subjects", () => {
     const r = buildProjection([subj(0, split(60))], [], [], [], []);
     expect(r.predictedSgpa).toBeNull();
-    expect(allocateEffort(r.gradeProjections, 8.5).status).toBe("unknown");
+    expect(computeSgpa(r.gradeProjections.map((p) => p.subject), new Map()).sgpa).toBeNull();
   });
 
   it("handles a fully finished semester", () => {

@@ -87,6 +87,7 @@ alter table settings
 alter table subjects
   add column if not exists assessment jsonb,
   add column if not exists target_grade text;
+alter table settings add column if not exists assumed_external_pct numeric;
 alter table subjects drop constraint if exists subjects_target_grade_check;
 alter table subjects add constraint subjects_target_grade_check
   check (target_grade is null or target_grade in ('O','A+','A','B+','B','C'));`;
@@ -96,6 +97,7 @@ const OPTIONAL_COLUMNS: Array<{ table: string; column: string; enables: string }
   { table: "timetable_slots", column: "slot_type", enables: "theory/lab class tags" },
   { table: "subjects", column: "internal_only", enables: "internal-only subjects" },
   { table: "subjects", column: "assessment", enables: "per-subject mark split & test plan" },
+  { table: "settings", column: "assumed_external_pct", enables: "assumed end-sem score" },
   { table: "semester_archives", column: "id", enables: "semester history & CGPA" },
   { table: "portal_snapshots", column: "id", enables: "portal attendance sync" },
   { table: "marks", column: "source", enables: "portal marks sync" },
@@ -168,9 +170,17 @@ export async function fetchSettings(pin: string): Promise<Settings | null> {
   return (data as Settings | null) ?? null;
 }
 
+/**
+ * Settings columns arrive by migration too, so a write that names one
+ * the project hasn't got should degrade rather than throw — the same
+ * treatment `subjects` has had since 007.
+ */
 export async function updateSettings(pin: string, patch: Partial<Settings>): Promise<void> {
-  const { error } = await supabase.from("settings").update(patch).eq("device_id", pin);
-  throwIf(error);
+  await withColumnFallback(
+    { ...patch },
+    ["assumed_external_pct", "name", "theme", "theme_mode", "auto_mark_present"],
+    (payload) => supabase.from("settings").update(payload).eq("device_id", pin)
+  );
 }
 
 export async function setDeclaredHolidays(pin: string, holidays: DeclaredHoliday[]) {

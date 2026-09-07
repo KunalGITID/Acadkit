@@ -265,6 +265,8 @@ export interface ProjectionReport {
   gradeProjections: SubjectGradeProjection[];
   /** The target SGPA these were solved against. */
   targetSgpa: number;
+  /** The end-sem assumption these were solved under, if any. */
+  assumedExternalPct: number | null;
   predictedSgpa: number | null;
   ceilingSgpa: number | null; // if you ace every remaining end-sem
   floorSgpa: number | null; // if every end-sem is blank
@@ -377,10 +379,14 @@ function projectSubjectGrade(
   marks: Mark[],
   targetSgpa: number,
   attendance: SubjectProjection | undefined,
-  deadlines: Deadline[]
+  deadlines: Deadline[],
+  assumedExternalPct: number | null
 ): SubjectGradeProjection {
   const targetGrade = subject.target_grade ?? gradeForTargetSgpa(targetSgpa);
-  const plan = solveSubjectPlan(subject, marks, targetGrade, deadlines);
+  const plan = solveSubjectPlan(subject, marks, targetGrade, {
+    deadlines,
+    assumedExternalPct,
+  });
   const eligibility = eligibilityFrom(attendance);
 
   // The pace read: keep taking the same share of every mark you have so
@@ -451,7 +457,12 @@ export function buildProjection(
   window: SemesterWindow = semesterWindow(),
   targetSgpa = 8.5,
   /** Dates for the plan's components; matched by name in plan.ts. */
-  deadlines: Deadline[] = []
+  deadlines: Deadline[] = [],
+  /**
+   * What to assume the end-sem returns, as a percentage of it. Null
+   * solves it like any other component. See `SolveOptions` in plan.ts.
+   */
+  assumedExternalPct: number | null = null
 ): ProjectionReport {
   const effMap = buildEffectiveMap(declared, window);
   const from = fromDate > window.end ? window.end : fromDate;
@@ -513,7 +524,8 @@ export function buildProjection(
       marksBySubject.get(s.id) ?? [],
       targetSgpa,
       attendanceById.get(s.id),
-      deadlinesBySubject.get(s.id) ?? []
+      deadlinesBySubject.get(s.id) ?? [],
+      assumedExternalPct
     )
   );
 
@@ -537,6 +549,7 @@ export function buildProjection(
     atRisk,
     gradeProjections,
     targetSgpa,
+    assumedExternalPct,
     predictedSgpa,
     ceilingSgpa,
     floorSgpa,

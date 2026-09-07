@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { CalendarClock, Check, Lock, TriangleAlert, UserX } from "lucide-react";
+import { CalendarClock, Check, Gauge, Lock, TriangleAlert, UserX } from "lucide-react";
 import { useUpdateSubject } from "@/hooks/useData";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { listEntry } from "@/lib/enter";
@@ -77,6 +77,7 @@ function TargetPicker({ p }: { p: SubjectGradeProjection }) {
  */
 function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
   const graded = c.obtained !== null;
+  const assumed = c.assumed !== null;
   const impossible = c.required !== null && c.required > c.max + 1e-9;
 
   return (
@@ -87,8 +88,13 @@ function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
       )}
     >
       <span className="flex min-w-0 items-baseline gap-2">
-        {graded ? (
-          <Check className="h-3.5 w-3.5 shrink-0 translate-y-0.5 text-muted" />
+        {graded || assumed ? (
+          <Check
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 translate-y-0.5",
+              assumed ? "text-accent/60" : "text-muted"
+            )}
+          />
         ) : (
           <span
             aria-hidden
@@ -112,7 +118,13 @@ function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
       </span>
 
       <span className="shrink-0 font-bold tabular">
-        {graded ? (
+        {assumed ? (
+          <span className="text-muted">
+            <span className="font-semibold">assumed </span>
+            {have(c.assumed!)}
+            <span className="font-semibold">/{have(c.max)}</span>
+          </span>
+        ) : graded ? (
           <span className="text-muted">
             {have(c.obtained!)}<span className="font-semibold">/{have(c.max)}</span>
           </span>
@@ -380,6 +392,15 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
               {have(p.plan.next.max)}
             </>
           )}
+        </p>
+      )}
+
+      {p.plan.assumedExternal !== null && (
+        <p className="mt-2 flex items-start gap-1.5 text-[11px] font-medium text-muted">
+          <Gauge className="mt-0.5 h-3 w-3 shrink-0" />
+          Solved assuming the end-sem returns{" "}
+          <b className="text-ink">{have(p.plan.assumedExternal)}/{have(100 - p.internalWeight)}</b>{" "}
+          — so these are what the internals have to carry. Change it in Settings → Academics.
         </p>
       )}
 

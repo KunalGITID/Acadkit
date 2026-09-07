@@ -228,7 +228,8 @@ export default function Insights() {
         // A subject with no target of its own inherits the one implied
         // by the target SGPA, so the two can never disagree.
         settings?.target_sgpa ?? 8.5,
-        deadlines ?? []
+        deadlines ?? [],
+        settings?.assumed_external_pct ?? null
       ),
     [
       subjects,
@@ -238,6 +239,7 @@ export default function Insights() {
       declared,
       semWindow,
       settings?.target_sgpa,
+      settings?.assumed_external_pct,
       deadlines,
     ]
   );

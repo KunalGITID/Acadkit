@@ -1,24 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  CalendarRange,
-  ClipboardPaste,
-  Target,
-  Check,
-  Loader2,
-  Bell,
-  BellOff,
-  Monitor,
-  Moon,
-  Pencil,
-  Plus,
-  Sun,
-  Wand2,
-  UserRound,
-  ChevronDown,
-  RefreshCw,
-} from "lucide-react";
+import { Bell, BellOff, CalendarRange, Check, ChevronDown, ClipboardPaste, Gauge, Loader2, Monitor, Moon, Pencil, Plus, RefreshCw, Sun, Target, UserRound, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
@@ -186,6 +169,86 @@ function SemesterDatesCard() {
  * the plan on Insights → Grades and the gap on Marks, which is the only
  * reason to ask for it.
  */
+/**
+ * What to expect of the end-sem.
+ *
+ * Without this the engine spreads a target evenly over everything still
+ * to come, the exam included — the right default when you know nothing
+ * about it, and the wrong question at SRM, where the end-sem papers are
+ * reckoned easy and generously marked. Nobody is deciding how hard to
+ * try in December; they are deciding what the internals have to carry
+ * given the exam will probably go fine.
+ *
+ * Blank restores the even spread. It only bites while the exam is
+ * ungraded: once the real mark is in, an assumption about it is worth
+ * nothing.
+ */
+function AssumedExternalCard() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const stored = settings?.assumed_external_pct ?? null;
+  const [value, setValue] = useState(stored === null ? "" : String(stored));
+
+  useEffect(() => {
+    setValue(stored === null ? "" : String(stored));
+  }, [stored]);
+
+  const blank = value.trim() === "";
+  const parsed = Number(value);
+  const invalid = !blank && (Number.isNaN(parsed) || parsed < 0 || parsed > 100);
+  const dirty = !invalid && (blank ? stored !== null : parsed !== stored);
+
+  function save() {
+    if (invalid) {
+      toast.error("Pick a percentage between 0 and 100");
+      return;
+    }
+    const next = blank ? null : parsed;
+    updateSettings.mutate({ assumed_external_pct: next });
+    toast.success(
+      next === null
+        ? "End-sem back in the spread"
+        : `Assuming ${next}% in the end-sem`
+    );
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/12 text-accent">
+          <Gauge className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="font-bold">Assume the end-sem</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Hand the end-sem a fixed score and Insights solves your internals against what's
+            left of each grade — the question you're actually asking when the exam is the
+            easy part. Leave blank to spread targets across it like everything else.
+          </p>
+        </div>
+      </div>
+      <Field label="Expected end-sem score (%)">
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100}
+          placeholder="blank — solve it like any other component"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      </Field>
+      <p className="text-[11px] text-muted">
+        Only the <b>ask</b> moves. Banked, pace and ceiling stay the true range, so an
+        optimistic guess here can't flatter the forecast.
+      </p>
+      <Button className="w-full" disabled={!dirty} onClick={save}>
+        {dirty ? "Save" : "Saved"}
+      </Button>
+    </section>
+  );
+}
+
 function TargetSgpaCard() {
   const { data: settings } = useSettings();
   const updateSettings = useUpdateSettings();
@@ -677,6 +740,7 @@ export default function Settings() {
 
       <CollapsibleSection title="Academics">
         <TargetSgpaCard />
+              <AssumedExternalCard />
         <SemesterDatesCard />
         <AutoMarkCard />
         <SubjectsCard />

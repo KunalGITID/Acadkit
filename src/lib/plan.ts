@@ -169,6 +169,8 @@ export type ComponentKind =
   | "planned"
   /** Graded but not in the plan — it happened, so it counts regardless. */
   | "extra"
+  /** Announced in Deadlines with a mark value, not in the plan. */
+  | "deadline"
   /** The internal marks that exist but haven't been announced yet. */
   | "unannounced"
   /** The end-sem. */
@@ -190,6 +192,12 @@ export interface SolvedComponent {
    * target has moved out of reach.
    */
   requiredPct: number | null;
+  /**
+   * What this component is being *assumed* to return rather than solved
+   * for. Only ever set on the end-sem, and only when you have told the
+   * app what to expect of it.
+   */
+  assumed: number | null;
   /**
    * When this component happens, if a deadline says so. The plan
    * carries weights; the deadlines table carries dates, and a list of
@@ -261,6 +269,11 @@ export interface SubjectPlan {
   scaled: boolean;
   perGrade: GradeRequirement[];
   hasAnyMarks: boolean;
+  /**
+   * Marks the end-sem is being assumed to return, when you've said what
+   * to expect of it. Null means it is solved for like everything else.
+   */
+  assumedExternal: number | null;
   /** ±1 SD of your own component scores, or null with too few to say. */
   band: ConfidenceBand | null;
   /** The soonest dated component still to come. */
@@ -347,21 +360,71 @@ export interface ConfidenceBand {
 const MIN_BAND_SAMPLES = 3;
 
 /**
- * Put dates on components, from deadlines, by name.
+ * Titles that mean the end-sem rather than an internal component.
  *
- * Label match first, since that is the one the user controls directly.
- * Failing that, a weight match — but only when it is unambiguous on
- * both sides, because "the other 15-mark one" is a guess and a wrong
- * date on a test is worse than no date at all.
+ * A deadline called "End sem" is the exam the external weight already
+ * models, so adopting it as an internal component would count the paper
+ * twice and inflate the internal side by its own marks. It still gets
+ * its date, through the ordinary name match against the "End semester"
+ * component.
  */
-function attachDates(components: SolvedComponent[], deadlines: Deadline[]): void {
+const EXTERNAL_ALIASES = new Set([
+  "endsem",
+  "endsems",
+  "endsemester",
+  "endsemexam",
+  "endsemesterexam",
+  "endsemesterexamination",
+  "endsemesterexamination",
+  "finalexam",
+  "final",
+  "semexam",
+  "semesterexam",
+  "external",
+  "theoryexam",
+]);
+
+/**
+ * Match deadlines onto components, then adopt the rest.
+ *
+ * Matching is by name, and only by name. An earlier version also
+ * paired on weight where it was unambiguous on both sides, to date a
+ * planned component from a differently-named deadline — but once
+ * leftovers are adopted that trade stops being worth making. "Surprise
+ * quiz, 5 marks" and a planned "Assignment, 5 marks" are not the same
+ * test, and guessing they are loses the quiz from the budget *and*
+ * puts a wrong date on the assignment. Adopting instead can only
+ * over-count, which shows up as two rows you can merge by renaming one.
+ * Between a silent error and a visible one, take the visible one.
+ *
+ * Whatever matches nothing becomes a component. You already record
+ * every exam in Deadlines, and the optional "out of" field is exactly
+ * the weight the budget wants, so a test announced late and typed in
+ * once should not have to be typed again into the assessment plan.
+ * Anything already graded, and anything named like the end-sem, is left
+ * alone — the first has happened, and the second is the external weight
+ * the budget already models.
+ */
+function claimDeadlines(
+  raw: Array<{ label: string; max: number; obtained: number | null; date: string | null; key: string; type: MarkComponentType; kind: ComponentKind }>,
+  deadlines: Deadline[],
+  internalMarks: Mark[]
+): void {
+  // A date alone is enough to date a component you already planned.
+  // Becoming a component in its own right takes a weight as well —
+  // there is nothing to budget without one.
   const dated = deadlines.filter((d) => d.due_date);
   if (dated.length === 0) return;
+  const weighed = dated.filter(
+    (d) => Number.isFinite(Number(d.max_marks)) && Number(d.max_marks) > 0
+  );
 
-  const pending = components.filter((c) => c.obtained === null);
+
   const taken = new Set<string>();
+  const pending = () => raw.filter((c) => c.obtained === null);
 
-  for (const c of pending) {
+  // 1. By name — the only pairing you control directly.
+  for (const c of pending()) {
     const hit = dated.find((d) => !taken.has(d.id) && normLabel(d.title) === normLabel(c.label));
     if (hit) {
       taken.add(hit.id);
@@ -369,16 +432,22 @@ function attachDates(components: SolvedComponent[], deadlines: Deadline[]): void
     }
   }
 
-  for (const c of pending) {
-    if (c.date !== null) continue;
-    const byWeight = dated.filter(
-      (d) => !taken.has(d.id) && Number(d.max_marks) > 0 && Number(d.max_marks) === c.max
-    );
-    const rivals = pending.filter((o) => o.date === null && o.max === c.max);
-    if (byWeight.length === 1 && rivals.length === 1) {
-      taken.add(byWeight[0].id);
-      c.date = byWeight[0].due_date.slice(0, 10);
-    }
+  // 2. Adopt the leftovers.
+  const graded = new Set(internalMarks.map((m) => normLabel(m.label)));
+  for (const d of weighed) {
+    if (taken.has(d.id)) continue;
+    const key = normLabel(d.title);
+    if (graded.has(key) || EXTERNAL_ALIASES.has(key)) continue;
+    if (raw.some((c) => normLabel(c.label) === key)) continue;
+    raw.push({
+      key: `deadline:${d.id}`,
+      label: d.title,
+      type: inferType(d.title),
+      kind: "deadline",
+      max: Number(d.max_marks),
+      obtained: null,
+      date: d.due_date.slice(0, 10),
+    });
   }
 }
 
@@ -449,6 +518,7 @@ export function budgetFor(
     kind: ComponentKind;
     max: number;
     obtained: number | null;
+    date: string | null;
   }
   const raw: Raw[] = [];
 
@@ -465,9 +535,18 @@ export function budgetFor(
         kind: "planned",
         max: c.max,
         obtained: share(hit.marks_obtained, hit.max_marks, c.max),
+        date: null,
       });
     } else {
-      raw.push({ key: c.key, label: c.label, type: c.type, kind: "planned", max: c.max, obtained: null });
+      raw.push({
+        key: c.key,
+        label: c.label,
+        type: c.type,
+        kind: "planned",
+        max: c.max,
+        obtained: null,
+        date: null,
+      });
     }
   }
 
@@ -481,10 +560,22 @@ export function budgetFor(
       kind: "extra",
       max: m.max_marks,
       obtained: share(m.marks_obtained, m.max_marks, m.max_marks),
+      date: null,
     });
   }
 
-  // ---- fit the declared internals onto the internal weight ----
+  // Deadlines, in one pass: date the components they clearly refer to,
+  // then adopt whatever is left over as components of its own.
+  //
+  // The order matters. Matching first means a test that is both planned
+  // and logged stays one component with a date on it; adopting first
+  // would make it two, and count the same paper twice. Adopting the
+  // leftovers means a test announced last week and typed into Deadlines
+  // shows up in the budget without being typed again into the plan —
+  // the deadline *is* the announcement.
+  claimDeadlines(raw, deadlines, internalMarks);
+
+  // ---- fit the declared internals onto the internal weight ----  // ---- fit the declared internals onto the internal weight ----
   const declaredMax = raw.reduce((s, c) => s + c.max, 0);
   let scale = 1;
   let scaled = false;
@@ -508,7 +599,8 @@ export function budgetFor(
     obtained: c.obtained === null ? null : c.obtained * scale,
     required: null,
     requiredPct: null,
-    date: null,
+    assumed: null,
+    date: c.date,
   }));
 
   // ---- whatever internal weight nobody has claimed ----
@@ -524,6 +616,7 @@ export function budgetFor(
       obtained: null,
       required: null,
       requiredPct: null,
+      assumed: null,
       date: null,
     });
   }
@@ -542,15 +635,23 @@ export function budgetFor(
           : null,
       required: null,
       requiredPct: null,
+      assumed: null,
       date: null,
     });
   }
 
-  // Dates come from the deadlines you already keep, matched by name.
-  // Nothing is inferred from a near-miss: an unmatched component simply
-  // has no date, which is honest, where guessing "CT-2 is probably that
-  // 15-mark thing in November" would put a wrong date on a real test.
-  attachDates(components, deadlines);
+  // The end-sem is built after the internal pass, so it takes its date
+  // here — from a deadline named like one.
+  const external = components.find((c) => c.kind === "external");
+  if (external) {
+    const hit = deadlines.find(
+      (d) =>
+        d.due_date &&
+        (EXTERNAL_ALIASES.has(normLabel(d.title)) ||
+          normLabel(d.title) === normLabel(external.label))
+    );
+    if (hit) external.date = hit.due_date.slice(0, 10);
+  }
 
   // Keys become React keys downstream, and a plan can carry duplicates
   // — jsonb edited by hand, or a row copied in the editor. Deduping
@@ -680,11 +781,33 @@ export function computeSgpa(
   };
 }
 
+/**
+ * Options that change what a target *costs*, not what you have.
+ */
+export interface SolveOptions {
+  deadlines?: Deadline[];
+  /**
+   * What you expect the end-sem to return, as a percentage of it.
+   *
+   * SRM's end-sem papers are widely reckoned easy and generously
+   * marked, so spreading a target evenly across the exam and your
+   * internals asks the wrong question: you are not deciding how hard to
+   * try in December, you are deciding what the internals have to carry.
+   * Setting this hands the exam a fixed contribution and solves the
+   * remaining internals against what's left of the threshold.
+   *
+   * Null solves the end-sem like any other component. It only applies
+   * while the exam is ungraded — once the real mark is in, an
+   * assumption about it is worthless.
+   */
+  assumedExternalPct?: number | null;
+}
+
 export function solveSubjectPlan(
   subject: Subject,
   marks: Mark[],
   targetGrade: Grade,
-  deadlines: Deadline[] = []
+  options: SolveOptions = {}
 ): SubjectPlan {
   const target = gradeRow(targetGrade === "F" ? "C" : targetGrade);
 
@@ -703,15 +826,31 @@ export function solveSubjectPlan(
     hasAnyMarks,
     band,
     next,
-  } = budgetFor(subject, marks, deadlines);
+  } = budgetFor(subject, marks, options.deadlines ?? []);
 
-  const needed = target.min - banked;
-  const requiredRate = pool > 1e-9 ? needed / pool : null;
+  // The end-sem, handed a fixed contribution instead of a share of the
+  // ask. Everything below then solves the internals against what is
+  // left of the threshold — which is the question actually being asked.
+  const externalRow = components.find((c) => c.kind === "external" && c.obtained === null);
+  const assumedPct = options.assumedExternalPct;
+  const assumedExternal =
+    externalRow && assumedPct != null && Number.isFinite(assumedPct)
+      ? clamp(assumedPct, 0, 100) / 100 * externalRow.max
+      : null;
+  if (externalRow && assumedExternal !== null) externalRow.assumed = assumedExternal;
+
+  // What the solve actually works with: the assumption is banked for
+  // the purpose of the ask, and its component leaves the pool.
+  const solveBanked = banked + (assumedExternal ?? 0);
+  const solvePool = assumedExternal !== null ? pool - externalRow!.max : pool;
+
+  const needed = target.min - solveBanked;
+  const requiredRate = solvePool > 1e-9 ? needed / solvePool : null;
 
   // The equal-effort spread: every component still in play is asked for
   // the same share of its own marks.
   for (const c of components) {
-    if (c.obtained !== null) continue;
+    if (c.obtained !== null || c.assumed !== null) continue;
     c.required = requiredRate === null ? null : Math.max(0, requiredRate) * c.max;
     c.requiredPct = c.required === null || c.max <= 0 ? null : (c.required / c.max) * 100;
   }
@@ -719,23 +858,26 @@ export function solveSubjectPlan(
   const floor = banked;
 
   let status: PlanStatus;
-  if (pool <= 1e-9) status = "final";
+  if (solvePool <= 1e-9) status = "final";
   else if (needed <= 1e-9) status = "locked";
-  else if (needed > pool + 1e-9) status = "out-of-reach";
+  else if (needed > solvePool + 1e-9) status = "out-of-reach";
   else if (paceRate !== null && requiredRate !== null && paceRate >= requiredRate - 1e-9)
     status = "on-track";
   else status = "push";
 
+  // Priced against the same scenario as the ask: with an assumption in
+  // play, "achievable" means achievable given it, not given a perfect
+  // end-sem you have just told the app not to expect.
   const perGrade: GradeRequirement[] = GRADE_TABLE.filter((g) => g.grade !== "F").map((g) => {
-    const need = g.min - banked;
+    const need = g.min - solveBanked;
     return {
       grade: g.grade,
       points: g.points,
       minTotal: g.min,
-      rate: pool > 1e-9 ? need / pool : null,
+      rate: solvePool > 1e-9 ? need / solvePool : null,
       needed: need,
       secured: need <= 1e-9,
-      achievable: need <= pool + 1e-9,
+      achievable: need <= solvePool + 1e-9,
     };
   });
 
@@ -763,6 +905,7 @@ export function solveSubjectPlan(
     paceGrade: pace === null ? null : gradeForTotal(pace).grade,
     bestReachable,
     slack: ceiling >= target.min - 1e-9 ? ceiling - target.min : null,
+    assumedExternal,
     scaled,
     perGrade,
     hasAnyMarks,

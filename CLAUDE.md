@@ -151,6 +151,32 @@ constraint. Pinned in `grades.test.ts` because it is a regulation, not
 a derivation: nothing in the code implies it, and if it ever changed a
 minimum would have to be threaded through every solve.
 
+**A test logged in Deadlines is an announced component.** You already
+record every exam there, and the optional "out of" field is exactly the
+weight the budget wants, so a deadline the plan has never heard of is
+adopted as a component rather than made to be typed twice — the
+deadline *is* the announcement. Deadlines are matched to existing
+components **by name only**. An earlier version also paired on weight
+where it looked unambiguous; that stopped being worth it once leftovers
+were adopted, because "Surprise quiz, 5 marks" and a planned
+"Assignment, 5 marks" are not the same test, and guessing loses the
+quiz *and* misdates the assignment. Adopting can only over-count, which
+shows as two rows you merge by renaming one. Prefer the visible error.
+Titles that mean the end-sem are never adopted — that paper is the
+external weight already.
+
+**`settings.assumed_external_pct` hands the end-sem a fixed score**
+(migration 022). The even spread is the right default when you know
+nothing about the exam and the wrong question at SRM, where the papers
+are reckoned easy: nobody is deciding how hard to try in December, they
+are deciding what the internals have to carry. With it set, the exam
+contributes `pct% × externalWeight` and the remaining internals are
+solved against what is left of the threshold — including `perGrade`, so
+"achievable" means achievable *under the assumption*. The bracket
+(banked / pace / ceiling) is deliberately untouched, so an optimistic
+guess can redistribute the ask but never flatter the forecast. Ignored
+once the real mark is in, and for wholly internal subjects.
+
 **Attendance gates the whole plan** (`Eligibility` in
 `projections.ts`). Below the minimum you are not permitted into the
 end-sem, so a budget whose pool *is* that exam is fiction, not a

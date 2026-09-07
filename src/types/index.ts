@@ -190,6 +190,11 @@ export interface Settings {
   current_day_order: number;
   /** Assume past scheduled classes were attended (migration 013). */
   auto_mark_present?: boolean | null;
+  /**
+   * What to assume the end-sem returns, as a percentage of it
+   * (migration 022). Null solves it like any other component.
+   */
+  assumed_external_pct?: number | null;
   /** Theme, synced across devices (migration 018). Null = never chosen. */
   theme?: string | null;
   theme_mode?: string | null;

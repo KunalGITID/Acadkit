@@ -10,7 +10,7 @@ import {
   inferType,
   solveSubjectPlan,
 } from "@/lib/plan";
-import type { Assessment, Deadline, Mark, PlannedComponent, Subject } from "@/types";
+import type { Assessment, Deadline, Grade, Mark, PlannedComponent, Subject } from "@/types";
 
 const plan = (rows: Array<[string, number]>): PlannedComponent[] =>
   rows.map(([label, max]) => ({ key: label, label, type: "CT" as const, max }));
@@ -489,42 +489,40 @@ describe("component dates, from the deadlines you already keep", () => {
   });
 
   it("dates a component from a deadline with the same name", () => {
-    const p = solveSubjectPlan(planned, [], "A", [dl("CT-2", "2026-10-12")]);
+    const p = solveSubjectPlan(planned, [], "A", { deadlines: [dl("CT-2", "2026-10-12")] });
     const ct2 = p.components.find((c) => c.label === "CT-2")!;
     expect(ct2.date).toBe("2026-10-12");
     expect(p.components.find((c) => c.label === "CT-1")!.date).toBeNull();
   });
 
   it("matches names loosely enough to be useful", () => {
-    const p = solveSubjectPlan(planned, [], "A", [dl("ct 2", "2026-10-12")]);
+    const p = solveSubjectPlan(planned, [], "A", { deadlines: [dl("ct 2", "2026-10-12")] });
     expect(p.components.find((c) => c.label === "CT-2")!.date).toBe("2026-10-12");
   });
 
-  it("falls back to weight, but only when nothing is ambiguous", () => {
-    // Lab is the only 10-mark component and this the only 10-mark
-    // deadline, so the pairing is forced rather than guessed.
-    const p = solveSubjectPlan(planned, [], "A", [dl("Practical assessment", "2026-11-02", 10)]);
-    expect(p.components.find((c) => c.label === "Lab")!.date).toBe("2026-11-02");
-  });
-
-  it("refuses to guess between two components of the same weight", () => {
-    // CT-1 and CT-2 are both 15. A wrong date on a real test is worse
-    // than no date, so neither gets one.
-    const p = solveSubjectPlan(planned, [], "A", [dl("Some test", "2026-10-12", 15)]);
-    expect(p.components.find((c) => c.label === "CT-1")!.date).toBeNull();
-    expect(p.components.find((c) => c.label === "CT-2")!.date).toBeNull();
+  it("adopts a differently-named deadline instead of guessing at one", () => {
+    // Same weight as the planned Lab, different name. Pairing them on
+    // weight alone would lose this test from the budget and put a wrong
+    // date on the Lab; adopting shows both, which you can merge by
+    // renaming one.
+    const p = solveSubjectPlan(planned, [], "A", {
+      deadlines: [dl("Practical assessment", "2026-11-02", 10)],
+    });
+    expect(p.components.find((c) => c.label === "Lab")!.date).toBeNull();
+    const adopted = p.components.find((c) => c.label === "Practical assessment")!;
+    expect(adopted.kind).toBe("deadline");
+    expect(adopted.date).toBe("2026-11-02");
   });
 
   it("never dates something already graded", () => {
-    const p = solveSubjectPlan(planned, [mark("CT-1", 12, 15)], "A", [dl("CT-1", "2026-09-01")]);
+    const p = solveSubjectPlan(planned, [mark("CT-1", 12, 15)], "A", { deadlines: [dl("CT-1", "2026-09-01")] });
     expect(p.components.find((c) => c.label === "CT-1")!.date).toBeNull();
   });
 
   it("names the soonest thing still to come", () => {
-    const p = solveSubjectPlan(planned, [], "A", [
-      dl("Lab", "2026-11-02"),
-      dl("CT-2", "2026-10-12"),
-    ]);
+    const p = solveSubjectPlan(planned, [], "A", {
+      deadlines: [dl("Lab", "2026-11-02"), dl("CT-2", "2026-10-12")],
+    });
     expect(p.next?.label).toBe("CT-2");
     expect(p.next?.date).toBe("2026-10-12");
     expect(p.next?.required).toBeGreaterThan(0);
@@ -603,3 +601,177 @@ describe("confidence band — how much your own results swing", () => {
     expect(p.band).toBeNull();
   });
 });
+
+describe("a test logged in Deadlines is an announced component", () => {
+  const dl = (title: string, due: string, max: number | null): Deadline => ({
+    id: `d-${title}`,
+    device_id: "0000",
+    subject_id: "s1",
+    title,
+    type: "exam",
+    due_date: `${due}T09:00:00.000Z`,
+    status: "pending",
+    priority: "medium",
+    max_marks: max,
+  });
+
+  const partial = subject({ internal: 60, components: plan([["CT-1", 15]]) });
+
+  it("adopts a marked deadline the plan has never heard of", () => {
+    const p = solveSubjectPlan(partial, [], "A", { deadlines: [dl("Surprise quiz", "2026-10-20", 5)] });
+    const quiz = p.components.find((c) => c.label === "Surprise quiz")!;
+    expect(quiz.kind).toBe("deadline");
+    expect(quiz.max).toBe(5);
+    expect(quiz.date).toBe("2026-10-20");
+    expect(quiz.required).toBeGreaterThan(0);
+  });
+
+  it("takes its weight out of the bucket, not on top of it", () => {
+    const without = solveSubjectPlan(partial, [], "A");
+    const with_ = solveSubjectPlan(partial, [], "A", { deadlines: [dl("Surprise quiz", "2026-10-20", 5)] });
+    expect(without.components.find((c) => c.kind === "unannounced")!.max).toBe(45);
+    expect(with_.components.find((c) => c.kind === "unannounced")!.max).toBe(40);
+    // The course is still 100 marks either way.
+    expect(with_.pool).toBe(without.pool);
+  });
+
+  it("stays one component when it is both planned and logged", () => {
+    const p = solveSubjectPlan(partial, [], "A", { deadlines: [dl("CT-1", "2026-10-01", 15)] });
+    expect(p.components.filter((c) => normalise(c.label) === "ct1")).toHaveLength(1);
+    expect(p.components.find((c) => c.label === "CT-1")!.date).toBe("2026-10-01");
+    expect(p.components.find((c) => c.label === "CT-1")!.kind).toBe("planned");
+  });
+
+  it("does not adopt the end-sem, which the split already models", () => {
+    // Counting the paper as an internal component too would inflate the
+    // internal side by the whole exam.
+    const p = solveSubjectPlan(partial, [], "A", { deadlines: [dl("End sem", "2026-12-01", 40)] });
+    expect(p.components.filter((c) => c.kind === "deadline")).toHaveLength(0);
+    expect(p.internalWeight).toBe(60);
+    // It still dates the end-sem row.
+    expect(p.components.find((c) => c.kind === "external")!.date).toBe("2026-12-01");
+  });
+
+  it("does not adopt a test whose mark is already in", () => {
+    const p = solveSubjectPlan(partial, [mark("Surprise quiz", 4, 5)], "A", {
+      deadlines: [dl("Surprise quiz", "2026-10-20", 5)],
+    });
+    expect(p.components.filter((c) => c.kind === "deadline")).toHaveLength(0);
+    expect(p.components.find((c) => c.label === "Surprise quiz")!.obtained).toBe(4);
+  });
+
+  it("ignores a deadline carrying no marks", () => {
+    // A lab record with no denominator is a date, not a component.
+    const p = solveSubjectPlan(partial, [], "A", { deadlines: [dl("Lab record", "2026-10-20", null)] });
+    expect(p.components.some((c) => c.label === "Lab record")).toBe(false);
+  });
+
+  it("orders what's next across planned and adopted alike", () => {
+    const p = solveSubjectPlan(partial, [], "A", {
+      deadlines: [dl("CT-1", "2026-11-01", 15), dl("Surprise quiz", "2026-10-20", 5)],
+    });
+    expect(p.next?.label).toBe("Surprise quiz");
+  });
+});
+
+/** Mirrors the engine's own label normalisation, for assertions. */
+function normalise(s: string): string {
+  return s.trim().toLowerCase().replace(/[\s_-]+/g, "");
+}
+
+describe("assuming the end-sem, and solving the internals against it", () => {
+  const full = subject({
+    internal: 60,
+    components: plan([["Assignment", 5], ["CT-1", 15], ["CT-2", 15], ["Lab", 10], ["Model", 15]]),
+  });
+  const solve = (marks: Mark[], pct: number | null, target: Grade = "A") =>
+    solveSubjectPlan(full, marks, target, { assumedExternalPct: pct });
+
+  it("hands the end-sem a fixed score and asks the internals for the rest", () => {
+    // 85% of the 40-mark exam is 34. An A is 71, so the internals have
+    // to find 37 of their 60 — 62%, not the 71% an even spread wants.
+    const p = solve([], 85);
+    expect(p.assumedExternal).toBeCloseTo(34, 6);
+    expect(p.needed).toBeCloseTo(37, 6);
+    expect(p.requiredRate).toBeCloseTo(37 / 60, 6);
+
+    const ext = p.components.find((c) => c.kind === "external")!;
+    expect(ext.assumed).toBeCloseTo(34, 6);
+    expect(ext.required).toBeNull(); // it is assumed, not asked
+
+    expect(needs(p)).toEqual({
+      Assignment: 3.08,
+      "CT-1": 9.25,
+      "CT-2": 9.25,
+      Lab: 6.17,
+      Model: 9.25,
+    });
+  });
+
+  it("asks more of the internals when you expect less of the exam", () => {
+    const optimistic = solve([], 90);
+    const pessimistic = solve([], 50);
+    expect(pessimistic.requiredRate!).toBeGreaterThan(optimistic.requiredRate!);
+    expect(solve([], null).requiredRate!).toBeGreaterThan(optimistic.requiredRate!);
+  });
+
+  it("leaves the bracket alone — an assumption cannot flatter the forecast", () => {
+    const marks = [mark("Assignment", 5, 5), mark("CT-1", 2, 15)];
+    const withAssumption = solve(marks, 90);
+    const without = solve(marks, null);
+    expect(withAssumption.banked).toBe(without.banked);
+    expect(withAssumption.floor).toBe(without.floor);
+    expect(withAssumption.ceiling).toBe(without.ceiling);
+    expect(withAssumption.pace).toBe(without.pace);
+    expect(withAssumption.paceRate).toBe(without.paceRate);
+  });
+
+  it("re-solves the internals as results land, same as ever", () => {
+    const p = solve([mark("Assignment", 5, 5), mark("CT-1", 2, 15)], 85);
+    // 7 banked + 34 assumed = 41. An A wants 30 more from the 40
+    // internal marks left.
+    expect(p.needed).toBeCloseTo(30, 6);
+    expect(p.requiredRate).toBeCloseTo(0.75, 6);
+    expect(needs(p)).toEqual({ "CT-2": 11.25, Lab: 7.5, Model: 11.25 });
+  });
+
+  it("prices every grade against the same assumption", () => {
+    const p = solve([], 85);
+    const row = (g: string) => p.perGrade.find((x) => x.grade === g)!;
+    expect(row("C").needed).toBeCloseTo(16, 6); // 50 − 34
+    expect(row("O").needed).toBeCloseTo(57, 6); // 91 − 34
+    // 57 of the 60 internal marks is punishing but possible.
+    expect(row("O").achievable).toBe(true);
+    expect(row("O").rate).toBeCloseTo(57 / 60, 6);
+  });
+
+  it("drops the assumption once the real mark is in", () => {
+    // An assumption about a paper that has been marked is worth nothing.
+    const p = solve([mark("End sem", 20, 40, true)], 85);
+    expect(p.assumedExternal).toBeNull();
+    expect(p.components.find((c) => c.kind === "external")!.assumed).toBeNull();
+    expect(p.banked).toBe(20);
+  });
+
+  it("has nothing to assume in a wholly internal subject", () => {
+    const internalOnly = subject({ internal: 100, components: plan([["CT-1", 100]]) });
+    const p = solveSubjectPlan(internalOnly, [], "A", { assumedExternalPct: 85 });
+    expect(p.assumedExternal).toBeNull();
+    expect(p.requiredRate).toBeCloseTo(0.71, 6);
+  });
+
+  it("clamps a nonsense assumption rather than propagating it", () => {
+    expect(solve([], 400).assumedExternal).toBe(40);
+    expect(solve([], -50).assumedExternal).toBe(0);
+    expect(solve([], NaN).assumedExternal).toBeNull();
+  });
+
+  it("says out of reach when the internals alone cannot cover the rest", () => {
+    // Expect little of the exam and an O stops being arithmetic.
+    const p = solve([], 10, "O");
+    expect(p.assumedExternal).toBeCloseTo(4, 6);
+    expect(p.needed).toBeCloseTo(87, 6); // more than the 60 internals hold
+    expect(p.status).toBe("out-of-reach");
+  });
+});
+

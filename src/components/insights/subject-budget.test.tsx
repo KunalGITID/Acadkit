@@ -276,4 +276,39 @@ describe("SubjectBudgetCard", () => {
     const tooFew = text(render([mark("Assignment", 5, 5), mark("CT-1", 14, 15)]));
     expect(tooFew).not.toMatch(/At your pace \d+\/100 \w\+? \d+–\d+/);
   });
+
+  it("adopts a deadline you logged with marks, without retyping it", () => {
+    const quiz: Deadline = {
+      id: "d9", device_id: "1234", subject_id: "s1", title: "Surprise quiz",
+      type: "other", due_date: "2026-10-20T09:00:00.000Z",
+      status: "pending", priority: "low", max_marks: 5,
+    };
+    const t = text(renderFor(SUBJECT, [], { deadlines: [quiz] }));
+    expect(t).toContain("Surprise quiz");
+    expect(t).toContain("20 Oct");
+    expect(t).toContain("Next up: Surprise quiz on 20 Oct");
+  });
+
+  it("shows the end-sem as assumed rather than asked", () => {
+    const report = buildProjection(
+      [SUBJECT], [], [], [], [],
+      "2026-09-15",
+      { start: "2026-09-01", end: "2026-11-30" },
+      8.5,
+      [],
+      85
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const t = text(
+      renderToStaticMarkup(
+        <QueryClientProvider client={qc}>
+          <SubjectBudgetCard p={report.gradeProjections[0]} index={0} />
+        </QueryClientProvider>
+      )
+    );
+    expect(t).toContain("End semester assumed 34/40");
+    expect(t).toContain("Solved assuming the end-sem returns 34/40");
+    // 71 − 34 = 37 across the 60 internal marks.
+    expect(t).toContain("CT-1 9.5/15");
+  });
 });
