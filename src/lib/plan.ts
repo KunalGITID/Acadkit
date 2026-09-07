@@ -138,7 +138,12 @@ export function assessmentFor(subject: Subject): Assessment {
  * guessing wrong costs an icon, not a number.
  */
 export function inferType(label: string): MarkComponentType {
-  const l = label.toLowerCase();
+  const l = label.trim().toLowerCase();
+  // SRM's own names first: FT/FJ are the formative tests, LLT/LLJ the
+  // life-long-learning ones. Without these, a plan typed in the
+  // institution's vocabulary came out labelled CT.
+  if (/^ll[tj]\b|^ll[tj]-/.test(l)) return "Lab";
+  if (/^f[tj]\b|^f[tj]-/.test(l)) return "CT";
   if (l.includes("lab") || l.includes("prac")) return "Lab";
   if (l.includes("assign") || l.includes("hw") || l.includes("home")) return "Assignment";
   if (l.includes("project") || l.includes("mini")) return "Project";
@@ -393,40 +398,40 @@ const EXTERNAL_ALIASES = new Set([
 ]);
 
 /**
- * Match deadlines onto components, then adopt the rest.
+ * Match deadlines onto components, then adopt what is left over — but
+ * only into weight that is actually free.
  *
- * Matching is by name, and only by name. An earlier version also
- * paired on weight where it was unambiguous on both sides, to date a
- * planned component from a differently-named deadline — but once
- * leftovers are adopted that trade stops being worth making. "Surprise
- * quiz, 5 marks" and a planned "Assignment, 5 marks" are not the same
- * test, and guessing they are loses the quiz from the budget *and*
- * puts a wrong date on the assignment. Adopting instead can only
- * over-count, which shows up as two rows you can merge by renaming one.
- * Between a silent error and a visible one, take the visible one.
+ * Matching is by name, since that is the pairing you control directly.
+ * Whatever matches nothing becomes a component of its own, because you
+ * already record every exam in Deadlines and the "out of" field there
+ * is exactly the weight the budget wants: a test announced late and
+ * typed in once should not have to be typed again into the plan.
  *
- * Whatever matches nothing becomes a component. You already record
- * every exam in Deadlines, and the optional "out of" field is exactly
- * the weight the budget wants, so a test announced late and typed in
- * once should not have to be typed again into the assessment plan.
- * Anything already graded, and anything named like the end-sem, is left
- * alone — the first has happened, and the second is the external weight
- * the budget already models.
+ * The cap is the part that matters. A subject whose plan already fills
+ * its internal weight — 5 + 15 + 15 + 15 + 10 against a 60 — has no
+ * room for a sixth component, and adopting one anyway pushed the
+ * declared total to 75 and scaled *every existing row down to fit*. A
+ * 5-mark FT-1 started reporting itself out of 4. One deadline silently
+ * rewrote the whole plan, which is a far worse outcome than the missing
+ * date it was trying to supply.
+ *
+ * So adoption spends the unannounced bucket and stops when it is empty.
+ * A deadline that cannot be adopted falls back to dating an existing
+ * component by weight, and only where that is unambiguous on both
+ * sides — "the other 15-mark one" is a guess, and a wrong date on a
+ * real test is worse than no date.
  */
 function claimDeadlines(
   raw: Array<{ label: string; max: number; obtained: number | null; date: string | null; key: string; type: MarkComponentType; kind: ComponentKind }>,
   deadlines: Deadline[],
-  internalMarks: Mark[]
+  internalMarks: Mark[],
+  internalWeight: number
 ): void {
-  // A date alone is enough to date a component you already planned.
-  // Becoming a component in its own right takes a weight as well —
-  // there is nothing to budget without one.
   const dated = deadlines.filter((d) => d.due_date);
   if (dated.length === 0) return;
   const weighed = dated.filter(
     (d) => Number.isFinite(Number(d.max_marks)) && Number(d.max_marks) > 0
   );
-
 
   const taken = new Set<string>();
   const pending = () => raw.filter((c) => c.obtained === null);
@@ -440,22 +445,43 @@ function claimDeadlines(
     }
   }
 
-  // 2. Adopt the leftovers.
+  // 2. Adopt into free weight; failing that, date by an unambiguous
+  //    weight match rather than distorting the plan to fit.
   const graded = new Set(internalMarks.map((m) => normLabel(m.label)));
+  let claimed = raw.reduce((sum, c) => sum + c.max, 0);
+
   for (const d of weighed) {
     if (taken.has(d.id)) continue;
     const key = normLabel(d.title);
     if (graded.has(key) || EXTERNAL_ALIASES.has(key)) continue;
     if (raw.some((c) => normLabel(c.label) === key)) continue;
-    raw.push({
-      key: `deadline:${d.id}`,
-      label: d.title,
-      type: inferType(d.title),
-      kind: "deadline",
-      max: Number(d.max_marks),
-      obtained: null,
-      date: d.due_date.slice(0, 10),
-    });
+
+    const max = Number(d.max_marks);
+    if (claimed + max <= internalWeight + 1e-9) {
+      taken.add(d.id);
+      claimed += max;
+      raw.push({
+        key: `deadline:${d.id}`,
+        label: d.title,
+        type: inferType(d.title),
+        kind: "deadline",
+        max,
+        obtained: null,
+        date: d.due_date.slice(0, 10),
+      });
+      continue;
+    }
+
+    // No room. The plan is the contract; the deadline can still say
+    // when — but only where nothing on either side could be meant
+    // instead. Three 15-mark components and a 15-mark deadline is a
+    // guess, and a wrong date on a real test is worse than no date.
+    const rivals = pending().filter((c) => c.date === null && c.max === max);
+    const others = weighed.filter((o) => !taken.has(o.id) && Number(o.max_marks) === max);
+    if (rivals.length === 1 && others.length === 1) {
+      taken.add(d.id);
+      rivals[0].date = d.due_date.slice(0, 10);
+    }
   }
 }
 
@@ -582,7 +608,7 @@ function budgetFor(
   // leftovers means a test announced last week and typed into Deadlines
   // shows up in the budget without being typed again into the plan —
   // the deadline *is* the announcement.
-  claimDeadlines(raw, deadlines, internalMarks);
+  claimDeadlines(raw, deadlines, internalMarks, internalWeight);
 
   // ---- fit the declared internals onto the internal weight ----  // ---- fit the declared internals onto the internal weight ----
   const declaredMax = raw.reduce((s, c) => s + c.max, 0);

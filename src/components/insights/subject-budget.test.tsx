@@ -293,15 +293,42 @@ describe("SubjectBudgetCard", () => {
   });
 
   it("adopts a deadline you logged with marks, without retyping it", () => {
+    // A subject with room: 20 of its 60 internal marks are still
+    // unannounced, so a 5-mark test can take its share of them.
+    const roomy: Subject = {
+      ...SUBJECT,
+      assessment: {
+        internal: 60,
+        complete: false,
+        components: [{ key: "c1", label: "CT-1", type: "CT", max: 40 }],
+      },
+    };
     const quiz: Deadline = {
       id: "d9", device_id: "1234", subject_id: "s1", title: "Surprise quiz",
       type: "other", due_date: "2026-10-20T09:00:00.000Z",
       status: "pending", priority: "low", max_marks: 5,
     };
-    const t = text(renderFor(SUBJECT, [], { deadlines: [quiz] }));
+    const t = text(renderFor(roomy, [], { deadlines: [quiz] }));
     expect(t).toContain("Surprise quiz");
     expect(t).toContain("20 Oct");
     expect(t).toContain("Next up: Surprise quiz on 20 Oct");
+  });
+
+  it("will not let a deadline rewrite a plan that is already full", () => {
+    // SUBJECT's five components fill its 60 exactly. Adopting a sixth
+    // pushed the declared total to 75 and scaled every existing row
+    // down to fit, so a 5-mark assignment started reporting itself out
+    // of 4 — one deadline silently rewriting the whole plan.
+    const exam: Deadline = {
+      id: "dfull", device_id: "1234", subject_id: "s1", title: "21CSS202T Exam",
+      type: "exam", due_date: "2026-09-16T09:00:00.000Z",
+      status: "pending", priority: "high", max_marks: 15,
+    };
+    const t = text(renderFor(SUBJECT, [], { deadlines: [exam] }));
+    expect(t).toContain("Assignment 4/5"); // still out of 5, not 4
+    expect(t).toContain("CT-1 11/15"); // still out of 15, not 12
+    expect(t).not.toContain("21CSS202T Exam");
+    expect(t).not.toContain("scaled onto");
   });
 
   it("shows the end-sem as assumed rather than asked", () => {

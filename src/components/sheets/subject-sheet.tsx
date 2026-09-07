@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { AssessmentEditor } from "@/components/sheets/assessment-editor";
 import { editableAssessment, inferType } from "@/lib/plan";
+import { isLabIntegrated } from "@/lib/componentLabel";
 import { abbreviate } from "@/lib/subjectName";
 import { useDialog } from "@/components/ui/dialog";
-import { useAddSubject, useDeleteSubject, useUpdateSubject } from "@/hooks/useData";
+import { useAddSubject, useDeleteSubject, useTimetable, useUpdateSubject } from "@/hooks/useData";
 import { cn } from "@/lib/utils";
 import type { Assessment, Subject } from "@/types";
 
@@ -26,6 +27,7 @@ interface SubjectSheetProps {
 
 export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
   const { confirm } = useDialog();
+  const { data: timetable } = useTimetable();
   const add = useAddSubject();
   const update = useUpdateSubject();
   const remove = useDeleteSubject();
@@ -129,7 +131,11 @@ export function SubjectSheet({ open, onClose, subject }: SubjectSheetProps) {
           </Field>
         </div>
         <Field label="Marks structure">
-          <AssessmentEditor value={assessment} onChange={setAssessment} />
+          <AssessmentEditor
+            value={assessment}
+            onChange={setAssessment}
+            labIntegrated={isLabIntegrated({ id: subject?.id ?? "", code }, timetable ?? [])}
+          />
         </Field>
 
         <Field label="Attendance">

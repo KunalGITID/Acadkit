@@ -5,13 +5,17 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
-import { useAddMark, useDeleteMark, useUpdateMark } from "@/hooks/useData";
+import { useAddMark, useDeleteMark, useTimetable, useUpdateMark } from "@/hooks/useData";
 import type { Mark, MarkComponentType, Subject } from "@/types";
+import {
+  AUTO_LABEL,
+  isLabIntegrated,
+  nextComponentLabel,
+} from "@/lib/componentLabel";
 
 const INTERNAL_TYPES = ["CT", "Lab", "Assignment", "Project"] as const;
 
 /** "CT-1", "Assignment-2", … */
-const AUTO_LABEL = /^(CT|Lab|Assignment|Project)-\d+$/;
 
 interface MarkSheetProps {
   open: boolean;
@@ -24,6 +28,10 @@ interface MarkSheetProps {
 }
 
 export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetProps) {
+  const { data: timetable } = useTimetable();
+  // Lab-integrated courses name their components FJ/LLJ where theory
+  // courses use FT/LLT. See src/lib/componentLabel.ts.
+  const labIntegrated = subject ? isLabIntegrated(subject, timetable ?? []) : false;
   const add = useAddMark();
   const update = useUpdateMark();
   const remove = useDeleteMark();
@@ -33,10 +41,8 @@ export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetP
   const [obtained, setObtained] = useState("");
   const [max, setMax] = useState("");
 
-  function nextLabel(type: MarkComponentType): string {
-    const count = existing.filter((m) => !m.is_external && m.component_type === type).length;
-    return `${type}-${count + 1}`;
-  }
+  const nextLabel = (type: MarkComponentType) =>
+    nextComponentLabel(type, labIntegrated, existing);
 
   useEffect(() => {
     if (!open) return;

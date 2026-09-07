@@ -151,6 +151,17 @@ constraint. Pinned in `grades.test.ts` because it is a regulation, not
 a derivation: nothing in the code implies it, and if it ever changed a
 minimum would have to be threaded through every solve.
 
+**Components are named the way SRM names them**
+(`src/lib/componentLabel.ts`). A theory course's internals are FT-n and
+LLT-n; a lab-integrated one's are FJ-n and LLJ-n. Which a subject is
+comes from the timetable — a lab slot makes it integrated — falling
+back to the letter already in the course code (`21CSS202T` theory,
+`21CSC202J` joint) for a subject whose slots aren't entered yet.
+Generating "CT-1" meant every plan had to be renamed by hand to match
+what faculty announce, and a plan whose labels don't match your
+deadlines cannot be matched *to* them either. `inferType` reads the
+same vocabulary in reverse.
+
 **A test logged in Deadlines is an announced component.** You already
 record every exam there, and the optional "out of" field is exactly the
 weight the budget wants, so a deadline the plan has never heard of is
@@ -163,7 +174,15 @@ were adopted, because "Surprise quiz, 5 marks" and a planned
 quiz *and* misdates the assignment. Adopting can only over-count, which
 shows as two rows you merge by renaming one. Prefer the visible error.
 Titles that mean the end-sem are never adopted — that paper is the
-external weight already.
+external weight already. Neither is anything that will not fit:
+adoption spends the unannounced bucket and stops when it is empty. A
+plan that already fills its weight (5+15+15+15+10 against a 60) has no
+room for a sixth component, and adopting one anyway pushed the declared
+total to 75 and scaled *every existing row down to fit* — a 5-mark
+FT-1 reporting itself out of 4, one deadline silently rewriting the
+whole plan. A deadline with nowhere to go falls back to dating an
+existing component by weight, and only where that is unambiguous on
+both sides.
 
 The end-sem expectation is editable **on the Insights card itself** —
 the End semester row is a field, not a number. Type what you expect the

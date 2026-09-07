@@ -1,6 +1,7 @@
 import { Plus, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { inferType } from "@/lib/plan";
+import { labelPrefix } from "@/lib/componentLabel";
 import { cn } from "@/lib/utils";
 import type { Assessment, PlannedComponent } from "@/types";
 
@@ -24,14 +25,28 @@ const PRESETS: Array<{ label: string; internal: number }> = [
   { label: "All internal", internal: 100 },
 ];
 
+/** The next unused F-family name, so rows come out numbered. */
+function nextPlannedLabel(components: PlannedComponent[], labIntegrated: boolean): string {
+  const prefix = labelPrefix("CT", labIntegrated);
+  const taken = new Set(components.map((c) => c.label.trim().toUpperCase()));
+  for (let n = 1; n <= components.length + 1; n++) {
+    const candidate = `${prefix}-${n}`;
+    if (!taken.has(candidate.toUpperCase())) return candidate;
+  }
+  return `${prefix}-${components.length + 1}`;
+}
+
 const newKey = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 export function AssessmentEditor({
   value,
   onChange,
+  labIntegrated = false,
 }: {
   value: Assessment;
   onChange: (next: Assessment) => void;
+  /** Lab-integrated courses name components FJ/LLJ, theory ones FT/LLT. */
+  labIntegrated?: boolean;
 }) {
   const planned = value.components.reduce((s, c) => s + (Number(c.max) || 0), 0);
   const unclaimed = value.internal - planned;
@@ -90,7 +105,7 @@ export function AssessmentEditor({
             <div key={c.key} className="flex items-center gap-2">
               <Input
                 value={c.label}
-                placeholder="CT-1"
+                placeholder={labelPrefix("CT", labIntegrated) + "-1"}
                 aria-label={`Component ${i + 1} name`}
                 onChange={(e) =>
                   setRow(i, { label: e.target.value, type: inferType(e.target.value) })
@@ -126,7 +141,10 @@ export function AssessmentEditor({
                   ...value.components,
                   {
                     key: newKey(),
-                    label: "",
+                    // Prefilled in the dialect this course actually
+                    // uses, so the plan's names match the ones faculty
+                    // announce — and therefore the deadlines you log.
+                    label: nextPlannedLabel(value.components, labIntegrated),
                     type: "CT",
                     max: Math.max(0, Math.min(15, unclaimed)),
                   },
