@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { getStoredPin } from "@/lib/pin";
+import { isStaleChunkError, recoverFromStaleChunk } from "@/lib/staleChunk";
 
 /**
  * Best-effort crash reporting.
@@ -124,12 +125,16 @@ export function installGlobalErrorHandlers(): void {
   installed = true;
 
   window.addEventListener("unhandledrejection", (e) => {
+    // A dynamic import that lost its chunk to a deploy surfaces here
+    // when nothing rendered it — same non-crash, same fix.
+    if (isStaleChunkError(e.reason) && recoverFromStaleChunk()) return;
     void fileReport(buildReport(e.reason, "unhandled rejection"));
   });
   window.addEventListener("error", (e) => {
     // Resource load failures (a dead <img>) fire here too and carry no
     // Error; they are not crashes and would drown the real ones.
     if (!e.error) return;
+    if (isStaleChunkError(e.error) && recoverFromStaleChunk()) return;
     void fileReport(buildReport(e.error, "uncaught error"));
   });
 }

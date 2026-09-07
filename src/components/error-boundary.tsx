@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { buildReport, fileReport } from "@/lib/crashLog";
+import { isStaleChunkError, recoverFromStaleChunk } from "@/lib/staleChunk";
 
 interface Props {
   children: ReactNode;
@@ -23,6 +24,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
+    // A chunk that 404s after a deploy is not a crash, it is a stale
+    // document. Reload rather than blaming the screen. See staleChunk.ts.
+    if (isStaleChunkError(error) && recoverFromStaleChunk()) return;
     this.setState({ componentStack: info.componentStack ?? "" });
     void fileReport(buildReport(error, info.componentStack));
   }

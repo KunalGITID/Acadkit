@@ -596,6 +596,25 @@ runs with no `.env.local` and never touches the real project. Realtime is
 not implemented — supabase-js retries a websocket in the background and the
 UI carries on without it.
 
+### Deploying under a running app — `src/lib/staleChunk.ts`
+
+Every page is `lazy()`-loaded, so the running app fetches a chunk by
+its hashed filename at the moment you navigate. Deploy in between and
+that filename is gone: the open document asks for the old name and the
+server no longer has it. `vercel.json` used to rewrite *every* miss to
+`index.html`, so the browser was handed HTML where it expected a module
+and reported `'text/html' is not a valid JavaScript MIME type` — a
+confusing way to say 404, and a crash screen for something that is not
+a crash. The rewrite now excludes `/assets/`, so a missing chunk fails
+as a plain 404.
+
+Either way the app self-heals: the error boundary and the global
+handlers recognise the stale-chunk signatures and reload instead of
+showing the crash screen. There is no state to preserve and no decision
+to make — reloading is what the user would have been told to do. Once
+only, guarded in `sessionStorage`: a second identical failure is a
+broken deploy rather than a stale one, and someone should see that.
+
 ### PWA
 
 `vite.config.ts` via `vite-plugin-pwa`: Supabase calls cached NetworkFirst (5s timeout), Google Fonts CacheFirst. On Node 18 the service worker is intentionally built unminified (workbox `mode` switch) because workbox's terser worker needs global webcrypto.
