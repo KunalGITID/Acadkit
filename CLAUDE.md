@@ -241,6 +241,11 @@ can't silently disagree.
 
 Eleven lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/history`, `/wrapped`, `/compare`, `/settings`) plus `Onboarding` and `SignIn`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/history`, `/wrapped`, `/compare`) is listed inline in the sidebar on desktop and reached through the **More** sheet on mobile, which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
 
+Marks is now a single view — the segmented Marks/Calculator switcher,
+its slide animation and the swipe between the two went with the
+calculators themselves. A two-tab control whose second tab is empty is
+worse than no control.
+
 **Everything grade-shaped lives on `/insights`.** The Marks page used to
 carry its own calculator strip (`components/marks/calculators.tsx`) —
 "what do I need in the end-sem", a target-SGPA table, and a CGPA pad —

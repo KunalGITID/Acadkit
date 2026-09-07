@@ -293,15 +293,18 @@
     box-shadow: none;
   }
 
-  /* The bottom bar detaches into a floating pill. */
+  /* The bottom bar sits on the screen edge, full width.
+     
+     It used to detach into a floating pill — inset from the sides and
+     lifted off the bottom — which left a live strip of page below it.
+     Content scrolled *under* the bar in that gap rather than behind it,
+     so a subject card's last line and the tail of the attendance ring
+     showed through beneath the nav. That reads as a rendering fault
+     rather than a decision, and no amount of opacity fixes it: the gap
+     is the problem, not the background. Flush to the edge, there is no
+     gap to show anything in. */
   [data-theme="brutalist"] nav[aria-label="Primary"].glass {
-    inset-inline: 0.75rem;
-    bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
-    border: 1.5px solid hsl(var(--line) / 0.14);
-    border-radius: 9999px;
-    padding-bottom: 0;
-    /* Opaque: at 0.92 over no blur, content slides visibly under the
-       pill instead of passing behind it. */
+    border-top: 1.5px solid hsl(var(--line) / 0.14);
     background: hsl(var(--surface));
   }
   /* …and its active indicator from a soft rectangle to a solid disc. */

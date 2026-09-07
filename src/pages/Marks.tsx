@@ -2,7 +2,7 @@ import { listEntry } from "@/lib/enter";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Pencil, Plus, Share2, Target, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Dot, Skeleton } from "@/components/ui/misc";
@@ -18,12 +18,8 @@ import {
   useSettings,
   useSubjects,
 } from "@/hooks/useData";
-import { Segmented } from "@/components/ui/segmented";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
-import { useSwipe } from "@/hooks/useSwipe";
-import { slideTransition, slideVariants } from "@/lib/slide";
-import { SwipeHint } from "@/components/ui/swipe-hint";
 import { groupMarksBySubject } from "@/lib/grades";
 import { computeSgpa, floorTotal, type SubjectOutlook } from "@/lib/plan";
 import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
@@ -210,21 +206,6 @@ export default function Marks() {
   const { data: pageSettings } = useSettings();
   const targetSgpa = pageSettings?.target_sgpa ?? 8.5;
 
-  const [view, setView] = useState<"marks" | "calculator">("marks");
-  // The segmented control stays; this just means you don't have to
-  // reach for it.
-  // Direction drives the slide, so content moves the way you pushed it.
-  const [dir, setDir] = useState(0);
-  const [swiped, setSwiped] = useState(false);
-  const goView = (next: "marks" | "calculator", delta: number) => {
-    setDir(delta);
-    setSwiped(true);
-    setView(next);
-  };
-  const marksSwipe = useSwipe(
-    () => goView("calculator", 1),
-    () => goView("marks", -1)
-  );
   const [sheetSubject, setSheetSubject] = useState<Subject | null>(null);
   const [sheetMark, setSheetMark] = useState<Mark | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -260,38 +241,10 @@ export default function Marks() {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Segmented
-            layoutId="marks-view"
-            options={[
-              { value: "marks", label: "Marks" },
-              { value: "calculator", label: "Calculator" },
-            ]}
-            value={view}
-            onChange={(v) =>
-              goView(v as "marks" | "calculator", v === "calculator" ? 1 : -1)
-            }
-            className="min-w-0 flex-1 sm:w-56 sm:flex-none"
-          />
-          <ShareButton rows={result.rows} sgpa={result.sgpa} />
-        </div>
+        <ShareButton rows={result.rows} sgpa={result.sgpa} />
       </div>
 
-      <SwipeHint id="marks" dismissed={swiped} />
-
-      <div data-swipe {...marksSwipe}>
-      <AnimatePresence mode="popLayout" initial={false} custom={dir}>
-        {view === "marks" ? (
-          <motion.div
-            key="marks-view"
-            custom={dir}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={slideTransition}
-            className="space-y-4"
-          >
+      <div className="space-y-4">
             <section className="card flex flex-col items-center gap-2 p-6 lg:flex-row lg:justify-between lg:px-10">
               <SgpaDial sgpa={result.sgpa} />
               <div className="flex flex-col items-center gap-1 lg:items-end">
@@ -342,21 +295,7 @@ export default function Marks() {
                   }}
                 />
               ))}
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div
-            key="calculator-view"
-            custom={dir}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={slideTransition}
-          >
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
       </div>
 
       <MarkSheet
