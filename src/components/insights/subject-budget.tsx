@@ -15,6 +15,7 @@ import {
 import { GRADE_COLORS, GRADE_TABLE } from "@/lib/grades";
 import type { SubjectGradeProjection } from "@/lib/projections";
 import { Dot } from "@/components/ui/misc";
+import { WhatIf } from "@/components/insights/what-if";
 import { formatDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import type { Grade } from "@/types";
@@ -83,12 +84,28 @@ function TargetPicker({ p }: { p: SubjectGradeProjection }) {
  * on every render from the current solve — a result landing anywhere
  * rewrites every row below it.
  */
-function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
+function ComponentRow({
+  c,
+  status,
+  subjectId,
+}: {
+  c: SolvedComponent;
+  status: string;
+  subjectId: string;
+}) {
   const graded = c.obtained !== null;
   const assumed = c.assumed !== null;
   const impossible = c.required !== null && c.required > c.max + 1e-9;
+  /**
+   * A row you can ask the other question of.
+   *
+   * Only where there is something to imagine: a graded component has an
+   * answer already, and one worth nothing has nothing to move.
+   */
+  const askable = !graded && c.max > 0;
+  const [open, setOpen] = useState(false);
 
-  return (
+  const row = (
     <div
       className={cn(
         "flex items-baseline justify-between gap-3 rounded-xl px-3 py-2 text-sm",
@@ -157,6 +174,32 @@ function ComponentRow({ c, status }: { c: SolvedComponent; status: string }) {
           </span>
         )}
       </span>
+    </div>
+  );
+
+  if (!askable) return row;
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="w-full text-left"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {row}
+      </button>
+      {open && (
+        <WhatIf
+          subjectId={subjectId}
+          component={{
+            label: c.label,
+            type: c.type,
+            max: c.max,
+            isExternal: c.kind === "external",
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -593,7 +636,7 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
             c.kind === "external" && c.obtained === null ? (
               <EndSemRow key={c.key} p={p} c={c} />
             ) : (
-              <ComponentRow key={c.key} c={c} status={p.plan.status} />
+              <ComponentRow key={c.key} c={c} status={p.plan.status} subjectId={p.subject.id} />
             )
           )}
         </div>
