@@ -34,9 +34,21 @@ export default function Timetable() {
   const settled = useHasAnimated("timetable-slots");
   const { data: timetable, isLoading: tLoading } = useTimetable();
   const { data: subjects, isLoading: sLoading } = useSubjects();
-  const { info } = useToday();
+  /**
+   * Today, not "the day worth showing".
+   *
+   * `useToday().info` rolls forward to the next working day once
+   * today's classes are done — right for the dashboard, which labels it
+   * "Up next", and wrong here twice over. It opened this page on
+   * tomorrow's tab as though the week had turned, and then, because the
+   * live badges below ask whether the day being viewed is today, it
+   * compared tomorrow's slots against this afternoon's clock: at 2pm on
+   * a Day Order 3 that ended at 12:30, Day Order 4's 1:25 class was
+   * badged "now".
+   */
+  const { today } = useToday();
 
-  const [dayOrder, setDayOrder] = useState(info.dayOrder ?? 1);
+  const [dayOrder, setDayOrder] = useState(today.dayOrder ?? 1);
   // Days 1-5 wrap, because reaching the end and being stuck reads as
   // broken when the control right above you clearly has five options.
   const [swiped, setSwiped] = useState(false);
@@ -64,7 +76,9 @@ export default function Timetable() {
     const t = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(t);
   }, []);
-  const isToday = info.dayOrder === dayOrder;
+  // A finished day needs no special case: every slot simply reads
+  // "past", which is what it is.
+  const isToday = today.dayOrder === dayOrder;
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const toMin = (t: string) => {
     const [h, m] = t.split(":").map(Number);
@@ -120,7 +134,7 @@ export default function Timetable() {
         options={[1, 2, 3, 4, 5].map((d) => ({
           value: d,
           label: `Day ${d}`,
-          highlight: info.dayOrder === d,
+          highlight: today.dayOrder === d,
         }))}
         value={dayOrder}
         onChange={setDayOrder}

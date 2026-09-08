@@ -27,6 +27,15 @@ function slotsForDayOrder(
  * Once every one of today's classes has ended, this rolls forward to
  * the next working day's schedule so the dashboard shows what's next
  * instead of a stale, fully-past list.
+ *
+ * That roll-forward makes `info` and `slots` describe a day that is not
+ * necessarily today, which is a trap for anything comparing them
+ * against the clock: at 2pm on a Day Order 3 whose classes ended at
+ * 12:30, `info` is Day Order 4 and its 1:25 slot looks like it is
+ * running right now. `today` is the same reading *without* the
+ * roll-forward, and it is what any screen answering "what day is it"
+ * or "is this class happening" must use. `isNextDay` says which of the
+ * two `info` currently is.
  */
 export function useToday() {
   const [now, setNow] = useState(() => new Date());
@@ -83,5 +92,5 @@ export function useToday() {
     ? slotsForDayOrder(next.dayOrder, timetable, subjects)
     : todaySlots;
 
-  return { date: info.date, info, slots, declared, isNextDay };
+  return { date: info.date, info, today: todayInfo, slots, declared, isNextDay };
 }

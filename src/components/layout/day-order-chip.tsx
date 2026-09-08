@@ -5,9 +5,17 @@ import { daysUntilSemesterStart, semesterWindow } from "@/lib/calendar";
 import { useSettings } from "@/hooks/useData";
 import { cn } from "@/lib/utils";
 
-/** Compact "today" status: Day Order, holiday, weekend or countdown. */
+/**
+ * Compact "today" status: Day Order, holiday, weekend or countdown.
+ *
+ * Deliberately `today` rather than `info`: the latter rolls forward to
+ * the next working day once today's classes are done, so this chip —
+ * which is read as "what day is it" from every screen in the app —
+ * would start announcing tomorrow's Day Order in the middle of this
+ * afternoon.
+ */
 export function DayOrderChip({ expanded = false }: { expanded?: boolean }) {
-  const { info } = useToday();
+  const { today: info } = useToday();
   const { data: settings } = useSettings();
 
   let icon: React.ReactNode;
