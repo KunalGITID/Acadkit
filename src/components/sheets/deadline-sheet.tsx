@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -7,12 +7,16 @@ import { Segmented } from "@/components/ui/segmented";
 import {
   useAddDeadline,
   useDeleteDeadline,
+  useSettings,
   useSubjects,
+  useTimetable,
   useUpdateDeadline,
 } from "@/hooks/useData";
 import { derivedTitle } from "@/lib/deadlines";
 import { assessmentFor, normLabel } from "@/lib/plan";
+import { getDayInfo, semesterWindow } from "@/lib/calendar";
 import { todayISO } from "@/lib/dates";
+import { DEFAULT_DUE_TIME, describeDueTime, suggestDueTime } from "@/lib/dueTime";
 import type { Deadline, DeadlinePriority, DeadlineType } from "@/types";
 
 interface DeadlineSheetProps {
@@ -25,6 +29,8 @@ interface DeadlineSheetProps {
 
 export function DeadlineSheet({ open, onClose, deadline, defaultDate }: DeadlineSheetProps) {
   const { data: subjects } = useSubjects();
+  const { data: timetable } = useTimetable();
+  const { data: settings } = useSettings();
   const add = useAddDeadline();
   const update = useUpdateDeadline();
   const remove = useDeleteDeadline();
@@ -33,7 +39,9 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
   const [type, setType] = useState<DeadlineType>("assignment");
   const [priority, setPriority] = useState<DeadlinePriority>("medium");
   const [date, setDate] = useState(todayISO());
-  const [time, setTime] = useState("23:59");
+  const [time, setTime] = useState(DEFAULT_DUE_TIME);
+  /** Once you set a time by hand, the timetable stops overriding it. */
+  const [timeTouched, setTimeTouched] = useState(false);
   const [maxMarks, setMaxMarks] = useState("");
   /** Key of the planned component this deadline is, or "" for none. */
   const [componentKey, setComponentKey] = useState("");
@@ -52,6 +60,9 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
         `${String(due.getHours()).padStart(2, "0")}:${String(due.getMinutes()).padStart(2, "0")}`
       );
       setMaxMarks(deadline.max_marks != null ? String(deadline.max_marks) : "");
+      // An existing deadline's time was chosen once already; re-deriving
+      // it on open would quietly move a date you had settled.
+      setTimeTouched(true);
       // Re-select the component this deadline names, so editing doesn't
       // silently demote it back to a free-standing test.
       const owner = (subjects ?? []).find((s) => s.id === deadline.subject_id);
@@ -66,7 +77,8 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
       setType("assignment");
       setPriority("medium");
       setDate(defaultDate ?? todayISO());
-      setTime("23:59");
+      setTime(DEFAULT_DUE_TIME);
+      setTimeTouched(false);
       setMaxMarks("");
       setComponentKey("");
     }
@@ -76,6 +88,34 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
   const subject = (subjects ?? []).find((s) => s.id === subjectId);
   const components = subject ? assessmentFor(subject).components : [];
   const picked = components.find((c) => c.key === componentKey);
+
+  /**
+   * The due time the timetable implies, refreshed as you pick a
+   * subject, a type or a date.
+   *
+   * Depends on the two settings fields rather than the settings object,
+   * for the reason `useToday` gives: React Query hands back a new object
+   * on every refetch, so listing it would defeat the memo and rebuild
+   * the day-order map on every keystroke.
+   */
+  const declared = settings?.declared_holidays;
+  const semStart = settings?.sem_start ?? null;
+  const semEnd = settings?.sem_end ?? null;
+  const dayOrder = useMemo(
+    () =>
+      getDayInfo(date, declared ?? [], semesterWindow({ sem_start: semStart, sem_end: semEnd }))
+        .dayOrder,
+    [date, declared, semStart, semEnd]
+  );
+  const suggestion = useMemo(
+    () => suggestDueTime(type, subjectId || null, dayOrder, timetable ?? []),
+    [type, subjectId, dayOrder, timetable]
+  );
+
+  useEffect(() => {
+    if (!open || timeTouched) return;
+    setTime(suggestion ? suggestion.time : DEFAULT_DUE_TIME);
+  }, [open, timeTouched, suggestion]);
 
   /**
    * Point a deadline at a component you have already declared.
@@ -197,7 +237,17 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
           <Field label="Time">
-            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+            <Input
+              type="time"
+              value={time}
+              onChange={(e) => {
+                setTime(e.target.value);
+                setTimeTouched(true);
+              }}
+            />
+            {suggestion && !timeTouched && (
+              <p className="mt-1.5 text-[11px] text-muted">{describeDueTime(suggestion)}</p>
+            )}
           </Field>
         </div>
 

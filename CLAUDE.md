@@ -474,6 +474,19 @@ free of React:
   is still NOT NULL and still in the JSON export, so writes fill it with
   a derived `"<code> <Type>"` string via `derivedTitle`; older rows keep
   whatever was typed, but the UI no longer shows it.
+- **`src/lib/dueTime.ts`** — what time a deadline is actually due,
+  read off the timetable from its date, subject and type. Almost
+  nothing is due at 11:59pm: a lab record is due at the start of the
+  lab, an FT is written in the period it's scheduled in. Each type asks
+  the day for a different thing — `lab` for a lab period, `exam` for a
+  double (two of the subject's periods back to back, within a 10-minute
+  tolerance so a timetable typed as 09:00/10:00 still counts), and
+  `assignment` for any single one — and an exam that finds no double
+  settles for a single period before giving up. The fallback is 8:00am,
+  not midnight: a deadline with no period to anchor to is one to deal
+  with before classes start. Everything it returns is a *default* — the
+  deadline sheet stops re-deriving the moment you touch the time field,
+  and never re-derives an existing deadline's saved time.
 - **`src/lib/ics.ts`** — timetable → iCalendar. A day-order rotation
   can't be an RRULE, so every class is its own VEVENT; UIDs are stable
   so re-import updates rather than duplicates.
