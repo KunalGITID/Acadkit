@@ -557,6 +557,50 @@ free of React:
   sounds. The ladder is hidden until a semester is archived: with no
   prior record CGPA is just this semester's SGPA and every rung reads
   "need 8.5 for 8.5".
+- **`src/lib/portal/timetable.ts`** — the timetable grid, read off a
+  pasted portal page. Matches the *shape* (period columns, a first cell
+  naming a day order, cells holding codes), never a portal's markup,
+  which regenerates between deploys. Two rules make an import safe: a
+  cell is a class only if it names a subject you already have, so
+  nothing can invent a course and a legend can't become one; and times
+  are never guessed silently — header times, then the periods already
+  in your timetable, then standard hours with `assumedTimes` set so the
+  UI can say so. `importTimetable` in queries.ts **replaces** the week
+  rather than merging, because merging strands last term's slots on any
+  day the new grid doesn't cover. Attendance survives it: a record is
+  keyed by (subject, date, start_time), never by a slot row.
+- **`src/lib/timetableCheck.ts`** — whether your timetable matches the
+  one you actually attend. Everything forward-looking is counted off
+  those slots, so a missing one makes every projection quietly
+  optimistic with nothing on screen to say so. The portal's *conducted*
+  total is a second opinion that was already in the database. Measured
+  over the portal's own window rather than to today (its figure is a
+  week old as often as not, and the delay alone would manufacture a
+  gap) and through `buildEffectiveMap`, so a declared holiday shifts the
+  rotation instead of deleting a class. Deliberately a suspicion —
+  wide tolerance, hedged wording — with one case stated plainly: a
+  subject being taught that the timetable has never heard of.
+- **`src/lib/prep.ts`** — the free periods between now and a deadline.
+  Only gaps between scheduled classes: the evening before needs no app
+  to find, and inventing study hours outside the timetable is guessing
+  at someone's life rather than reading their week. Chronological, not
+  ranked by size — the question is when the next chance is.
+- **`src/lib/rangeMark.ts`** — one status across a stretch of days, for
+  the week you were away. The auto-mark walk with three differences: any
+  status, the future allowed, and one subject optionally. An answer you
+  gave by hand is never silently replaced (`replace` is opt-in), and
+  `describeRangePlan` states the count before the write rather than
+  after — a bulk attendance write moves every number in the app. Rows
+  are never `auto_marked`, so clearing the app's guesses can't clear a
+  week you marked deliberately.
+- **`src/lib/whatIf.ts`** — the budget run backwards: what a given mark
+  would do. The hypothetical is injected into a *copy* of your marks and
+  run through `computeSgpa`, so it cannot disagree with the card it sits
+  in and nothing survives letting go of the slider — which is the trap
+  it replaces, since exploring by typing a fake mark in syncs that mark
+  to every device. Half-mark steps, because that is how marks are
+  awarded. `gradeThresholds` is the payload: "12 here makes it an A" is
+  a target, where a total is only a reading.
 - **`src/lib/wrapped.ts`** — the semester counted up. Everything is a
   count of something recorded and anything unknowable comes back null
   for the UI to drop, because one invented superlative discredits the
