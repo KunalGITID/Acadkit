@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Badge, Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { SlotSheet } from "@/components/sheets/slot-sheet";
+import { TimetableAudit } from "@/components/timetable/timetable-audit";
 import { useSubjects, useTimetable } from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
 import { formatTime } from "@/lib/dates";
@@ -111,6 +112,8 @@ export default function Timetable() {
           <Plus className="h-4 w-4" /> Add class
         </Button>
       </div>
+
+      <TimetableAudit />
 
       <Segmented
         layoutId="timetable-day"
