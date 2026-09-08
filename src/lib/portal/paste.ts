@@ -6,6 +6,11 @@ import {
   type PortalAttendanceRow,
   type PortalMarkRow,
 } from "@/lib/portal/parse";
+import {
+  scrapeTimetable,
+  type ParsedTimetable,
+  type TimetableScrapeOptions,
+} from "@/lib/portal/timetable";
 
 /**
  * Reading the portal from a phone.
@@ -24,11 +29,17 @@ import {
  * per-component marks behind a modal per subject, so a paste of the
  * summary page yields no marks at all — that is a real limit, and the
  * result says so rather than reporting success with an empty list.
+ *
+ * The timetable page goes through here too, which is why this takes
+ * your subject codes: the grid is matched against subjects you already
+ * have, so a paste can schedule classes but never invent a course.
  */
 
 export interface PastedPortal {
   attendance: PortalAttendanceRow[];
   marks: PortalMarkRow[];
+  /** The week, when what was pasted was the timetable page. */
+  timetable: ParsedTimetable;
   /** Tables found in the pasted markup, whether or not any parsed. */
   tablesSeen: number;
   /**
@@ -44,17 +55,23 @@ export function looksLikeHtml(input: string): boolean {
   return /<\s*(table|tr|td|div|span|body|html)\b/i.test(input);
 }
 
-export function parsePastedPortal(html: string): PastedPortal {
+export function parsePastedPortal(
+  html: string,
+  /** Your subjects and hours — without codes, a grid can't be read. */
+  timetableOptions: TimetableScrapeOptions = { codes: [] }
+): PastedPortal {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const tables = tablesIn([doc]);
 
   const attendance = scrapeAttendance(tables);
   const marks = scrapeMarks(tables);
+  const timetable = scrapeTimetable(tables, timetableOptions);
 
-  const found = attendance.length > 0 || marks.length > 0;
+  const found = attendance.length > 0 || marks.length > 0 || timetable.slots.length > 0;
   return {
     attendance,
     marks,
+    timetable,
     tablesSeen: tables.length,
     diagnostic: found
       ? null

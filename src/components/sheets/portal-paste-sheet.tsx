@@ -5,8 +5,9 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import * as api from "@/api/queries";
-import { usePin } from "@/hooks/useData";
+import { usePin, useSubjects, useTimetable } from "@/hooks/useData";
 import { looksLikeHtml, parsePastedPortal, type PastedPortal } from "@/lib/portal/paste";
+import { periodsFromSlots } from "@/lib/portal/timetable";
 import { broadcastInvalidate } from "@/lib/broadcast";
 import { haptic } from "@/lib/utils";
 
@@ -23,9 +24,15 @@ import { haptic } from "@/lib/utils";
  * navigator.clipboard.read(): the read API needs a permission Safari is
  * stingy with, while a paste event hands over `text/html` directly and
  * is a gesture the user already understands.
+ *
+ * The timetable page comes through the same box. It is the page worth
+ * pasting most — every derived number in the app is computed off those
+ * slots — and it used to be the only one you had to type in by hand.
  */
 export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pin = usePin();
+  const { data: subjects } = useSubjects();
+  const { data: timetable } = useTimetable();
   const qc = useQueryClient();
   const box = useRef<HTMLDivElement>(null);
   const [parsed, setParsed] = useState<PastedPortal | null>(null);
@@ -52,7 +59,15 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
       return;
     }
     setPlainText(false);
-    setParsed(parsePastedPortal(html));
+    // Your own subjects are what a grid cell is matched against, and
+    // your own hours are what an untimed grid falls back to — so both
+    // go in rather than being guessed at inside the parser.
+    setParsed(
+      parsePastedPortal(html, {
+        codes: (subjects ?? []).map((s) => s.code),
+        periods: periodsFromSlots(timetable ?? []),
+      })
+    );
     haptic();
   }
 
@@ -64,17 +79,28 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
         attendance: parsed.attendance,
         marks: parsed.marks,
       });
+      const week = parsed.timetable.slots.length
+        ? await api.importTimetable(pin, parsed.timetable.slots)
+        : null;
       await qc.invalidateQueries();
-      broadcastInvalidate(["marks", "attendance", "portalSnapshots"]);
+      broadcastInvalidate(["marks", "attendance", "portalSnapshots", "timetable"]);
       const bits = [
         out.snapshots ? `${out.snapshots} subject${out.snapshots > 1 ? "s" : ""} updated` : null,
         out.marksAdded ? `${out.marksAdded} mark${out.marksAdded > 1 ? "s" : ""} added` : null,
         out.marksUpdated ? `${out.marksUpdated} updated` : null,
+        week?.slots ? `${week.slots} classes on the timetable` : null,
       ].filter(Boolean);
       toast.success(bits.length ? bits.join(" · ") : "Nothing new to save");
-      if (out.unmatchedCodes.length) {
+      if (week?.slots && parsed.timetable.assumedTimes) {
+        toast.message("Those hours were assumed", {
+          description:
+            "The grid didn't print its times, so standard 50-minute hours were used. Fix any that differ in Timetable.",
+        });
+      }
+      const unmatched = [...new Set([...out.unmatchedCodes, ...(week?.unmatchedCodes ?? [])])];
+      if (unmatched.length) {
         toast.message("Some codes didn't match a subject", {
-          description: `${out.unmatchedCodes.join(", ")} — add them in Settings → Subjects.`,
+          description: `${unmatched.join(", ")} — add them in Settings → Subjects.`,
         });
       }
       reset();
@@ -88,7 +114,10 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
     }
   }
 
-  const total = (parsed?.attendance.length ?? 0) + (parsed?.marks.length ?? 0);
+  const total =
+    (parsed?.attendance.length ?? 0) +
+    (parsed?.marks.length ?? 0) +
+    (parsed?.timetable.slots.length ?? 0);
 
   return (
     <Sheet
@@ -104,7 +133,7 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
     >
       <div className="space-y-3">
         <ol className="space-y-1.5 text-xs text-muted">
-          <li>1. Open your attendance or marks page on the SRM portal.</li>
+          <li>1. Open your attendance, marks or timetable page on the SRM portal.</li>
           <li>2. Select the whole page and copy it.</li>
           <li>3. Come back here and paste into the box below.</li>
         </ol>
@@ -134,27 +163,57 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
             {total === 0 ? (
               <p className="rounded-2xl bg-bad/10 p-3 text-xs font-semibold text-bad-deep">
                 Found {parsed.tablesSeen} table{parsed.tablesSeen === 1 ? "" : "s"} but no
-                attendance or marks report in them. If this was the right page, copy the
+                attendance, marks or timetable in them. If this was the right page, copy the
                 diagnostics below — that's what teaches the parser a layout it hasn't seen.
               </p>
             ) : (
-              <div className="rounded-2xl border bg-surface-2/40 p-3 text-xs">
-                <p className="font-bold">
-                  {parsed.attendance.length} subject
-                  {parsed.attendance.length === 1 ? "" : "s"} of attendance
-                  {parsed.marks.length > 0 ? ` · ${parsed.marks.length} marks` : ""}
-                </p>
-                <ul className="mt-1.5 space-y-0.5 text-muted">
-                  {parsed.attendance.slice(0, 4).map((a) => (
-                    <li key={a.subject_code}>
-                      {a.subject_code} — {a.conducted - a.absent}/{a.conducted}
-                      {a.percentage !== null ? ` · ${a.percentage}%` : ""}
-                    </li>
-                  ))}
-                  {parsed.attendance.length > 4 && (
-                    <li>…and {parsed.attendance.length - 4} more</li>
-                  )}
-                </ul>
+              <div className="space-y-2.5">
+                {(parsed.attendance.length > 0 || parsed.marks.length > 0) && (
+                  <div className="rounded-2xl border bg-surface-2/40 p-3 text-xs">
+                    <p className="font-bold">
+                      {parsed.attendance.length} subject
+                      {parsed.attendance.length === 1 ? "" : "s"} of attendance
+                      {parsed.marks.length > 0 ? ` · ${parsed.marks.length} marks` : ""}
+                    </p>
+                    <ul className="mt-1.5 space-y-0.5 text-muted">
+                      {parsed.attendance.slice(0, 4).map((a) => (
+                        <li key={a.subject_code}>
+                          {a.subject_code} — {a.conducted - a.absent}/{a.conducted}
+                          {a.percentage !== null ? ` · ${a.percentage}%` : ""}
+                        </li>
+                      ))}
+                      {parsed.attendance.length > 4 && (
+                        <li>…and {parsed.attendance.length - 4} more</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {parsed.timetable.slots.length > 0 && (
+                  <div className="rounded-2xl border bg-surface-2/40 p-3 text-xs">
+                    <p className="font-bold">
+                      {parsed.timetable.slots.length} classes across Day Order{" "}
+                      {parsed.timetable.dayOrders.join(", ")}
+                    </p>
+                    {/* Replacing the week is the part worth being warned
+                        about before tapping Save, not after. */}
+                    <p className="mt-1.5 text-muted">
+                      This replaces your current timetable. Attendance you have already marked
+                      is not touched.
+                    </p>
+                    {parsed.timetable.assumedTimes && (
+                      <p className="mt-1.5 font-semibold text-warn-deep">
+                        The grid didn't print its hours — standard 50-minute periods were
+                        assumed.
+                      </p>
+                    )}
+                    {parsed.timetable.unknownCodes.length > 0 && (
+                      <p className="mt-1.5 text-muted">
+                        Not yours, so skipped: {parsed.timetable.unknownCodes.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

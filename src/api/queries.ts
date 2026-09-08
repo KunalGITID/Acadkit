@@ -294,6 +294,70 @@ export async function clearTimetable(pin: string): Promise<void> {
   throwIf(error);
 }
 
+export interface TimetableImportResult {
+  slots: number;
+  /** Codes in the grid that matched no subject on this account. */
+  unmatchedCodes: string[];
+}
+
+/**
+ * Replace the timetable with a grid read off the portal.
+ *
+ * Replace, not merge: a timetable is a whole week, and merging an
+ * imported one into an existing one leaves last term's slots behind on
+ * any day the new grid happens not to cover — which is the silent,
+ * unfindable version of the problem importing was meant to solve.
+ * Attendance is untouched, and survives because a record is keyed by
+ * (subject, date, start_time) rather than by a slot row.
+ *
+ * Subjects are matched by code and never created. A timetable that
+ * invents subjects would put rows in every projection for courses you
+ * are not taking; the unmatched codes come back to be shown instead.
+ */
+export async function importTimetable(
+  pin: string,
+  slots: Array<{
+    subject_code: string;
+    day_order: number;
+    start_time: string;
+    end_time: string;
+    slot_type: "theory" | "lab";
+    room: string | null;
+  }>
+): Promise<TimetableImportResult> {
+  const subjects = await fetchSubjects(pin);
+  const byCode = new Map(subjects.map((s) => [s.code.trim().toUpperCase(), s.id]));
+
+  const unmatched = new Set<string>();
+  const rows = slots
+    .map((sl) => {
+      const id = byCode.get(sl.subject_code.trim().toUpperCase());
+      if (!id) {
+        unmatched.add(sl.subject_code);
+        return null;
+      }
+      return {
+        device_id: pin,
+        subject_id: id,
+        day_order: sl.day_order,
+        // The DB column is a time; seconds keep it unambiguous.
+        start_time: `${sl.start_time}:00`,
+        end_time: `${sl.end_time}:00`,
+        slot_type: sl.slot_type,
+        room: sl.room,
+      };
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null);
+
+  // Nothing matched: leave the timetable alone rather than clearing it
+  // for an import that has nothing to put back.
+  if (!rows.length) return { slots: 0, unmatchedCodes: [...unmatched] };
+
+  await clearTimetable(pin);
+  await insertWithRowFallback("timetable_slots", rows, ["slot_type"]);
+  return { slots: rows.length, unmatchedCodes: [...unmatched] };
+}
+
 // ---------- attendance ----------
 
 export async function fetchAttendance(pin: string): Promise<AttendanceRecord[]> {
