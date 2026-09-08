@@ -16,6 +16,7 @@ import SignIn from "@/pages/SignIn";
 import { useSession } from "@/hooks/useSession";
 import { useAutoDevice } from "@/hooks/useAutoDevice";
 import { RQ_CACHE_KEY, useAuthReset } from "@/hooks/useAuthReset";
+import { entryScreen } from "@/lib/devices";
 import { useAppStore } from "@/store/app";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
@@ -65,7 +66,13 @@ function AuthReset() {
 export default function App() {
   const pin = useAppStore((s) => s.pin);
   const { session, loading } = useSession();
-  useAutoDevice(!!session);
+  const { resolved: devicesResolved } = useAutoDevice(!!session);
+  const screen = entryScreen({
+    sessionLoading: loading,
+    signedIn: !!session,
+    pin,
+    devicesResolved,
+  });
 
   return (
     <ErrorBoundary>
@@ -111,11 +118,11 @@ export default function App() {
               screen at someone who is already signed in. It sits outside
               the branch so it can cover whichever way this resolves. */}
           <LaunchScreen ready={!loading} />
-          {loading ? (
+          {screen === "holding" ? (
             <div className="min-h-dvh" />
-          ) : !session ? (
+          ) : screen === "sign-in" ? (
             <SignIn />
-          ) : !pin ? (
+          ) : screen === "onboarding" ? (
             <Onboarding />
           ) : (
             <BrowserRouter>

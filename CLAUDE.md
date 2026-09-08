@@ -75,7 +75,16 @@ Supabase ← src/api/queries.ts ← src/hooks/useData.ts (React Query) ← pages
   dehydrate, rehydrate, resume — and fails if mutations stop being
   persisted.
 - **`src/hooks/useSync.ts`** — cross-tab sync via BroadcastChannel (`src/lib/broadcast.ts`) + cross-device live sync via Supabase realtime `postgres_changes` filtered by device_id.
-- If the PIN is absent, `App.tsx` renders `src/pages/Onboarding.tsx` instead of the router.
+- Which of the four entrances `App.tsx` shows — a bare holding screen,
+  `SignIn`, `Onboarding`, or the router — is one pure decision,
+  `entryScreen` in `src/lib/devices.ts`. Signing in hands back a session
+  *before* the account's PIN has been looked up, and the PIN is what the
+  app reads data under; treating that gap as "no PIN, so no account"
+  flashed onboarding at people who had just signed in. So a signed-in
+  device with no PIN **holds** until `useAutoDevice` reports `resolved`
+  (settled, not necessarily successful — offline it still lands on
+  onboarding rather than a blank screen). A device that already has a
+  PIN never waits: it opens the app and reconciles behind it.
 
 ### Day order system
 
