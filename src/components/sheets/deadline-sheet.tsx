@@ -15,8 +15,9 @@ import {
 import { derivedTitle } from "@/lib/deadlines";
 import { assessmentFor, normLabel } from "@/lib/plan";
 import { getDayInfo, semesterWindow } from "@/lib/calendar";
-import { todayISO } from "@/lib/dates";
 import { DEFAULT_DUE_TIME, describeDueTime, suggestDueTime } from "@/lib/dueTime";
+import { formatPrep, prepWindows } from "@/lib/prep";
+import { formatDate, formatTime, todayISO } from "@/lib/dates";
 import type { Deadline, DeadlinePriority, DeadlineType } from "@/types";
 
 interface DeadlineSheetProps {
@@ -116,6 +117,26 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
     if (!open || timeTouched) return;
     setTime(suggestion ? suggestion.time : DEFAULT_DUE_TIME);
   }, [open, timeTouched, suggestion]);
+
+  /**
+   * The free periods between now and this deadline.
+   *
+   * A date and a target say when it lands and what it owes; this is the
+   * part you act on. Only gaps you are already on campus for — the
+   * evening before needs no app to find, and the 70 minutes between a
+   * 9am lecture and a noon lab is the one that gets forgotten.
+   */
+  const prep = useMemo(() => {
+    if (!date || !time) return [];
+    const now = new Date();
+    return prepWindows({
+      due: new Date(`${date}T${time}:00`).toISOString(),
+      timetable: timetable ?? [],
+      declared: declared ?? [],
+      window: semesterWindow({ sem_start: semStart, sem_end: semEnd }),
+      fromMinutes: now.getHours() * 60 + now.getMinutes(),
+    });
+  }, [date, time, timetable, declared, semStart, semEnd]);
 
   /**
    * Point a deadline at a component you have already declared.
@@ -250,6 +271,24 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
             )}
           </Field>
         </div>
+
+        {prep.length > 0 && (
+          <div className="rounded-2xl border bg-surface-2/40 p-3">
+            <p className="text-xs font-bold">
+              {prep.length} free period{prep.length === 1 ? "" : "s"} before this
+            </p>
+            <ul className="mt-1.5 space-y-1 text-[11px] text-muted">
+              {prep.slice(0, 3).map((w) => (
+                <li key={`${w.date}-${w.start}`}>
+                  {formatDate(w.date)} · {formatTime(w.start)}–{formatTime(w.end)} ·{" "}
+                  <span className="font-semibold">{formatPrep(w.minutes)}</span> free between
+                  classes
+                </li>
+              ))}
+              {prep.length > 3 && <li>…and {prep.length - 3} more</li>}
+            </ul>
+          </div>
+        )}
 
         <div className="flex gap-2.5 pt-1">
           {deadline && (
