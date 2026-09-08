@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CalendarCheck2,
+  CalendarRange,
   ChevronLeft,
   ChevronRight,
   PartyPopper,
@@ -14,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Badge, Dot } from "@/components/ui/misc";
 import { MarkDaySheet } from "@/components/sheets/mark-day-sheet";
+import { MarkRangeSheet } from "@/components/sheets/mark-range-sheet";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
 import { useDeadlines, useSettings, useSubjects, useUpdateSettings } from "@/hooks/useData";
 import { say, VOICE } from "@/lib/voice";
@@ -56,6 +58,7 @@ export default function Calendar() {
   const [dir, setDir] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
   const [markDate, setMarkDate] = useState<string | null>(null);
+  const [rangeOpen, setRangeOpen] = useState(false);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
 
   const { data: deadlines } = useDeadlines();
@@ -257,7 +260,7 @@ export default function Calendar() {
 
       {/* Day detail sheet */}
       <Sheet
-        open={selected !== null && markDate === null && !deadlineOpen}
+        open={selected !== null && markDate === null && !deadlineOpen && !rangeOpen}
         onOpenChange={(o) => !o && setSelected(null)}
         title={selected ? formatDateLong(selected) : ""}
         description={
@@ -303,6 +306,9 @@ export default function Calendar() {
                 <CalendarCheck2 className="h-4 w-4" /> Mark attendance for this day
               </Button>
             )}
+            <Button variant="secondary" className="w-full" onClick={() => setRangeOpen(true)}>
+              <CalendarRange className="h-4 w-4" /> Mark a range starting here
+            </Button>
             <Button variant="outline" className="w-full" onClick={() => setDeadlineOpen(true)}>
               <Plus className="h-4 w-4" /> Add deadline on this date
             </Button>
@@ -320,6 +326,14 @@ export default function Calendar() {
         </div>
       </Sheet>
 
+      <MarkRangeSheet
+        open={rangeOpen}
+        defaultDate={selected}
+        onClose={() => {
+          setRangeOpen(false);
+          setSelected(null);
+        }}
+      />
       <MarkDaySheet
         date={markDate}
         onClose={() => {

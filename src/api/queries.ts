@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { SEED_SUBJECTS, SEMESTER_START, SEMESTER_END } from "@/data/semester";
 import type {
   AttendanceRecord,
+  AttendanceStatus,
   Deadline,
   Mark,
   PortalSnapshot,
@@ -420,6 +421,35 @@ export async function insertAutoMarks(
       onConflict: "device_id,subject_id,date,start_time",
       ignoreDuplicates: true,
     });
+  throwIf(error);
+  return rows.length;
+}
+
+/**
+ * Write one status across a stretch of classes.
+ *
+ * `replace` is what separates "catch up on a week I never marked" from
+ * "I was actually away, change what's there" — and it is the caller's
+ * decision, not a default, because the second one overwrites answers
+ * the user gave by hand. Without it this behaves like auto-marking:
+ * duplicates are ignored, so a row that appeared since the plan was
+ * computed survives.
+ *
+ * These rows are never `auto_marked`. Clearing the app's guesses must
+ * not also clear a week you deliberately marked absent.
+ */
+export async function markRange(
+  pin: string,
+  rows: Array<Pick<AttendanceRecord, "subject_id" | "date" | "start_time" | "end_time">>,
+  status: AttendanceStatus,
+  replace: boolean
+): Promise<number> {
+  if (!rows.length) return 0;
+  const payload = rows.map((r) => ({ ...r, device_id: pin, status, auto_marked: false }));
+  const { error } = await supabase.from("attendance").upsert(payload, {
+    onConflict: "device_id,subject_id,date,start_time",
+    ignoreDuplicates: !replace,
+  });
   throwIf(error);
   return rows.length;
 }
