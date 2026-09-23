@@ -321,6 +321,28 @@ for (let i = 0; i < toRemove.length; i += 100) {
 
 // Insert-or-ignore on (device_id, key): a finding the app has already
 // seen keeps whatever you decided about it.
+// The scan rewrites the whole file each week, so a pending suggestion
+// it no longer contains is stale — most often a date that moved, whose
+// new date arrives as a new key. Leaving the old one would show both.
+// Only pending rows are touched: anything you added or dismissed stays.
+{
+  const current = new Set(found.rows.map((r) => r.key));
+  const { data: pending, error } = await supabase
+    .from("suggestions")
+    .select("id,key,kind")
+    .eq("device_id", pin)
+    .eq("status", "pending");
+  if (!error) {
+    const kinds = new Set(found.rows.map((r) => r.kind));
+    const stale = pending.filter((p) => kinds.has(p.kind) && !current.has(p.key)).map((p) => p.id);
+    if (stale.length && !dryRun) {
+      const { error: e2 } = await supabase.from("suggestions").update({ status: "dismissed" }).in("id", stale);
+      if (e2) console.error(`Couldn't withdraw stale suggestions: ${e2.message}`);
+    }
+    if (stale.length) console.log(`Withdrawn (no longer in the scan): ${stale.length}`);
+  }
+}
+
 // Sent per kind, so a project that hasn't run migration 027 (which
 // allows 'plan') still gets its deadlines.
 for (const [kind, migration] of [["deadline", "026"], ["plan", "027"]]) {
