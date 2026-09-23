@@ -465,6 +465,26 @@ would save under their hash. Tree and search are pure
 (`src/lib/studyFiles.ts`): search tokenises at letter/digit boundaries
 and matches numbers whole, so "unit 1" finds Unit1 but not Unit10.
 
+### Suggestions from the study folder — migration 026
+
+The weekly scan reads every Classroom post and WhatsApp note anyway, so
+it writes what it found as `_src/acadkit_suggestions.json`, and
+`npm run sync:files` sends that to `suggestions`. The app never applies
+one: the Home page's "Found in your files" card (`components/viz/
+suggestions-card.tsx`) shows each with its source and the quoted line,
+and Add writes the deadline through the normal `deadlines.add` path.
+
+The sync inserts with on-conflict-do-nothing on `(device_id, key)`,
+where `key` hashes kind, course code, component-or-type and the IST
+day. So re-sending a finding can't bring back one you dismissed or
+touch one you added, and a moved date is a new key and so a new
+suggestion. Rows the script can't trust — a date with no time zone, an
+unknown type — are reported and skipped, never guessed. `deadlineOffers`
+(`src/lib/suggestions.ts`) hides anything past, decided, or already
+among your deadlines (same subject and IST day, same component label
+or else same type), and keeps an unknown course code unassigned rather
+than dropping a real date.
+
 ### Crash reporting
 
 `src/lib/crashLog.ts`. The ErrorBoundary used to insert into `error_log`

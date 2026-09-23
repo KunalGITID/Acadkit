@@ -45,6 +45,7 @@ import { ColourBlock } from "@/components/viz/colour-block";
 import { LiveClassCard } from "@/components/viz/live-class";
 import { ExamCountdown } from "@/components/viz/exam-countdown";
 import { SurvivalCard } from "@/components/viz/survival-card";
+import { SuggestionsCard } from "@/components/viz/suggestions-card";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { computeSgpa } from "@/lib/plan";
@@ -604,6 +605,9 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="space-y-4 lg:col-span-3">
+          {/* First, because it's the one card asking for a decision —
+              and it renders nothing when there isn't one. */}
+          <SuggestionsCard />
           <ExamCountdown />
           <TodayCard />
         </div>

@@ -40,6 +40,8 @@ export const MUTATION_FNS = {
   "deadlines.delete": (_pin: string, v: any) => api.deleteDeadline(v),
 
   "archives.delete": (_pin: string, v: any) => api.deleteArchive(v),
+
+  "suggestions.status": (_pin: string, v: any) => api.setSuggestionStatus(v.id, v.status),
 } satisfies Record<string, (pin: string, vars: any) => Promise<unknown>>;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 

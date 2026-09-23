@@ -14,6 +14,10 @@
  *   STUDY_PIN                   the 4-digit PIN whose account gets the files
  *   STUDY_DIR                   optional, defaults to ~/Documents/SRM_Sem3
  *
+ * Also uploads what the weekly scan found in the folder, if it wrote
+ * _src/acadkit_suggestions.json (see readSuggestions below), as
+ * suggestions the app offers — never as deadlines directly.
+ *
  * Files are stored by content hash, so a rename or move only rewrites the
  * manifest, and an unchanged folder uploads nothing. Anything starting
  * with "." or "_" is skipped (the scan's _src working files and
@@ -68,6 +72,69 @@ async function walk(root, rel = "") {
 
 const mb = (n) => `${(n / 1048576).toFixed(1)} MB`;
 
+/**
+ * The weekly scan's findings, validated. Shape:
+ *
+ *   { "deadlines": [{ "subject_code": "21CSC201J" | null,
+ *                     "type": "exam" | "assignment" | "lab" | "other",
+ *                     "label": "FJ-2" | null,
+ *                     "due_date": "2026-10-14T09:30:00+05:30",
+ *                     "max_marks": 15 | null,
+ *                     "source": "DSA_21CSC201J/06_Notes_from_WhatsApp.pdf",
+ *                     "evidence": "FJ-2 on 14 Oct, units 2 and 3" }] }
+ *
+ * A row that fails validation is reported and skipped, never guessed at:
+ * a date without a time zone would land 5½ hours off.
+ */
+const TYPES_OK = new Set(["exam", "assignment", "lab", "other"]);
+const squash = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+async function readSuggestions(root) {
+  let raw;
+  try {
+    raw = await readFile(path.join(root, "_src", "acadkit_suggestions.json"), "utf8");
+  } catch {
+    return { rows: [], bad: [] };
+  }
+  const rows = [];
+  const bad = [];
+  for (const [i, d] of (JSON.parse(raw).deadlines ?? []).entries()) {
+    const due = new Date(d.due_date);
+    const problem = !TYPES_OK.has(d.type)
+      ? "type"
+      : typeof d.due_date !== "string" || !/(Z|[+-]\d\d:\d\d)$/.test(d.due_date) || Number.isNaN(due.getTime())
+        ? "due_date (needs a time zone, e.g. +05:30)"
+        : d.max_marks != null && !(Number(d.max_marks) > 0)
+          ? "max_marks"
+          : null;
+    if (problem) {
+      bad.push(`#${i + 1} ${d.subject_code ?? ""} ${d.label ?? d.type ?? ""}: bad ${problem}`);
+      continue;
+    }
+    const day = due.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    const what = squash(d.label) || d.type;
+    const key = createHash("sha256").update(`deadline|${squash(d.subject_code)}|${what}|${day}`).digest("hex").slice(0, 32);
+    rows.push({
+      device_id: pin,
+      key,
+      kind: "deadline",
+      payload: {
+        subject_code: d.subject_code ?? null,
+        type: d.type,
+        label: d.label ?? null,
+        due_date: d.due_date,
+        max_marks: d.max_marks == null ? null : Number(d.max_marks),
+      },
+      source: d.source ? String(d.source).slice(0, 300) : null,
+      evidence: d.evidence ? String(d.evidence).slice(0, 200) : null,
+    });
+  }
+  // Two rows the scan wrote twice would fail the whole batch on the
+  // unique key; the first wins.
+  const unique = new Map();
+  for (const r of rows) if (!unique.has(r.key)) unique.set(r.key, r);
+  return { rows: [...unique.values()], bad };
+}
+
 const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
 const bucket = supabase.storage.from(BUCKET);
 const manifestKey = `${pin}/manifest.json`;
@@ -111,8 +178,14 @@ console.log(`${path.basename(dir)}: ${files.length} files, ${mb(files.reduce((s,
 console.log(`Upload ${toUpload.length} (${mb(toUpload.reduce((s, f) => s + f.size, 0))}), remove ${toRemove.length}`);
 for (const s of skippedLarge) console.log(`  skipped, over 50 MB: ${s}`);
 
+const found = await readSuggestions(dir);
+if (found.rows.length || found.bad.length)
+  console.log(`Suggestions from the scan: ${found.rows.length} valid${found.bad.length ? `, ${found.bad.length} skipped` : ""}`);
+for (const b of found.bad) console.log(`  skipped suggestion ${b}`);
+
 if (dryRun) {
   for (const f of toUpload) console.log(`  + ${f.path}`);
+  for (const r of found.rows) console.log(`  ? ${r.payload.subject_code ?? "-"} ${r.payload.label ?? r.payload.type} ${r.payload.due_date}`);
   console.log("Dry run: nothing changed.");
   process.exit(0);
 }
@@ -165,6 +238,17 @@ const manifest = {
 for (let i = 0; i < toRemove.length; i += 100) {
   const { error } = await bucket.remove(toRemove.slice(i, i + 100));
   if (error) console.error(`  couldn't remove old files: ${error.message} (harmless, retried next run)`);
+}
+
+// Insert-or-ignore on (device_id, key): a finding the app has already
+// seen keeps whatever you decided about it.
+if (found.rows.length) {
+  const { data, error } = await supabase
+    .from("suggestions")
+    .upsert(found.rows, { onConflict: "device_id,key", ignoreDuplicates: true })
+    .select("id");
+  if (error) console.error(`Couldn't send suggestions: ${error.message}. Has migration 026 been run?`);
+  else console.log(`Suggestions: ${data.length} new, ${found.rows.length - data.length} already known.`);
 }
 
 console.log(`Synced. ${files.length} files are on the Files page.`);

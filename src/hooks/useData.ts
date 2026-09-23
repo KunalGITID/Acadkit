@@ -10,6 +10,7 @@ import { type MutationEnvelope, type MutationName } from "@/api/mutations";
 import { broadcastInvalidate } from "@/lib/broadcast";
 import { useAppStore } from "@/store/app";
 import type { PendingMark } from "@/lib/autoMark";
+import type { Suggestion, SuggestionStatus } from "@/lib/suggestions";
 import type {
   AttendanceRecord,
   Deadline,
@@ -397,5 +398,26 @@ export function useDeleteDeadline() {
     root: "deadlines",
     name: "deadlines.delete",
     updater: (old, id) => old?.filter((d) => d.id !== id),
+  });
+}
+
+// ---------- suggestions (from the study folder) ----------
+
+export function useSuggestions() {
+  const pin = usePin();
+  return useQuery({
+    queryKey: ["suggestions", pin],
+    queryFn: () => api.fetchSuggestions(pin),
+  });
+}
+
+/** Add or Dismiss. Either way the suggestion leaves the list at once. */
+export function useDecideSuggestion() {
+  const pin = usePin();
+  return useOptimistic<{ id: string; status: SuggestionStatus }, Suggestion[]>({
+    pin,
+    root: "suggestions",
+    name: "suggestions.status",
+    updater: (old, { id }) => old?.filter((s) => s.id !== id),
   });
 }

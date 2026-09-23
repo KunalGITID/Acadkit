@@ -170,6 +170,8 @@ const DEVICE_OWNERS = [
   },
 ];
 
+const STUDY_DIR = (process.env.STUDY_DIR || "~/Documents/SRM_Sem3").replace(/^~(?=$|\/)/, homedir());
+
 const db = {
   device_owners: DEVICE_OWNERS,
   settings: [
@@ -221,6 +223,23 @@ const db = {
     },
   ],
   portal_snapshots: SNAPSHOTS,
+  // Migration 026, seeded from the scan's real findings when they exist,
+  // so the Home page's "Found in your files" card previews with real rows.
+  suggestions: (() => {
+    const file = path.join(STUDY_DIR, "_src", "acadkit_suggestions.json");
+    if (!existsSync(file)) return [];
+    return (JSON.parse(readFileSync(file, "utf8")).deadlines ?? []).map((d, i) => ({
+      id: uid("sug", i),
+      device_id: PIN,
+      key: `mock-${i}`,
+      kind: "deadline",
+      payload: d,
+      source: d.source ?? null,
+      evidence: d.evidence ?? null,
+      status: "pending",
+      created_at: new Date().toISOString(),
+    }));
+  })(),
   semester_archives: [],
   push_subscriptions: [],
 };
@@ -250,7 +269,6 @@ function filter(rows, params) {
  * (same skip rules), but keyed by index instead of content hash — the
  * preview never uploads, so there's nothing to hash for.
  */
-const STUDY_DIR = (process.env.STUDY_DIR || "~/Documents/SRM_Sem3").replace(/^~(?=$|\/)/, homedir());
 const studyFiles = (() => {
   if (!existsSync(STUDY_DIR)) return [];
   const out = [];

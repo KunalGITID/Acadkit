@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import type { Suggestion, SuggestionStatus } from "@/lib/suggestions";
 import type { SharedCard } from "@/lib/compare";
 import { supabase } from "@/lib/supabase";
 import { SEED_SUBJECTS, SEMESTER_START, SEMESTER_END } from "@/data/semester";
@@ -922,4 +923,24 @@ export async function fetchSharedCard(code: string): Promise<SharedCard | null> 
   if (error) throw error;
   const row = Array.isArray(data) ? data[0] : data;
   return (row?.payload as SharedCard) ?? null;
+}
+
+// ---------- suggestions (migration 026) ----------
+
+export async function fetchSuggestions(pin: string): Promise<Suggestion[]> {
+  const { data, error } = await supabase
+    .from("suggestions")
+    .select("*")
+    .eq("device_id", pin)
+    .eq("status", "pending");
+  // Before migration 026 runs the table doesn't exist; that is "nothing
+  // suggested", not an error worth a toast on the home screen.
+  if (error?.code === "42P01" || error?.code === "PGRST205") return [];
+  throwIf(error);
+  return (data as Suggestion[]) ?? [];
+}
+
+export async function setSuggestionStatus(id: string, status: SuggestionStatus): Promise<void> {
+  const { error } = await supabase.from("suggestions").update({ status }).eq("id", id);
+  throwIf(error);
 }
