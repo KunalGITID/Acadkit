@@ -125,6 +125,9 @@ async function readSuggestions(root) {
         label: d.label ?? null,
         due_date: d.due_date,
         max_marks: d.max_marks == null ? null : Number(d.max_marks),
+        // The old date when the scan saw this test move; the app then
+        // offers Move on the existing deadline instead of Add.
+        moved_from: d.moved_from && !Number.isNaN(new Date(d.moved_from).getTime()) ? d.moved_from : null,
       },
       source: d.source ? String(d.source).slice(0, 300) : null,
       evidence: d.evidence ? String(d.evidence).slice(0, 200) : null,

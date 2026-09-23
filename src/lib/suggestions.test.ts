@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deadlineOffers, planOffers, type Suggestion } from "@/lib/suggestions";
+import { deadlineOffers, movedDueDate, planOffers, type Suggestion } from "@/lib/suggestions";
 import type { Deadline, Subject } from "@/types";
 
 const DSA = { id: "sub-dsa", code: "21CSC201J", name: "Data Structures & Algorithms" } as Subject;
@@ -131,5 +131,49 @@ describe("planOffers", () => {
 
   it("leaves plans out of the deadline offers", () => {
     expect(deadlineOffers([plan(DSA_PLAN)], [], [DSA], NOW)).toEqual([]);
+  });
+});
+
+describe("moved deadlines", () => {
+  const TBVP = { id: "sub-tbvp", code: "21MAB201T", name: "TBVP" } as Subject;
+  const have = (p: Partial<Deadline>) =>
+    ({ id: "old", device_id: "1234", status: "pending", priority: "high", type: "exam", title: "FT-III", subject_id: "sub-tbvp", due_date: "2026-10-05T03:30:00.000Z", ...p }) as Deadline;
+  const moved = (p: Partial<Suggestion["payload"]> = {}) =>
+    sug({ subject_code: "21MAB201T", label: "FT-III", due_date: "2026-10-06T08:00:00+05:30", ...p });
+
+  it("offers Move, not Add, when the same component already has another date", () => {
+    const [o] = deadlineOffers([moved()], [have({})], [TBVP], NOW);
+    expect(o.moves?.id).toBe("old");
+  });
+
+  it("treats FT-3 and FT-III as the same component", () => {
+    const [o] = deadlineOffers([moved()], [have({ title: "FT-3" })], [TBVP], NOW);
+    expect(o.moves?.id).toBe("old");
+  });
+
+  it("an explicit moved_from picks exactly that date, even for a lab component", () => {
+    const lab = have({ title: "LLJ-I", type: "lab" });
+    const [o] = deadlineOffers([moved({ label: "LLJ-I", type: "lab", moved_from: "2026-10-05T08:00:00+05:30" })], [lab], [TBVP], NOW);
+    expect(o.moves?.id).toBe("old");
+  });
+
+  it("does not guess a move for lab instalments without moved_from", () => {
+    const lab = have({ title: "LLJ-I", type: "lab" });
+    const [o] = deadlineOffers([moved({ label: "LLJ-I", type: "lab" })], [lab], [TBVP], NOW);
+    expect(o.moves).toBeNull();
+  });
+
+  it("does not treat a far-off date or a finished test as a move", () => {
+    expect(deadlineOffers([moved()], [have({ due_date: "2026-11-20T03:30:00.000Z" })], [TBVP], NOW)[0].moves).toBeNull();
+    expect(deadlineOffers([moved()], [have({ status: "done" })], [TBVP], NOW)[0].moves).toBeNull();
+  });
+
+  it("is not offered at all once the deadline is already on the new day", () => {
+    expect(deadlineOffers([moved()], [have({ due_date: "2026-10-06T03:30:00.000Z" })], [TBVP], NOW)).toEqual([]);
+  });
+
+  it("keeps your time of day when moving", () => {
+    const iso = movedDueDate({ due_date: "2026-10-05T03:30:00.000Z" }, "2026-10-06T08:00:00+05:30");
+    expect(new Date(iso).toLocaleString("en-GB", { timeZone: "Asia/Kolkata" })).toBe("06/10/2026, 09:00:00");
   });
 });

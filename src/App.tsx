@@ -29,7 +29,6 @@ const AbsentLog = lazy(() => import("@/pages/AbsentLog"));
 const Insights = lazy(() => import("@/pages/Insights"));
 const History = lazy(() => import("@/pages/History"));
 const Wrapped = lazy(() => import("@/pages/Wrapped"));
-const Compare = lazy(() => import("@/pages/Compare"));
 const Files = lazy(() => import("@/pages/Files"));
 
 const queryClient = new QueryClient({
@@ -142,7 +141,6 @@ export default function App() {
                   <Route path="/log" element={<AbsentLog />} />
                 <Route path="/history" element={<History />} />
                   <Route path="/wrapped" element={<Wrapped />} />
-                  <Route path="/compare" element={<Compare />} />
                   <Route path="/files" element={<Files />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Route>

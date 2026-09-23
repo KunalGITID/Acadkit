@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, FileSearch, Plus, X } from "lucide-react";
+import { ArrowRight, Check, FileSearch, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dot } from "@/components/ui/misc";
@@ -10,10 +10,11 @@ import {
   useDeadlines,
   useSubjects,
   useSuggestions,
+  useUpdateDeadline,
   useUpdateSubject,
 } from "@/hooks/useData";
 import { deadlineLabel } from "@/lib/deadlines";
-import { deadlineOffers, planOffers, type DeadlineOffer, type PlanOffer } from "@/lib/suggestions";
+import { deadlineOffers, movedDueDate, planOffers, type DeadlineOffer, type PlanOffer } from "@/lib/suggestions";
 import { haptic } from "@/lib/utils";
 
 const SHOWN = 3;
@@ -47,6 +48,7 @@ export function SuggestionsCard() {
   const { data: subjects } = useSubjects();
   const add = useAddDeadline();
   const updateSubject = useUpdateSubject();
+  const updateDeadline = useUpdateDeadline();
   const decide = useDecideSuggestion();
   const [showAll, setShowAll] = useState(false);
 
@@ -67,6 +69,14 @@ export function SuggestionsCard() {
 
   function accept(o: DeadlineOffer) {
     haptic([10, 40, 14]);
+    if (o.moves) {
+      // A reschedule updates the deadline you have; adding would leave the
+      // old date standing beside the new one.
+      updateDeadline.mutate({ id: o.moves.id, patch: { due_date: movedDueDate(o.moves, o.deadline.due_date) } });
+      decide.mutate({ id: o.suggestion.id, status: "accepted" });
+      toast.success(`Moved ${deadlineLabel(o.deadline, o.subject ?? undefined)} to ${when(o.deadline.due_date).split(",").slice(0, 2).join(",")}`);
+      return;
+    }
     add.mutate(o.deadline);
     decide.mutate({ id: o.suggestion.id, status: "accepted" });
     toast.success(`Added ${deadlineLabel(o.deadline, o.subject ?? undefined)}`);
@@ -154,7 +164,16 @@ export function SuggestionsCard() {
                   {o.deadline.max_marks ? ` · ${o.deadline.max_marks} marks` : ""}
                 </span>
               </p>
-              <p className="mt-0.5 text-xs font-semibold text-ink">{when(o.deadline.due_date)}</p>
+              {o.moves ? (
+                <p className="mt-0.5 flex flex-wrap items-center gap-1 text-xs font-semibold text-ink">
+                  <span className="rounded-full bg-warn/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warn-deep">Moved</span>
+                  <span className="text-muted line-through">{when(o.moves.due_date)}</span>
+                  <ArrowRight className="h-3 w-3" />
+                  <span>{when(o.deadline.due_date)}</span>
+                </p>
+              ) : (
+                <p className="mt-0.5 text-xs font-semibold text-ink">{when(o.deadline.due_date)}</p>
+              )}
               {(o.suggestion.evidence || o.suggestion.source) && (
                 <p className="mt-1 text-xs font-medium text-muted">
                   {o.suggestion.evidence && <span className="italic">“{o.suggestion.evidence}”</span>}
@@ -164,7 +183,15 @@ export function SuggestionsCard() {
               )}
               <div className="mt-2.5 flex gap-2">
                 <Button size="sm" onClick={() => accept(o)}>
-                  <Plus className="h-4 w-4" /> Add
+                  {o.moves ? (
+                    <>
+                      <ArrowRight className="h-4 w-4" /> Move
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4" /> Add
+                    </>
+                  )}
                 </Button>
                 <Button
                   size="sm"

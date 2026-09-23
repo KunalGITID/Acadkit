@@ -10,7 +10,6 @@ import {
   Settings,
   Sparkles,
   UserCheck,
-  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -51,7 +50,6 @@ export const SECONDARY_NAV: NavItem[] = [
   // of the tab bar (five daily destinations, and this is not one) but
   // belongs in the drawer with the other occasional pages.
   { to: "/wrapped", label: "Wrapped", icon: PartyPopper, blurb: "Your semester, counted up" },
-  { to: "/compare", label: "Compare", icon: Users, blurb: "Line up against a friend" },
 ];
 
 /** Contents of the More sheet. Settings has its own button, so it's not repeated here. */

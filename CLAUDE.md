@@ -317,7 +317,7 @@ becomes "attend everything" instead.
 
 ### Pages & layout
 
-Twelve lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/files`, `/history`, `/wrapped`, `/compare`, `/settings`) plus `Onboarding` and `SignIn`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/history`, `/wrapped`, `/compare`) is reached through the **More** sheet on both layouts — the desktop sidebar is the same five, then Study, More, and Settings pinned to the bottom. **Study** (`/files`, `STUDY_ITEM`) is deliberately not in More: it has its own book button in the phone's top bar, beside More and Settings — and on mobile that sheet is which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
+Eleven lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/files`, `/history`, `/wrapped`, `/settings`) plus `Onboarding` and `SignIn`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/history`, `/wrapped`) is reached through the **More** sheet on both layouts — the desktop sidebar is the same five, then Study, More, and Settings pinned to the bottom. **Study** (`/files`, `STUDY_ITEM`) is deliberately not in More: it has its own book button in the phone's top bar, beside More and Settings — and on mobile that sheet is which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
 
 Marks is now a single view — the segmented Marks/Calculator switcher,
 its slide animation and the swipe between the two went with the
@@ -484,6 +484,20 @@ unknown type — are reported and skipped, never guessed. `deadlineOffers`
 among your deadlines (same subject and IST day, same component label
 or else same type), and keeps an unknown course code unassigned rather
 than dropping a real date.
+
+**Moved dates.** A rescheduled test must update the deadline you have,
+not arrive beside it — that is how FT-III ended up on both 5 and 6 Oct.
+`deadlineOffers` sets `moves` on an offer when a pending deadline for
+the same subject and component (by `labelMatchKey`) sits on another
+day: exactly the `moved_from` date when the scan provides one, else the
+nearest within `MOVE_WINDOW_DAYS`. LLJ/LLT are excluded from the guess
+because they are legitimately assessed in several sittings. The card
+then shows Moved old → new and Move patches `due_date`, keeping your
+time of day (`movedDueDate`).
+
+The Compare page (share codes, migration 019) was removed; the
+`shared_cards` table and `get_shared_card` function are left in the
+database, unused.
 
 ### Exam prep and marks plans from the study folder
 
