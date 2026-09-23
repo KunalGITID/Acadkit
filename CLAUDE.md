@@ -382,7 +382,13 @@ rather than a page in a browser that happens to be hidden:
   to brutalist (the default) and an OLED user gets a few hundred ms of
   `#0a0a0a` before the app paints `#000`.
 
-  It always runs for `MIN_VISIBLE_MS` (a sequence cut off halfway reads
+  **Once a day.** The first cold start of the day plays the full
+  sequence; every later one holds the iOS mark for `QUICK_VISIBLE_MS`
+  and fades (`isFullLaunch`, keyed on `acadkit:launch-day`). The full
+  run is ~1.9 s, and on a phone opened many times a day it had become
+  the slowest part of opening the app.
+
+  The full sequence always runs for `MIN_VISIBLE_MS` (a sequence cut off halfway reads
   as a bug, and a cached session resolves in single-digit ms), and a
   timer unmounts it even if the exit animation never finishes —
   `AnimatePresence` waits for completion, and animation clocks stop when
@@ -435,7 +441,7 @@ Both the store and the pre-paint script in `index.html` validate.
 
 ### Design system
 
-Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.dark` class strategy — applied pre-paint by an inline script in `index.html`), mapped in `tailwind.config.js` (`bg`, `surface`, `ink`, `muted`, `accent`, `good/warn/bad`…). Fonts: Plus Jakarta Sans + JetBrains Mono.
+Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.dark` class strategy — applied pre-paint by an inline script in `index.html`), mapped in `tailwind.config.js` (`bg`, `surface`, `ink`, `muted`, `accent`, `good/warn/bad`…). Fonts: Plus Jakarta Sans + JetBrains Mono (+ Chakra Petch), bundled from `@fontsource` (Latin only) and precached — not Google Fonts, whose render-blocking stylesheet cost a network round trip on every cold start.
 
 ### Supabase
 

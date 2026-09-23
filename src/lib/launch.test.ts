@@ -17,6 +17,10 @@ import {
   MIN_VISIBLE_MS,
   SEAM_HOLD_MS,
   WORDMARK_DELAY_MS,
+
+  QUICK_EXIT_MS,
+  QUICK_VISIBLE_MS,
+  isFullLaunch,
 } from "@/lib/launch";
 
 const GENERATOR = resolve(__dirname, "../../scripts/lib/mark.mjs");
@@ -40,3 +44,15 @@ describe("launch geometry", () => {
   });
 });
 
+
+describe("isFullLaunch", () => {
+  it("plays the full sequence on the first launch of a day only", () => {
+    expect(isFullLaunch(null, "2026-09-23")).toBe(true);
+    expect(isFullLaunch("2026-09-22", "2026-09-23")).toBe(true);
+    expect(isFullLaunch("2026-09-23", "2026-09-23")).toBe(false);
+  });
+
+  it("keeps the quick launch well under the full one", () => {
+    expect(QUICK_VISIBLE_MS + QUICK_EXIT_MS).toBeLessThan((MIN_VISIBLE_MS + EXIT_MS) / 3);
+  });
+});

@@ -60,3 +60,21 @@ export const EXIT_EASE = [0.62, -0.28, 0.24, 1] as const;
 
 /** Settling, not bouncing: fast to arrive, slow to stop. */
 export const SETTLE_EASE = [0.22, 1, 0.32, 1] as const;
+
+/**
+ * Every cold start after the first of the day skips the sequence.
+ *
+ * The full animation is ~1.9 s (MIN_VISIBLE_MS plus the exit) and it ran
+ * on every launch, which on a phone you open twenty times a day is the
+ * slowest part of opening the app — slower than the network, now that
+ * the session and data come from cache. The first launch of the day
+ * keeps it; the rest hold the iOS mark just long enough for the seam to
+ * stay invisible, then fade.
+ */
+export const QUICK_VISIBLE_MS = 150;
+export const QUICK_EXIT_MS = 220;
+
+/** True when this launch should play the full sequence. */
+export function isFullLaunch(lastFullDay: string | null, today: string): boolean {
+  return lastFullDay !== today;
+}

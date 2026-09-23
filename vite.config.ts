@@ -58,7 +58,7 @@ export default defineConfig({
         // Node 18 workers lack global webcrypto, which workbox's terser
         // step needs; ship the SW unminified there (it's cached anyway).
         mode: Number(process.versions.node.split(".")[0]) >= 20 ? "production" : "development",
-        globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         // Safari loads launch screens itself, straight from the network,
         // at install time. Precaching 22 of them would add ~600 KB to
         // every install to serve images the SW is never asked for.

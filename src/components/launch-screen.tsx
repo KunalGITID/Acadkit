@@ -6,12 +6,29 @@ import {
   EXIT_MS,
   MARK_VMIN,
   MIN_VISIBLE_MS,
+  QUICK_EXIT_MS,
+  QUICK_VISIBLE_MS,
+  isFullLaunch,
   SEAM_HOLD_MS,
   SETTLE_EASE,
   WORDMARK_DELAY_MS,
 } from "@/lib/launch";
 
 const s = (ms: number) => ms / 1000;
+
+const LAUNCH_DAY_KEY = "acadkit:launch-day";
+
+/** Decided once per page load; storage failures fall back to the full sequence. */
+function decideFullLaunch(): boolean {
+  try {
+    const today = new Date().toLocaleDateString("en-CA");
+    const full = isFullLaunch(localStorage.getItem(LAUNCH_DAY_KEY), today);
+    if (full) localStorage.setItem(LAUNCH_DAY_KEY, today);
+    return full;
+  } catch {
+    return true;
+  }
+}
 
 /**
  * The mark, drawn as a CSS mask so the browser fills it with the live
@@ -70,15 +87,18 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
   const [unmounted, setUnmounted] = useState(false);
   const mountedAt = useRef(0);
   const reduced = useReducedMotion();
+  const [full] = useState(decideFullLaunch);
+  const minVisible = full ? MIN_VISIBLE_MS : QUICK_VISIBLE_MS;
+  const exitMs = full ? EXIT_MS : QUICK_EXIT_MS;
 
   if (mountedAt.current === 0) mountedAt.current = performance.now();
 
   useEffect(() => {
     if (!ready) return;
-    const remaining = MIN_VISIBLE_MS - (performance.now() - mountedAt.current);
+    const remaining = minVisible - (performance.now() - mountedAt.current);
     const timer = setTimeout(() => setVisible(false), Math.max(0, remaining));
     return () => clearTimeout(timer);
-  }, [ready]);
+  }, [ready, minVisible]);
 
   /**
    * The failsafe, and not a theoretical one.
@@ -93,9 +113,9 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
    */
   useEffect(() => {
     if (visible) return;
-    const timer = setTimeout(() => setUnmounted(true), EXIT_MS + 250);
+    const timer = setTimeout(() => setUnmounted(true), exitMs + 250);
     return () => clearTimeout(timer);
-  }, [visible]);
+  }, [visible, exitMs]);
 
   if (unmounted) return null;
 
@@ -118,7 +138,9 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
           style={{ willChange: "transform" }}
           initial={false}
           exit={
-            reduced
+            !full
+              ? { opacity: 0, transition: { duration: s(QUICK_EXIT_MS) } }
+              : reduced
               ? { opacity: 0, transition: { duration: s(EXIT_MS) / 2 } }
               : { y: "-100%", transition: { duration: s(EXIT_MS), ease: EXIT_EASE } }
           }
@@ -128,6 +150,7 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
             style={{ width: cardSize, height: cardSize }}
           >
             {/* The app's own card, closing around the mark. */}
+            {full && (
             <motion.div
               className="absolute inset-0"
               style={{ willChange: "transform, opacity" }}
@@ -141,6 +164,7 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
             >
               <div className="card h-full w-full" />
             </motion.div>
+            )}
 
             {/* Square box + contain is exactly what the generator does to
                 build the iOS image (sharp's `fit: inside` into a square),
@@ -150,7 +174,7 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
               className="relative"
               style={{ width: `${MARK_VMIN}vmin`, aspectRatio: "1", willChange: "transform" }}
               initial={{ scale: 1 }}
-              animate={{ scale: [1, 0.9, 1.02, 1] }}
+              animate={full ? { scale: [1, 0.9, 1.02, 1] } : { scale: 1 }}
               transition={{
                 delay: s(SEAM_HOLD_MS),
                 duration: 0.86,
@@ -163,6 +187,7 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
 
             {/* Rises into place behind its own edge. Transform only —
                 clip-path animates on the CPU in WebKit. */}
+            {full && (
             <div className="absolute left-1/2 top-full w-max -translate-x-1/2 overflow-hidden pt-[1vmin]">
               <motion.span
                 className="block text-[4.5vmin] font-bold lowercase tracking-[0.42em] text-ink [font-family:'Chakra_Petch','Plus_Jakarta_Sans',system-ui,sans-serif]"
@@ -179,12 +204,13 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
                 <span className="ms-[0.42em] inline-block">acadkit</span>
               </motion.span>
             </div>
+            )}
           </div>
 
           {/* The shutter's painted edge. It sits below the fold of the
               surface, so it only becomes visible as the surface leaves —
               sweeping up the screen ahead of the app. */}
-          {!reduced && (
+          {full && !reduced && (
             <div className="absolute inset-x-0 top-full h-[2vmin] bg-accent" aria-hidden />
           )}
         </motion.div>
