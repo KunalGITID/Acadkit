@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Folder, FolderSync, Search, X } from "lucide-react";
 import { FileRow } from "@/components/study/file-row";
-import { ExamPrep } from "@/components/study/exam-prep";
 import { Input } from "@/components/ui/input";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { usePin } from "@/hooks/useData";
@@ -109,8 +108,6 @@ export default function Files() {
           </button>
         )}
       </div>
-
-      {!searching && dir === "" && <ExamPrep />}
 
       {!searching && crumbs.length > 0 && (
         <nav className="flex flex-wrap items-center gap-1 px-1 text-sm font-semibold" aria-label="Folder path">

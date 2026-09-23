@@ -509,8 +509,8 @@ database, unused.
 
 The weekly scan also writes `_src/acadkit_prep.json`, which the sync
 uploads as `<pin>/prep.json` (paths not in the folder are dropped and
-reported). `src/lib/examPrep.ts` reads it: `upcomingPrep` for the Study
-page's Exam prep section (`components/study/exam-prep.tsx` — portion,
+reported). `src/lib/examPrep.ts` reads it: `upcomingPrep` for the Exam
+prep section on the **Marks** page, folded to one line until opened (`components/study/exam-prep.tsx` — portion,
 pattern, past-paper topic ranking as seen/of, files, and `prepWindows`
 free periods), and `prepForDeadline` for the Prep link that replaces a
 Home deadline's type badge. Topic counts are read from real papers by

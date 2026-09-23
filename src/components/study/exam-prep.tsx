@@ -19,14 +19,15 @@ function daysAway(iso: string, now: number): string {
 
 /**
  * Exam prep: for each upcoming test, what it covers and how the paper
- * is set. The Study page's first section, because in an exam week that is
- * what you open the folder for.
+ * is set. Lives on the Marks page, folded to one line until opened —
+ * it is looked at before a test, not every visit.
  */
 export function ExamPrep() {
   const pin = usePin();
   const [params] = useSearchParams();
   const linked = params.get("prep");
   const [open, setOpen] = useState<string | null>(linked);
+  const [expanded, setExpanded] = useState(!!linked);
   const [now] = useState(() => Date.now());
   const prep = useQuery({ queryKey: ["study-prep", pin], queryFn: () => fetchStudyPrep(pin), staleTime: 5 * 60_000 });
   const tests = useMemo(() => upcomingPrep(prep.data, now), [prep.data, now]);
@@ -34,10 +35,22 @@ export function ExamPrep() {
 
   return (
     <section className="space-y-2">
-      <p className="flex items-center gap-2 px-1 text-xs font-bold uppercase tracking-widest text-muted">
-        <GraduationCap className="h-4 w-4 text-accent" /> Exam prep
-      </p>
-      {tests.map((t) => {
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="card flex w-full items-center gap-3 p-4 text-left"
+      >
+        <GraduationCap className="h-5 w-5 shrink-0 text-accent" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold">Exam prep · {tests.length} tests</span>
+          <span className="block truncate text-xs font-medium text-muted">
+            Next: {tests[0].title} · {daysAway(tests[0].due_date, now)}
+          </span>
+        </span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted transition-transform", expanded && "rotate-180")} />
+      </button>
+      {expanded && tests.map((t) => {
         const id = prepId(t);
         return (
           <PrepCard
