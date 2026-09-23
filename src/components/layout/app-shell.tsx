@@ -3,7 +3,7 @@ import { Link, useLocation, useOutlet } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { LayoutGrid, Settings, Sparkles } from "lucide-react";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import { SECONDARY_NAV } from "@/components/layout/nav-items";
+import { SECONDARY_NAV, STUDY_ITEM } from "@/components/layout/nav-items";
 import { Sidebar } from "@/components/layout/sidebar";
 import { OfflineBanner } from "@/components/layout/offline-banner";
 import { Skeleton } from "@/components/ui/misc";
@@ -99,6 +99,20 @@ export function AppShell() {
               <span className="text-[17px] font-extrabold tracking-tight">AcadKit</span>
             </Link>
             <div className="flex items-center gap-2">
+              <Link
+                to={STUDY_ITEM.to}
+                onClick={() => haptic()}
+                aria-label={STUDY_ITEM.label}
+                aria-current={location.pathname === STUDY_ITEM.to ? "page" : undefined}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-2xl border transition-colors",
+                  location.pathname === STUDY_ITEM.to
+                    ? "border-accent/40 bg-accent/15"
+                    : "bg-surface-2 hover:bg-surface-2/70"
+                )}
+              >
+                <STUDY_ITEM.icon className="h-5 w-5 text-accent" />
+              </Link>
               <button
                 type="button"
                 onClick={() => {

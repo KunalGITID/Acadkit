@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LayoutGrid, Sparkles } from "lucide-react";
-import { NAV_ITEMS, SETTINGS_ITEM, type NavItem } from "@/components/layout/nav-items";
+import { NAV_ITEMS, SETTINGS_ITEM, STUDY_ITEM, type NavItem } from "@/components/layout/nav-items";
 import { DayOrderChip } from "@/components/layout/day-order-chip";
 import { cn } from "@/lib/utils";
 
@@ -36,8 +36,8 @@ function Item({ item }: { item: NavItem }) {
 }
 
 /**
- * The same five destinations as the phone's bottom bar, then More and
- * Settings — the desktop used to list all eleven, which buried the five
+ * The same five destinations as the phone's bottom bar, then Study
+ * (the phone's top-bar book), More and Settings — the desktop used to list all eleven, which buried the five
  * used daily among pages opened once a month. More opens the same sheet
  * the phone uses, so the two layouts have one idea of what is primary.
  */
@@ -59,6 +59,8 @@ export function Sidebar({ onMore, moreActive }: { onMore: () => void; moreActive
         {NAV_ITEMS.map((item) => (
           <Item key={item.to} item={item} />
         ))}
+        <div className="my-2 border-t" />
+        <Item item={STUDY_ITEM} />
         <button type="button" onClick={onMore} aria-haspopup="dialog" className={row(moreActive)}>
           {moreActive && <Pill />}
           <LayoutGrid className="relative z-10 h-[18px] w-[18px]" strokeWidth={2.2} />

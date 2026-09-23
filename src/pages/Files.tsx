@@ -90,7 +90,7 @@ export default function Files() {
   if (!manifest.data) {
     return (
       <div className="mx-auto max-w-2xl space-y-4">
-        <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">Files</h1>
+        <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">Study</h1>
         <section className="card">
           <EmptyState
             icon={FolderSync}
@@ -113,7 +113,7 @@ export default function Files() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="px-1">
-        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Files</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">Study</h1>
         <p className="mt-1 text-sm font-medium text-muted">
           {manifest.data.root} · {files.length} files · {formatSize(totalSize)} · synced {synced(manifest.data.syncedAt)}
         </p>
