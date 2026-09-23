@@ -1,5 +1,6 @@
+import { labelMatchKey } from "@/lib/componentLabel";
 import { derivedTitle } from "@/lib/deadlines";
-import type { Deadline, DeadlineType, Subject } from "@/types";
+import type { Assessment, Deadline, DeadlineType, MarkComponentType, Subject } from "@/types";
 
 /**
  * Deadlines the weekly scan found in the study folder, offered rather
@@ -20,20 +21,33 @@ export interface DeadlineSuggestionPayload {
   max_marks?: number | null;
 }
 
-export interface Suggestion {
+/** A subject's marks plan as its course assessment plan states it. */
+export interface PlanSuggestionPayload {
+  subject_code: string;
+  /** Internal share of the /100 (60 for most, 100 for a fully internal course). */
+  internal: number;
+  components: { label: string; type: MarkComponentType; max: number }[];
+}
+
+export type Suggestion =
+  | (SuggestionBase & { kind: "deadline"; payload: DeadlineSuggestionPayload })
+  | (SuggestionBase & { kind: "plan"; payload: PlanSuggestionPayload });
+
+interface SuggestionBase {
   id: string;
   device_id: string;
   key: string;
-  kind: "deadline";
-  payload: DeadlineSuggestionPayload;
   source: string | null;
   evidence: string | null;
   status: SuggestionStatus;
   created_at?: string;
 }
 
+export type DeadlineSuggestion = Extract<Suggestion, { kind: "deadline" }>;
+export type PlanSuggestion = Extract<Suggestion, { kind: "plan" }>;
+
 export interface DeadlineOffer {
-  suggestion: Suggestion;
+  suggestion: DeadlineSuggestion;
   subject: Subject | null;
   /** Exactly what Add writes — the same shape the deadline sheet saves. */
   deadline: Omit<Deadline, "id" | "device_id" | "created_at">;
@@ -62,7 +76,7 @@ export function deadlineOffers(
 ): DeadlineOffer[] {
   const byCode = new Map((subjects ?? []).map((s) => [norm(s.code), s]));
   return (suggestions ?? [])
-    .filter((s) => s.kind === "deadline" && s.status === "pending")
+    .filter((s): s is DeadlineSuggestion => s.kind === "deadline" && s.status === "pending")
     .filter((s) => !Number.isNaN(new Date(s.payload.due_date).getTime()))
     .filter((s) => new Date(s.payload.due_date).getTime() > now)
     .map((s) => {
@@ -89,11 +103,68 @@ export function deadlineOffers(
 
 function alreadyHave(o: DeadlineOffer, deadlines: Deadline[]): boolean {
   const day = localDay(o.deadline.due_date);
-  const label = norm(o.suggestion.payload.label);
+  const label = o.suggestion.payload.label?.trim();
+  // The same matcher the budget uses, so "FJ-II" here is "FJ-2" there.
+  const key = label ? labelMatchKey(label) : null;
   return deadlines.some(
     (d) =>
       d.subject_id === o.deadline.subject_id &&
       localDay(d.due_date) === day &&
-      (label ? norm(d.title).includes(label) : d.type === o.deadline.type)
+      (key ? labelMatchKey(d.title) === key : d.type === o.deadline.type)
   );
+}
+
+export interface PlanOffer {
+  suggestion: PlanSuggestion;
+  subject: Subject;
+  /** What Apply writes to subjects.assessment. */
+  assessment: Assessment;
+  /** True when the subject has no components yet, so nothing is replaced. */
+  fresh: boolean;
+}
+
+/**
+ * Marks plans worth offering: for a subject you have, and different
+ * from the plan it already carries. "Different" is compared the way the
+ * budget reads a plan — same internal share and the same components by
+ * match key and weight — so a plan you typed as "FJ-2" is not offered
+ * again as "FJ-II". Applying keeps your component keys where a label
+ * matches (marks stay attached to their row) and your end-sem
+ * expectation, and replaces the rest.
+ */
+export function planOffers(suggestions: Suggestion[] | undefined, subjects: Subject[] | undefined): PlanOffer[] {
+  const byCode = new Map((subjects ?? []).map((s) => [norm(s.code), s]));
+  const out: PlanOffer[] = [];
+  for (const s of suggestions ?? []) {
+    if (s.kind !== "plan" || s.status !== "pending") continue;
+    const subject = byCode.get(norm(s.payload.subject_code));
+    const comps = s.payload.components.filter((c) => c.label?.trim() && c.max > 0);
+    if (!subject || comps.length === 0 || !(s.payload.internal > 0 && s.payload.internal <= 100)) continue;
+    const current = subject.assessment;
+    const same =
+      current &&
+      current.internal === s.payload.internal &&
+      current.components.length === comps.length &&
+      comps.every((c) => current.components.some((k) => labelMatchKey(k.label) === labelMatchKey(c.label) && k.max === c.max));
+    if (same) continue;
+    const keep = new Map((current?.components ?? []).map((k) => [labelMatchKey(k.label), k.key]));
+    let n = 0;
+    out.push({
+      suggestion: s,
+      subject,
+      fresh: !current?.components.length,
+      assessment: {
+        internal: s.payload.internal,
+        complete: comps.reduce((sum, c) => sum + c.max, 0) === s.payload.internal,
+        assumedExternalPct: current?.assumedExternalPct ?? null,
+        components: comps.map((c) => ({
+          key: keep.get(labelMatchKey(c.label)) ?? `s${s.key.slice(0, 8)}${n++}`,
+          label: c.label.trim(),
+          type: c.type,
+          max: c.max,
+        })),
+      },
+    });
+  }
+  return out;
 }

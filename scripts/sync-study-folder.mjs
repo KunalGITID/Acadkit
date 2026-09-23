@@ -16,7 +16,9 @@
  *
  * Also uploads what the weekly scan found in the folder, if it wrote
  * _src/acadkit_suggestions.json (see readSuggestions below), as
- * suggestions the app offers — never as deadlines directly.
+ * suggestions the app offers — never as deadlines or plans directly —
+ * and _src/acadkit_prep.json (see readPrep) as <pin>/prep.json, which
+ * the Study page's Exam prep reads.
  *
  * Files are stored by content hash, so a rename or move only rewrites the
  * manifest, and an unchanged folder uploads nothing. Anything starting
@@ -128,6 +130,37 @@ async function readSuggestions(root) {
       evidence: d.evidence ? String(d.evidence).slice(0, 200) : null,
     });
   }
+  // Marks plans: { subject_code, internal, components: [{ label, type, max }] }.
+  // Keyed on the plan's content, so a plan that changes is a new offer
+  // and one that hasn't can't come back after being dismissed.
+  const KINDS = new Set(["CT", "Lab", "Assignment", "Project"]);
+  for (const [i, p] of (JSON.parse(raw).plans ?? []).entries()) {
+    const comps = Array.isArray(p.components) ? p.components : [];
+    const sum = comps.reduce((s, c) => s + Number(c.max || 0), 0);
+    const problem = !p.subject_code
+      ? "subject_code"
+      : !(p.internal > 0 && p.internal <= 100)
+        ? "internal"
+        : comps.length === 0 || comps.some((c) => !String(c.label ?? "").trim() || !KINDS.has(c.type) || !(Number(c.max) > 0))
+          ? "components"
+          : sum > p.internal
+            ? `components (they add to ${sum}, more than internal ${p.internal})`
+            : null;
+    if (problem) {
+      bad.push(`plan #${i + 1} ${p.subject_code ?? ""}: bad ${problem}`);
+      continue;
+    }
+    const components = comps.map((c) => ({ label: String(c.label).trim(), type: c.type, max: Number(c.max) }));
+    const sig = `${squash(p.subject_code)}|${p.internal}|${components.map((c) => `${squash(c.label)}:${c.type}:${c.max}`).join(",")}`;
+    rows.push({
+      device_id: pin,
+      key: createHash("sha256").update(`plan|${sig}`).digest("hex").slice(0, 32),
+      kind: "plan",
+      payload: { subject_code: p.subject_code, internal: Number(p.internal), components },
+      source: p.source ? String(p.source).slice(0, 300) : null,
+      evidence: p.evidence ? String(p.evidence).slice(0, 200) : null,
+    });
+  }
   // Two rows the scan wrote twice would fail the whole batch on the
   // unique key; the first wins.
   const unique = new Map();
@@ -178,14 +211,51 @@ console.log(`${path.basename(dir)}: ${files.length} files, ${mb(files.reduce((s,
 console.log(`Upload ${toUpload.length} (${mb(toUpload.reduce((s, f) => s + f.size, 0))}), remove ${toRemove.length}`);
 for (const s of skippedLarge) console.log(`  skipped, over 50 MB: ${s}`);
 
+/**
+ * Exam prep: { tests: [{ subject_code, label, due_date, title, portion,
+ * pattern, papers, topics: [{ topic, unit, seen, of }], files: [{ path,
+ * why }] }] }. Files are study-folder paths; any that aren't in this sync
+ * are dropped with a warning rather than shipped as dead links.
+ */
+async function readPrep(root, known) {
+  let raw;
+  try {
+    raw = await readFile(path.join(root, "_src", "acadkit_prep.json"), "utf8");
+  } catch {
+    return null;
+  }
+  const data = JSON.parse(raw);
+  const warnings = [];
+  const tests = [];
+  for (const t of data.tests ?? []) {
+    if (!t.subject_code || Number.isNaN(new Date(t.due_date).getTime()) || !/(Z|[+-]\d\d:\d\d)$/.test(t.due_date ?? "")) {
+      warnings.push(`prep ${t.subject_code ?? "?"} ${t.label ?? ""}: needs subject_code and a due_date with a time zone`);
+      continue;
+    }
+    const files = (t.files ?? []).filter((f) => {
+      const ok = known.has(f.path);
+      if (!ok) warnings.push(`prep ${t.subject_code} ${t.label ?? ""}: no such file ${f.path}`);
+      return ok;
+    });
+    tests.push({ ...t, files, topics: (t.topics ?? []).filter((x) => x.topic) });
+  }
+  return { body: { version: 1, generatedAt: Date.now(), tests }, warnings };
+}
+
 const found = await readSuggestions(dir);
+const prep = await readPrep(dir, new Set(files.map((f) => f.path)));
+if (prep) console.log(`Exam prep: ${prep.body.tests.length} tests${prep.warnings.length ? `, ${prep.warnings.length} warning(s)` : ""}`);
+for (const w of prep?.warnings ?? []) console.log(`  ${w}`);
 if (found.rows.length || found.bad.length)
   console.log(`Suggestions from the scan: ${found.rows.length} valid${found.bad.length ? `, ${found.bad.length} skipped` : ""}`);
 for (const b of found.bad) console.log(`  skipped suggestion ${b}`);
 
 if (dryRun) {
   for (const f of toUpload) console.log(`  + ${f.path}`);
-  for (const r of found.rows) console.log(`  ? ${r.payload.subject_code ?? "-"} ${r.payload.label ?? r.payload.type} ${r.payload.due_date}`);
+  for (const r of found.rows)
+    console.log(r.kind === "plan"
+      ? `  ? plan ${r.payload.subject_code}: ${r.payload.components.map((c) => `${c.label} ${c.max}`).join(" · ")}`
+      : `  ? ${r.payload.subject_code ?? "-"} ${r.payload.label ?? r.payload.type} ${r.payload.due_date}`);
   console.log("Dry run: nothing changed.");
   process.exit(0);
 }
@@ -234,6 +304,15 @@ const manifest = {
   }
 }
 
+if (prep) {
+  const { error } = await bucket.upload(`${pin}/prep.json`, JSON.stringify(prep.body), {
+    contentType: "application/json",
+    upsert: true,
+    cacheControl: "0",
+  });
+  if (error) console.error(`Couldn't write exam prep: ${error.message}`);
+}
+
 // Only now that nothing points at them.
 for (let i = 0; i < toRemove.length; i += 100) {
   const { error } = await bucket.remove(toRemove.slice(i, i + 100));
@@ -242,13 +321,17 @@ for (let i = 0; i < toRemove.length; i += 100) {
 
 // Insert-or-ignore on (device_id, key): a finding the app has already
 // seen keeps whatever you decided about it.
-if (found.rows.length) {
+// Sent per kind, so a project that hasn't run migration 027 (which
+// allows 'plan') still gets its deadlines.
+for (const [kind, migration] of [["deadline", "026"], ["plan", "027"]]) {
+  const rows = found.rows.filter((r) => r.kind === kind);
+  if (!rows.length) continue;
   const { data, error } = await supabase
     .from("suggestions")
-    .upsert(found.rows, { onConflict: "device_id,key", ignoreDuplicates: true })
+    .upsert(rows, { onConflict: "device_id,key", ignoreDuplicates: true })
     .select("id");
-  if (error) console.error(`Couldn't send suggestions: ${error.message}. Has migration 026 been run?`);
-  else console.log(`Suggestions: ${data.length} new, ${found.rows.length - data.length} already known.`);
+  if (error) console.error(`Couldn't send ${kind} suggestions: ${error.message}. Has migration ${migration} been run?`);
+  else console.log(`${kind === "plan" ? "Marks plans" : "Deadlines"}: ${data.length} new, ${rows.length - data.length} already known.`);
 }
 
 console.log(`Synced. ${files.length} files are on the Files page.`);

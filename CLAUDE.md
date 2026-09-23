@@ -485,6 +485,27 @@ among your deadlines (same subject and IST day, same component label
 or else same type), and keeps an unknown course code unassigned rather
 than dropping a real date.
 
+### Exam prep and marks plans from the study folder
+
+The weekly scan also writes `_src/acadkit_prep.json`, which the sync
+uploads as `<pin>/prep.json` (paths not in the folder are dropped and
+reported). `src/lib/examPrep.ts` reads it: `upcomingPrep` for the Study
+page's Exam prep section (`components/study/exam-prep.tsx` — portion,
+pattern, past-paper topic ranking as seen/of, files, and `prepWindows`
+free periods), and `prepForDeadline` for the Prep link that replaces a
+Home deadline's type badge. Topic counts are read from real papers by
+the scan and never computed here.
+
+Marks plans ride the suggestions table as `kind = 'plan'` (migration
+027 widens the check). `planOffers` shows one only when it differs from
+the subject's current `assessment` by match key and weight, keeps your
+component keys where labels match (so marks stay attached) and your
+end-sem expectation, and Apply writes `assessment` plus `internal_only`
+in step. `labelMatchKey` reads Roman numerals after a separator
+("FJ-II" ≡ "FJ-2", "PBL-I" ≡ "PBL-1") because that is how faculty
+write them; without it an accepted "FJ-II" deadline would be adopted as
+a second component beside the plan's FJ-2.
+
 ### Crash reporting
 
 `src/lib/crashLog.ts`. The ErrorBoundary used to insert into `error_log`

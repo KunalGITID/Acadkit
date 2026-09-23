@@ -76,8 +76,17 @@ export function nextComponentLabel(
  * synced before it was. Case and separators go the same way they do in
  * `normLabel`.
  */
+const ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 };
+
 export function labelMatchKey(label: string): string {
-  const flat = label.trim().toLowerCase().replace(/[\s_-]+/g, "");
+  // Faculty write components in Roman numerals as often as not — "FJ-II",
+  // "PBL-I" — and a deadline titled that way must land on the plan's
+  // "FJ-2" rather than be adopted as a second component. Only after a
+  // separator, so a word that merely ends in i/v/x ("Mini") is untouched.
+  let text = label.trim().toLowerCase();
+  const roman = /^([a-z]+)[\s_-]+([ivx]+)$/.exec(text);
+  if (roman && ROMAN[roman[2]]) text = `${roman[1]}${ROMAN[roman[2]]}`;
+  const flat = text.replace(/[\s_-]+/g, "");
   const family = /^(?:ct|ft|fj)(\d+)$/.exec(flat);
   if (family) return `f${family[1]}`;
   const learning = /^(?:lab|llt|llj)(\d+)$/.exec(flat);

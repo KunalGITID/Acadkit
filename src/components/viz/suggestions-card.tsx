@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { FileSearch, Plus, X } from "lucide-react";
+import { Check, FileSearch, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dot } from "@/components/ui/misc";
@@ -10,9 +10,10 @@ import {
   useDeadlines,
   useSubjects,
   useSuggestions,
+  useUpdateSubject,
 } from "@/hooks/useData";
 import { deadlineLabel } from "@/lib/deadlines";
-import { deadlineOffers, type DeadlineOffer } from "@/lib/suggestions";
+import { deadlineOffers, planOffers, type DeadlineOffer, type PlanOffer } from "@/lib/suggestions";
 import { haptic } from "@/lib/utils";
 
 const SHOWN = 3;
@@ -45,6 +46,7 @@ export function SuggestionsCard() {
   const { data: deadlines } = useDeadlines();
   const { data: subjects } = useSubjects();
   const add = useAddDeadline();
+  const updateSubject = useUpdateSubject();
   const decide = useDecideSuggestion();
   const [showAll, setShowAll] = useState(false);
 
@@ -58,7 +60,8 @@ export function SuggestionsCard() {
     () => deadlineOffers(suggestions, deadlines, subjects, now),
     [suggestions, deadlines, subjects, now]
   );
-  if (offers.length === 0) return null;
+  const plans = useMemo(() => planOffers(suggestions, subjects), [suggestions, subjects]);
+  if (offers.length === 0 && plans.length === 0) return null;
 
   const visible = showAll ? offers : offers.slice(0, SHOWN);
 
@@ -69,14 +72,64 @@ export function SuggestionsCard() {
     toast.success(`Added ${deadlineLabel(o.deadline, o.subject ?? undefined)}`);
   }
 
+  function apply(o: PlanOffer) {
+    haptic([10, 40, 14]);
+    // internal_only is kept written in step with the weight (see CLAUDE.md),
+    // so a device that hasn't run migration 021 still agrees.
+    updateSubject.mutate({
+      id: o.subject.id,
+      patch: { assessment: o.assessment, internal_only: o.assessment.internal === 100 },
+    });
+    decide.mutate({ id: o.suggestion.id, status: "accepted" });
+    toast.success(`Marks plan set for ${o.subject.short_name || o.subject.name}`);
+  }
+
   return (
     <section className="card p-5">
       <div className="mb-3 flex items-center gap-2">
         <FileSearch className="h-4 w-4 text-accent" />
         <p className="text-xs font-bold uppercase tracking-widest text-muted">
-          Found in your files · {offers.length}
+          Found in your files · {offers.length + plans.length}
         </p>
       </div>
+
+      {plans.length > 0 && (
+        <div className="mb-2 space-y-2">
+          {plans.map((o) => (
+            <div key={o.suggestion.id} className="rounded-2xl border bg-surface-2/40 p-3">
+              <p className="flex items-start gap-1.5 text-sm font-bold">
+                <Dot color={o.subject.color_hex} className="mt-[7px] h-1.5 w-1.5 shrink-0" />
+                <span className="line-clamp-2">Marks plan · {o.subject.short_name || o.subject.name}</span>
+              </p>
+              <p className="mt-0.5 text-xs font-semibold text-ink">
+                {o.assessment.components.map((c) => `${c.label} ${c.max}`).join(" · ")}
+                {o.assessment.internal === 100 ? " · fully internal" : ` · ${o.assessment.internal} internal + ${100 - o.assessment.internal} end-sem`}
+              </p>
+              <p className="mt-1 text-xs font-medium text-muted">
+                {!o.fresh && <span className="font-semibold text-warn-deep">Replaces your current plan. </span>}
+                {o.suggestion.evidence && <span className="italic">“{o.suggestion.evidence}”</span>}
+                {o.suggestion.evidence && o.suggestion.source && " — "}
+                {sourceName(o.suggestion.source)}
+              </p>
+              <div className="mt-2.5 flex gap-2">
+                <Button size="sm" onClick={() => apply(o)}>
+                  <Check className="h-4 w-4" /> Apply
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    haptic();
+                    decide.mutate({ id: o.suggestion.id, status: "dismissed" });
+                  }}
+                >
+                  <X className="h-4 w-4" /> Dismiss
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="space-y-2">
         <AnimatePresence initial={false}>

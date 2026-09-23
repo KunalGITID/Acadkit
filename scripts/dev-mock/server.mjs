@@ -228,7 +228,19 @@ const db = {
   suggestions: (() => {
     const file = path.join(STUDY_DIR, "_src", "acadkit_suggestions.json");
     if (!existsSync(file)) return [];
-    return (JSON.parse(readFileSync(file, "utf8")).deadlines ?? []).map((d, i) => ({
+    const raw = JSON.parse(readFileSync(file, "utf8"));
+    const plans = (raw.plans ?? []).map((p, i) => ({
+      id: uid("plan", i),
+      device_id: PIN,
+      key: `mock-plan-${i}`,
+      kind: "plan",
+      payload: { subject_code: p.subject_code, internal: p.internal, components: p.components },
+      source: p.source ?? null,
+      evidence: p.evidence ?? null,
+      status: "pending",
+      created_at: new Date().toISOString(),
+    }));
+    return plans.concat((raw.deadlines ?? []).map((d, i) => ({
       id: uid("sug", i),
       device_id: PIN,
       key: `mock-${i}`,
@@ -238,7 +250,7 @@ const db = {
       evidence: d.evidence ?? null,
       status: "pending",
       created_at: new Date().toISOString(),
-    }));
+    })));
   })(),
   semester_archives: [],
   push_subscriptions: [],
@@ -301,6 +313,11 @@ function mockStorage(req, res, u) {
   }
   const m = p.match(/^\/object\/(?:sign\/|authenticated\/)?study-files\/(.+)$/);
   if (!m) return json(404, { statusCode: "404", error: "not_found", message: "Object not found" });
+  if (m[1] === "1234/prep.json") {
+    const file = path.join(STUDY_DIR, "_src", "acadkit_prep.json");
+    if (!existsSync(file)) return json(400, { statusCode: "404", error: "not_found", message: "Object not found" });
+    return json(200, { ...JSON.parse(readFileSync(file, "utf8")), generatedAt: Date.now() });
+  }
   if (m[1] === "1234/manifest.json") {
     if (!studyFiles.length) return json(400, { statusCode: "404", error: "not_found", message: "Object not found" });
     return json(200, { version: 1, root: path.basename(STUDY_DIR), syncedAt: Date.now(), files: studyFiles });

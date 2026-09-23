@@ -31,12 +31,16 @@ import {
   useSubjects,
   useTimetable,
   useUpdateDeadline,
+  usePin,
 } from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
 import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
 import { daysUntilSemesterStart, nextWorkingDate, semesterWindow } from "@/lib/calendar";
 import { formatDate, formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
 import { deadlineLabel, upcomingDeadlines } from "@/lib/deadlines";
+import { prepForDeadline, prepId } from "@/lib/examPrep";
+import { fetchStudyPrep } from "@/api/studyFiles";
+import { useQuery } from "@tanstack/react-query";
 import { deadlineNeed, describeNeed } from "@/lib/deadlineTarget";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
@@ -463,6 +467,12 @@ function DeadlinesCard() {
     };
   }, []);
   const upcoming = useMemo(() => upcomingDeadlines(deadlines, now), [deadlines, now]);
+  const pin = usePin();
+  const { data: prep } = useQuery({
+    queryKey: ["study-prep", pin],
+    queryFn: () => fetchStudyPrep(pin),
+    staleTime: 5 * 60_000,
+  });
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
 
@@ -563,13 +573,27 @@ function DeadlinesCard() {
                     )}
                   </p>
                 </button>
-                <Badge
-                  className={cn(
-                    d.type === "exam" ? "bg-bad/10 text-bad-deep" : "bg-accent/10 text-accent"
-                  )}
-                >
-                  {d.type}
-                </Badge>
+                {(() => {
+                  // When the scan worked out what this test covers, the
+                  // badge becomes the way in: one tap to Exam prep.
+                  const p = prepForDeadline(prep, d, subject);
+                  return p ? (
+                    <Link
+                      to={`/files?prep=${prepId(p)}`}
+                      className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white"
+                    >
+                      Prep
+                    </Link>
+                  ) : (
+                    <Badge
+                      className={cn(
+                        d.type === "exam" ? "bg-bad/10 text-bad-deep" : "bg-accent/10 text-accent"
+                      )}
+                    >
+                      {d.type}
+                    </Badge>
+                  );
+                })()}
               </motion.div>
             );
           })}

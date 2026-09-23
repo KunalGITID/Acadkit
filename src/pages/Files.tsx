@@ -1,51 +1,14 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ChevronLeft,
-  ChevronRight,
-  File,
-  FileCode,
-  FileImage,
-  FileSpreadsheet,
-  FileText,
-  Folder,
-  FolderSync,
-  Presentation,
-  Search,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Folder, FolderSync, Search, X } from "lucide-react";
+import { FileRow } from "@/components/study/file-row";
+import { ExamPrep } from "@/components/study/exam-prep";
 import { Input } from "@/components/ui/input";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { usePin } from "@/hooks/useData";
 import { fetchStudyManifest, signStudyFiles } from "@/api/studyFiles";
-import {
-  baseName,
-  extOf,
-  formatSize,
-  listFolder,
-  opensInBrowser,
-  prettyName,
-  searchFiles,
-  type StudyFile,
-} from "@/lib/studyFiles";
+import { formatSize, listFolder, prettyName, searchFiles } from "@/lib/studyFiles";
 
-const ICONS: Record<string, LucideIcon> = {
-  pdf: FileText,
-  docx: FileText,
-  md: FileText,
-  txt: FileText,
-  pptx: Presentation,
-  xlsx: FileSpreadsheet,
-  csv: FileSpreadsheet,
-  png: FileImage,
-  jpg: FileImage,
-  jpeg: FileImage,
-  c: FileCode,
-  py: FileCode,
-  java: FileCode,
-  html: FileCode,
-};
 
 function synced(at: number): string {
   return new Date(at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -147,6 +110,8 @@ export default function Files() {
         )}
       </div>
 
+      {!searching && dir === "" && <ExamPrep files={files} />}
+
       {!searching && crumbs.length > 0 && (
         <nav className="flex flex-wrap items-center gap-1 px-1 text-sm font-semibold" aria-label="Folder path">
           <button
@@ -206,36 +171,6 @@ export default function Files() {
       {links.isError && (
         <p className="px-1 text-sm font-medium text-bad-deep">Couldn't prepare the links. Check your connection and try again.</p>
       )}
-    </div>
-  );
-}
-
-function FileRow({ file, href, showFolder }: { file: StudyFile; href?: string; showFolder: boolean }) {
-  const Icon = ICONS[extOf(file.path)] ?? File;
-  const folder = file.path.includes("/") ? file.path.slice(0, file.path.lastIndexOf("/")) : "";
-  const body = (
-    <>
-      <Icon className="h-5 w-5 shrink-0 text-muted" strokeWidth={1.8} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">{baseName(file.path)}</span>
-        {showFolder && folder && (
-          <span className="block truncate text-xs font-medium text-muted">{prettyName(folder)}</span>
-        )}
-      </span>
-      <span className="shrink-0 text-xs font-semibold text-muted tabular">
-        {formatSize(file.size)}
-        {!opensInBrowser(file.path) && " ↓"}
-      </span>
-    </>
-  );
-  const row = "flex w-full items-center gap-3 px-4 py-3.5 text-left";
-  return href ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={`${row} transition-colors hover:bg-surface-2/60`}>
-      {body}
-    </a>
-  ) : (
-    <div className={`${row} opacity-60`} aria-busy="true">
-      {body}
     </div>
   );
 }

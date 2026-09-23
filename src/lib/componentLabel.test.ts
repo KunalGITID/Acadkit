@@ -149,3 +149,21 @@ describe("labelMatchKey", () => {
     expect(labelMatchKey("Lab")).toBe("lab");
   });
 });
+
+describe("labelMatchKey with Roman numerals", () => {
+  it("reads FJ-II, FT-III and LLJ-I as their numbered forms", () => {
+    expect(labelMatchKey("FJ-II")).toBe(labelMatchKey("FJ-2"));
+    expect(labelMatchKey("FT III")).toBe(labelMatchKey("CT-3"));
+    expect(labelMatchKey("LLJ-I")).toBe(labelMatchKey("LLT-1"));
+  });
+
+  it("numbers any family written that way, not just tests", () => {
+    expect(labelMatchKey("PBL-I")).toBe(labelMatchKey("PBL-1"));
+    expect(labelMatchKey("PBL-II")).not.toBe(labelMatchKey("PBL-1"));
+  });
+
+  it("leaves words that only end in i, v or x alone", () => {
+    expect(labelMatchKey("Mini")).toBe("mini");
+    expect(labelMatchKey("Viva")).toBe("viva");
+  });
+});
