@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "sync:files": "node --env-file-if-exists=.env.local scripts/sync-study-folder.mjs",
     "test:watch": "vitest",
     "dev:mock": "node scripts/dev-mock/server.mjs"
   },

@@ -12,6 +12,9 @@
  */
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
 
 const PORT = 54321;
 const PIN = "1234";
@@ -242,6 +245,54 @@ function filter(rows, params) {
   return rows;
 }
 
+/**
+ * The study folder, listed the way scripts/sync-study-folder.mjs would
+ * (same skip rules), but keyed by index instead of content hash — the
+ * preview never uploads, so there's nothing to hash for.
+ */
+const STUDY_DIR = (process.env.STUDY_DIR || "~/Documents/SRM_Sem3").replace(/^~(?=$|\/)/, homedir());
+const studyFiles = (() => {
+  if (!existsSync(STUDY_DIR)) return [];
+  const out = [];
+  const walk = (rel) => {
+    for (const e of readdirSync(path.join(STUDY_DIR, rel), { withFileTypes: true })) {
+      if (/^[._]|^~\$/.test(e.name)) continue;
+      const child = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(child);
+      else if (e.isFile()) out.push(child);
+    }
+  };
+  walk("");
+  return out.sort().map((p, i) => {
+    const st = statSync(path.join(STUDY_DIR, p));
+    return { path: p, size: st.size, mtime: Math.round(st.mtimeMs), key: `1234/blobs/${i}${path.extname(p).toLowerCase()}` };
+  });
+})();
+const studyByKey = new Map(studyFiles.map((f) => [f.key, f]));
+
+function mockStorage(req, res, u) {
+  const json = (code, body) => res.writeHead(code, { "content-type": "application/json" }).end(JSON.stringify(body));
+  const p = decodeURIComponent(u.pathname.replace(/^\/storage\/v1/, ""));
+  if (req.method === "POST" && p === "/object/sign/study-files") {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    return req.on("end", () => {
+      const { paths = [] } = JSON.parse(raw || "{}");
+      json(200, paths.map((k) => ({ path: k, signedURL: `/object/sign/study-files/${k}?token=mock`, error: null })));
+    });
+  }
+  const m = p.match(/^\/object\/(?:sign\/|authenticated\/)?study-files\/(.+)$/);
+  if (!m) return json(404, { statusCode: "404", error: "not_found", message: "Object not found" });
+  if (m[1] === "1234/manifest.json") {
+    if (!studyFiles.length) return json(400, { statusCode: "404", error: "not_found", message: "Object not found" });
+    return json(200, { version: 1, root: path.basename(STUDY_DIR), syncedAt: Date.now(), files: studyFiles });
+  }
+  const f = studyByKey.get(m[1]);
+  if (!f) return json(400, { statusCode: "404", error: "not_found", message: "Object not found" });
+  res.writeHead(200, { "content-type": "application/octet-stream" });
+  return res.end(readFileSync(path.join(STUDY_DIR, f.path)));
+}
+
 const server = createServer((req, res) => {
   res.setHeader("access-control-allow-origin", "*");
   res.setHeader("access-control-allow-headers", "*");
@@ -279,6 +330,12 @@ const server = createServer((req, res) => {
     // /logout returns no body; everything else gets the session.
     return res.end(u.pathname.includes("logout") ? "" : JSON.stringify(session));
   }
+
+  // ---- storage (study files) ----
+  // Serves the real study folder from this Mac, so /files previews with
+  // real names and sizes. Same URL shapes as Storage: download, batch
+  // sign, and the signed-link fetch.
+  if (u.pathname.startsWith("/storage/v1/")) return mockStorage(req, res, u);
 
   /**
    * The one RPC the app calls. Reading someone else's card goes through

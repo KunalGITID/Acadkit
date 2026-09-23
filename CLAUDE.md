@@ -317,7 +317,7 @@ becomes "attend everything" instead.
 
 ### Pages & layout
 
-Eleven lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/history`, `/wrapped`, `/compare`, `/settings`) plus `Onboarding` and `SignIn`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/history`, `/wrapped`, `/compare`) is listed inline in the sidebar on desktop and reached through the **More** sheet on mobile, which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
+Twelve lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/files`, `/history`, `/wrapped`, `/compare`, `/settings`) plus `Onboarding` and `SignIn`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/files`, `/history`, `/wrapped`, `/compare`) is listed inline in the sidebar on desktop and reached through the **More** sheet on mobile, which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
 
 Marks is now a single view — the segmented Marks/Calculator switcher,
 its slide animation and the swipe between the two went with the
@@ -440,6 +440,30 @@ Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.d
 ### Supabase
 
 Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`, `portal_snapshots`, `device_owners`. Migrations in `supabase/migrations/`; RLS is owner-scoped via `owns_device()` — see the auth note above.
+
+### Study files — `/files`
+
+The Mac's study folder (`~/Documents/SRM_Sem3`, kept up to date by the
+weekly scan), readable on every signed-in device. `npm run sync:files`
+(`scripts/sync-study-folder.mjs`) mirrors it into the private
+`study-files` bucket (migration 025) using `SUPABASE_SERVICE_ROLE_KEY`
+and `STUDY_PIN` from `.env.local` — the service key never gets a `VITE_`
+prefix, or it ships in the bundle. The app only reads; its one policy
+is `owns_device()` on the first path segment, like every table.
+
+Blobs are named by content hash (`<pin>/blobs/<sha256>.<ext>`) and
+`<pin>/manifest.json` lists the tree, so a rename re-uploads nothing and
+no display path has to survive Storage's key rules. The manifest is only
+written after every upload succeeded, and old blobs are removed only
+after it, so the page never points at a file that isn't there. Anything
+starting with `.` or `_` is skipped (the scan's `_src` working files).
+
+Links are signed in one batch for what's on screen, before any tap,
+because `window.open` after an `await` is a blocked pop-up in Safari.
+Types a browser can't show (docx, pptx) get a `download=` name, or they
+would save under their hash. Tree and search are pure
+(`src/lib/studyFiles.ts`): search tokenises at letter/digit boundaries
+and matches numbers whole, so "unit 1" finds Unit1 but not Unit10.
 
 ### Crash reporting
 

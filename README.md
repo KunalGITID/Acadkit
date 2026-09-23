@@ -21,7 +21,7 @@ offline-persisted mutations) · Zustand · vaul bottom sheets · sonner toasts �
 ### 1. Backend (Supabase)
 
 Create a project at [supabase.com](https://supabase.com) — the free tier is plenty — then run
-every file in `supabase/migrations/` **in order** (001 → 024) in the SQL editor. That creates
+every file in `supabase/migrations/` **in order** (001 → 025) in the SQL editor. That creates
 the tables (`subjects`, `timetable_slots`, `attendance`, `marks`, `deadlines`, `settings`,
 plus `portal_snapshots`, `semester_archives`, `shared_cards`, `push_subscriptions`,
 `device_owners` and `error_log`) and the row-level security policies.

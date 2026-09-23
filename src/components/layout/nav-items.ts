@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  FolderOpen,
   Clock3,
   GraduationCap,
   History,
@@ -44,6 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
 export const SECONDARY_NAV: NavItem[] = [
   { to: "/insights", label: "Insights", icon: Sparkles, blurb: "Projections, risk and what-ifs" },
   { to: "/log", label: "Absences", icon: ListX, blurb: "Every period you've missed" },
+  { to: "/files", label: "Files", icon: FolderOpen, blurb: "Your study folder, on every device" },
   { to: "/history", label: "History", icon: History, blurb: "Past semesters and CGPA" },
   // Wrapped was reachable only from Settings, which is where nobody looks
   // at the end of term — the one moment it is worth opening. It stays out
