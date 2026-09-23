@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deadlineLabel, derivedTitle } from "@/lib/deadlines";
-import type { Subject } from "@/types";
+import { deadlineLabel, derivedTitle, upcomingDeadlines } from "@/lib/deadlines";
+import type { Deadline, Subject } from "@/types";
 
 const DSA = {
   code: "21CSC201J",
@@ -53,5 +53,30 @@ describe("derivedTitle", () => {
     for (const type of ["assignment", "exam", "lab", "other"] as const) {
       expect(derivedTitle(type, { code: "  " } as Subject)).not.toBe("");
     }
+  });
+});
+
+describe("upcomingDeadlines", () => {
+  const now = new Date("2026-09-23T12:00:00+05:30").getTime();
+  const dl = (id: string, due: string, status: Deadline["status"] = "pending") =>
+    ({ id, due_date: new Date(due).toISOString(), status }) as Deadline;
+
+  it("drops a deadline the moment it passes, including earlier today", () => {
+    const list = [dl("morning", "2026-09-23T09:00:00+05:30"), dl("evening", "2026-09-23T18:00:00+05:30")];
+    expect(upcomingDeadlines(list, now).map((d) => d.id)).toEqual(["evening"]);
+  });
+
+  it("drops yesterday's, which the old 24-hour grace period kept", () => {
+    expect(upcomingDeadlines([dl("y", "2026-09-22T21:00:00+05:30")], now)).toEqual([]);
+  });
+
+  it("skips finished ones, sorts soonest first and caps the list", () => {
+    const list = [
+      dl("c", "2026-09-26T09:00:00+05:30"),
+      dl("done", "2026-09-24T09:00:00+05:30", "done"),
+      dl("a", "2026-09-24T09:00:00+05:30"),
+      dl("b", "2026-09-25T09:00:00+05:30"),
+    ];
+    expect(upcomingDeadlines(list, now, 2).map((d) => d.id)).toEqual(["a", "b"]);
   });
 });

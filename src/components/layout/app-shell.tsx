@@ -86,7 +86,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[256px_1fr]">
-      <Sidebar />
+      <Sidebar onMore={() => setMoreOpen(true)} moreActive={isSecondary} />
 
       <div className="flex min-w-0 flex-col">
         {/* Mobile top bar */}

@@ -36,7 +36,7 @@ import { useToday } from "@/hooks/useToday";
 import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
 import { daysUntilSemesterStart, nextWorkingDate, semesterWindow } from "@/lib/calendar";
 import { formatDate, formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
-import { deadlineLabel } from "@/lib/deadlines";
+import { deadlineLabel, upcomingDeadlines } from "@/lib/deadlines";
 import { deadlineNeed, describeNeed } from "@/lib/deadlineTarget";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
@@ -449,12 +449,19 @@ function DeadlinesCard() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Deadline | null>(null);
 
-  const upcoming = useMemo(() => {
-    const now = Date.now() - 1000 * 60 * 60 * 24; // keep today's even if past time
-    return (deadlines ?? [])
-      .filter((d) => d.status === "pending" && new Date(d.due_date).getTime() > now)
-      .slice(0, 5);
-  }, [deadlines]);
+  // Ticks, so a deadline passing while the app is open (or resumed from
+  // the background) leaves the list without waiting for a refetch.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const t = setInterval(tick, 30_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, []);
+  const upcoming = useMemo(() => upcomingDeadlines(deadlines, now), [deadlines, now]);
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
 

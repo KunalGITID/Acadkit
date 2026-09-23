@@ -48,3 +48,21 @@ export function derivedTitle(
   const code = subject?.code?.trim();
   return code ? `${code} ${label}` : label;
 }
+
+/**
+ * The deadlines still ahead of you, soonest first.
+ *
+ * Due means due: a deadline stops being upcoming the minute its time
+ * passes. This used to keep anything from the last 24 hours ("keep
+ * today's even if past time"), so yesterday evening's lab record sat
+ * among the upcoming ones for most of the next day — and because the
+ * dashboard only re-ran it when the data changed, a deadline that
+ * passed while the app was open or backgrounded never left at all.
+ * Callers pass a ticking `now` for that reason.
+ */
+export function upcomingDeadlines(deadlines: Deadline[] | undefined, now: number, limit = 5): Deadline[] {
+  return (deadlines ?? [])
+    .filter((d) => d.status === "pending" && new Date(d.due_date).getTime() > now)
+    .sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+    .slice(0, limit);
+}

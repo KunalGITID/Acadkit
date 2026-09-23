@@ -36,7 +36,10 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      gcTime: 1000 * 60 * 60 * 24,
+      // A week, matching the persisted cache below: opening on last
+      // week's figures beats a skeleton waiting on a slow network, and
+      // everything refetches in the background regardless.
+      gcTime: 1000 * 60 * 60 * 24 * 7,
       retry: 1,
       refetchOnWindowFocus: true,
     },
@@ -81,7 +84,7 @@ export default function App() {
         client={queryClient}
         persistOptions={{
           persister,
-          maxAge: 1000 * 60 * 60 * 24,
+          maxAge: 1000 * 60 * 60 * 24 * 7,
           buster: "v2",
           dehydrateOptions: {
             // Offline, React Query pauses a mutation rather than failing
