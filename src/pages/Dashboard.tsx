@@ -31,16 +31,12 @@ import {
   useSubjects,
   useTimetable,
   useUpdateDeadline,
-  usePin,
 } from "@/hooks/useData";
 import { useToday } from "@/hooks/useToday";
 import { attendanceColor, computeOverallAttendance } from "@/lib/attendance";
 import { daysUntilSemesterStart, nextWorkingDate, semesterWindow } from "@/lib/calendar";
 import { formatDate, formatDateLong, formatTimeRange, timeToMinutes } from "@/lib/dates";
 import { deadlineLabel, upcomingDeadlines } from "@/lib/deadlines";
-import { prepForDeadline, prepId } from "@/lib/examPrep";
-import { fetchStudyPrep } from "@/api/studyFiles";
-import { useQuery } from "@tanstack/react-query";
 import { deadlineNeed, describeNeed } from "@/lib/deadlineTarget";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
@@ -466,20 +462,26 @@ function DeadlinesCard() {
       document.removeEventListener("visibilitychange", tick);
     };
   }, []);
-  const upcoming = useMemo(() => upcomingDeadlines(deadlines, now), [deadlines, now]);
-  const pin = usePin();
-  const { data: prep } = useQuery({
-    queryKey: ["study-prep", pin],
-    queryFn: () => fetchStudyPrep(pin),
-    staleTime: 5 * 60_000,
-  });
+  // Five on the home screen; the header (or the button under the list)
+  // opens the rest in place.
+  const [showAll, setShowAll] = useState(false);
+  const allUpcoming = useMemo(() => upcomingDeadlines(deadlines, now, Infinity), [deadlines, now]);
+  const upcoming = showAll ? allUpcoming : allUpcoming.slice(0, 5);
+  const hidden = allUpcoming.length - upcoming.length;
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
 
   return (
     <section className="card p-5">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted">Upcoming deadlines</p>
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          aria-expanded={showAll}
+          className="text-left text-xs font-bold uppercase tracking-widest text-muted"
+        >
+          Upcoming deadlines{allUpcoming.length > 5 ? ` · ${allUpcoming.length}` : ""}
+        </button>
         <Button
           variant="ghost"
           size="sm"
@@ -573,31 +575,23 @@ function DeadlinesCard() {
                     )}
                   </p>
                 </button>
-                {(() => {
-                  // When the scan worked out what this test covers, the
-                  // badge becomes the way in: one tap to Exam prep.
-                  const p = prepForDeadline(prep, d, subject);
-                  return p ? (
-                    <Link
-                      to={`/files?prep=${prepId(p)}`}
-                      className="shrink-0 rounded-full bg-accent px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white"
-                    >
-                      Prep
-                    </Link>
-                  ) : (
-                    <Badge
-                      className={cn(
-                        d.type === "exam" ? "bg-bad/10 text-bad-deep" : "bg-accent/10 text-accent"
-                      )}
-                    >
-                      {d.type}
-                    </Badge>
-                  );
-                })()}
+                <Badge
+                  className={cn(
+                    d.type === "exam" ? "bg-bad/10 text-bad-deep" : "bg-accent/10 text-accent"
+                  )}
+                >
+                  {d.type}
+                </Badge>
               </motion.div>
             );
           })}
         </div>
+      )}
+
+      {(hidden > 0 || showAll) && allUpcoming.length > 5 && (
+        <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Show fewer" : `Show all ${allUpcoming.length} deadlines`}
+        </Button>
       )}
 
       <DeadlineSheet open={sheetOpen} onClose={() => setSheetOpen(false)} deadline={editing} />

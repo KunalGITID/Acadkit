@@ -110,7 +110,7 @@ export default function Files() {
         )}
       </div>
 
-      {!searching && dir === "" && <ExamPrep files={files} />}
+      {!searching && dir === "" && <ExamPrep />}
 
       {!searching && crumbs.length > 0 && (
         <nav className="flex flex-wrap items-center gap-1 px-1 text-sm font-semibold" aria-label="Folder path">

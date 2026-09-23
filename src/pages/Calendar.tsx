@@ -229,7 +229,9 @@ export default function Calendar() {
                         key={d.id}
                         className={cn(
                           "h-1.5 w-1.5 rounded-full",
-                          d.status === "done" ? "bg-muted/40" : "bg-bad"
+                          // A past deadline is history even if it was never ticked
+                          // off, so it reads grey rather than as something due.
+                          d.status === "done" || date < today ? "bg-muted/40" : "bg-bad"
                         )}
                       />
                     ))}
