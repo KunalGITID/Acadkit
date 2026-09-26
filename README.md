@@ -21,10 +21,11 @@ offline-persisted mutations) · Zustand · vaul bottom sheets · sonner toasts �
 ### 1. Backend (Supabase)
 
 Create a project at [supabase.com](https://supabase.com) — the free tier is plenty — then run
-every file in `supabase/migrations/` **in order** (001 → 028) in the SQL editor. That creates
+every file in `supabase/migrations/` **in order** (001 → 030) in the SQL editor. That creates
 the tables (`subjects`, `timetable_slots`, `attendance`, `marks`, `deadlines`, `settings`,
-plus `portal_snapshots`, `semester_archives`, `suggestions`, `push_subscriptions`,
-`device_owners` and `error_log`) and the row-level security policies.
+plus `portal_snapshots`, `portal_snapshot_history`, `forecast_log`, `semester_archives`,
+`suggestions`, `study_chunks`, `push_subscriptions`, `device_owners` and `error_log`) and the
+row-level security policies. 030 enables pgvector, which the free tier includes.
 
 Two settings in the dashboard matter:
 
@@ -98,6 +99,20 @@ your account owns on every sign-in. (Older builds asked for it directly — that
   that way; nothing ever asks for your portal password.
 - **Push reminders** for tomorrow's classes, unmarked attendance, deadlines and a subject
   slipping under the bar, from a scheduled edge function.
+- **Grade odds** — the chance of each subject reaching its target, and of the semester reaching
+  your SGPA, from a Bayesian model of your own marks simulated a few thousand times; logged
+  weekly so the forecasts can be scored once results arrive.
+- **Search your study folder by meaning** — every PDF, deck and photo on the Mac is read (OCR
+  for scans, all on-device) and indexed with Supabase's built-in embedding model; "deadlock
+  conditions" finds the right page of the right notes.
+- **Most-asked past-paper topics** in Exam prep, mined from the papers in each subject's
+  `07_PYQs/` folder — how many different papers asked each one.
+- **A study plan** that spends your free periods (and any evening time you allow) where the
+  marks are, with diminishing returns.
+- **Portal sanity checks** on every sync, and a suggestion list that learns which found
+  deadlines you add.
+- An analysis notebook (`notebooks/`) for your own export — attendance patterns, marks,
+  forecast calibration.
 - Semester archive and CGPA ladder, a Wrapped, shareable subject cards, iCalendar export,
   two themes (each light and dark), and a tone setting for the app's own voice.
 
@@ -113,6 +128,20 @@ day a test is announced and every number re-spreads.
 Each subject also carries its own **target grade** (on its card in Insights → Grades). Leave it
 alone and it follows your target SGPA; change it when one subject deserves a different ambition
 from the rest.
+
+## Study folder sync, search and topics
+
+`npm run sync:files` (on the Mac, with `SUPABASE_SERVICE_ROLE_KEY` and `STUDY_PIN` in
+`.env.local`) mirrors the study folder to the private `study-files` bucket, then reads and
+indexes whatever is new for search, and re-mines past-paper topics. Reading scans needs the
+Xcode Command Line Tools (`xcode-select --install`) — OCR runs on-device with macOS's Vision
+framework. Search needs the edge function deployed once:
+
+```bash
+supabase functions deploy study-search
+```
+
+`--no-index` skips search and topics; `--reindex` rebuilds the index.
 
 ## New semester checklist
 

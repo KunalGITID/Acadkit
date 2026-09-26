@@ -23,7 +23,7 @@ Supabase stand-in). Other UI code is verified manually via the preview.
 (src), `tsconfig.node.json` (vite config), `tsconfig.functions.json`
 (the Deno edge functions, with just enough Deno declared in
 `supabase/deno-shim.d.ts`) and `tsconfig.scripts.json` (the portal-sync
-bookmarklet, via `checkJs`). The last two exist because neither Deno
+bookmarklet and `scripts/study-index/`, via `checkJs`). The last two exist because neither Deno
 deploys nor esbuild bundles type-check: `send-reminders` shipped reading
 two variables outside the block that declared them and threw on every
 run, and the bookmarklet called parser helpers that no longer existed.
@@ -518,6 +518,117 @@ in step. `labelMatchKey` reads Roman numerals after a separator
 ("FJ-II" ≡ "FJ-2", "PBL-I" ≡ "PBL-1") because that is how faculty
 write them; without it an accepted "FJ-II" deadline would be adopted as
 a second component beside the plan's FJ-2.
+
+### Learning from your own data — migrations 029 and 030
+
+Everything below is free to run: pure TypeScript in the app, macOS
+built-ins on the Mac, and Supabase's free tier (pgvector and the edge
+runtime's built-in gte-small model). The data is one student, so the
+methods are small-data ones — Bayesian, regularised, validated — and
+each is gated or hedged so it never claims more than it knows.
+
+**History (029).** `portal_snapshot_history` gets a row per subject per
+sync (portal-ingest, the paste route, a restore, and a one-off backfill of
+the snapshots that existed); `portal_snapshots` stays the current
+baseline. `forecast_log` holds each week's grade odds per subject plus an
+`sgpa` row, written by `useForecastLog` (app shell) once per week per PIN
+from data fetched in the session, never from the persisted cache. Insert-
+only: the first forecast of a week stands. `model` names the forecaster
+(`ODDS_MODEL`), so a changed model is never scored against old calls. Both
+ride in the JSON export and are restored by the import's "Attendance &
+marks" option.
+
+**Grade odds — `src/lib/odds.ts`.** Each subject has an ability μ; a
+component's share is `Beta(μκc, (1−μ)κc)`. μ's prior is fitted to all your
+subjects by method of moments (empirical Bayes, bounded), and its
+posterior is computed exactly on a 100-point grid. The rest of the
+semester is Monte-Carlo'd (3,000 draws, seeded, so identical marks give
+identical odds): remaining components from the posterior predictive,
+unannounced marks in ~12-mark pieces, the end-sem as one paper with a
+lower κ, a shared logit-scale shock per draw so subjects move together,
+and zero for the end-sem of a barred subject. SGPA odds are read off the
+same draws. It deliberately ignores an *assumed* end-sem score — that
+redistributes the ask but must not flatter a forecast, the same rule as
+the pace bracket. It replaced plan.ts's ±1 SD band (population SD of 3–5
+unweighted ratios stretched over the whole pool). Shown on Insights: an
+SGPA-chance card, and per subject a chance-of-target line, a grade
+distribution bar, and the 10th–90th percentile under "At your pace".
+~20 ms for 8 subjects.
+
+**Portal sanity checks — `src/lib/portalAnomalies.ts`.** Compares each
+subject's latest sync with the one before it: classes held going down,
+absences going down (info — often an OD), more absences than classes held,
+the portal's printed % disagreeing with its own counts, more classes than
+the timetable scheduled between the two `as_of`s, and an absence spike
+judged by median/MAD against at least four earlier intervals. Only the
+latest sync is judged. `components/viz/portal-check.tsx` shows them on
+Attendance and is invisible when there is nothing to say.
+
+**Suggestion ranker — `src/lib/suggestionModel.ts`.** L2 logistic
+regression over words in the quoted line, type, source folder, lead time.
+Trained in the browser on your decided deadline suggestions (latest 200).
+Off until there are ≥ 5 of *each* kind and 10-fold CV accuracy beats
+always-guess-the-majority by 5 points (a 50% prediction scores as half a
+hit, or rounding in the class weights makes noise look accurate). Labels
+are yours only: `decided_at` is stamped when you tap (carried in the queued
+write), and the sync script's clean-up of stale suggestions is now status
+`'withdrawn'`, not `'dismissed'`; a `dismissed` row without `decided_at`
+can't be told apart from the old clean-up and is skipped. When on, the
+Home card sorts by it and folds anything under 35% into "Probably not
+for you". Moved dates are always first and never folded.
+
+**Study planner — `src/lib/studyPlan.ts`.** gain(h) = stake·(1−ability)·
+(1−e^(−h/τ)), τ = max(1, stake/5) h, weighted by credits. Half-hour blocks
+go greedily to the test whose next block is worth most, each taking the
+*latest* free block before its due time so earlier blocks stay for earlier
+tests. Blocks come from `prepWindows` (gaps between classes) plus
+`settings.study_evening_minutes` from 6:30pm (029; weekends included).
+Stake is the plan component the deadline is (by `deadline:<id>` key or
+label), capped at the sitting's `max_marks`; ability is the odds' posterior
+mean. Card: `components/study/study-plan.tsx`, on Marks under Exam prep.
+
+**Search by meaning — migration 030, `scripts/study-index/`,
+`supabase/functions/study-search`.** `npm run sync:files` reads every file
+it can (`text.mjs`): PDFs page by page, with Vision OCR for pages with no
+text layer, photos, and Word files through `extract-text.swift` (compiled
+once into `~/Library/Caches/AcadKit/`, needs the Xcode Command Line
+Tools); PowerPoint via `unzip` and the slide XML; text and code as-is.
+Extracted text is cached by content hash in the same folder. `chunk.mjs`
+cuts ~900-character passages with 150 of overlap at line/sentence ends;
+`embed.mjs` sends them, titled with subject and file (and page), to
+study-search in batches the function can finish in its CPU budget (a
+failing batch is split and retried); `index.mjs` writes each file all or
+nothing, once per content hash, and drops files gone from the folder.
+study-search has two modes: `{texts}` → vectors, for the service role only;
+`{query, device_id}` → nearest passages via `match_study_chunks`, run as
+the caller, so RLS confines it to PINs they own. Deployed with JWT
+verification on. On the Study page, typing still matches names instantly;
+Enter (or the "Search inside files" row) searches by meaning, and a PDF
+result opens at its page. The whole folder is ~5,000 passages, ~12 MB.
+`--no-index` skips all of this; `--reindex` rebuilds.
+
+**Past-paper topics — `scripts/study-index/topics.mjs`.** Papers are the
+files under `<subject>_<CODE>/07_PYQs/<test>/` (not Important_Topics and
+the like); photos of one paper share a stem and count as one paper. Each
+is split into questions (a numbered line or "(OR)" starts one; marks
+columns and headers are dropped; each is cut to its opening, since answer
+keys follow the question), embedded (vectors cached by text in
+`question-vectors.json`), and clustered by average-linkage agglomerative
+clustering at cosine ≥ `SAME_TOPIC`. Labels are class-based TF-IDF, a
+chosen bigram suppressing its own words. A topic's weight is how many
+different papers asked it; topics asked in one paper are dropped. The sync
+uploads `<pin>/topics.json`; Exam prep (`topicsForTest` in examPrep.ts)
+counts over the test's own folder (FJ-II ↔ `FJ-II/`, the end-sem ↔
+`End_Sem/`, a mixed folder splits on `&`), falling back to the whole
+subject — and prefers the weekly scan's own `topics` counts when present.
+It is stated as frequency, never as a prediction.
+
+**Notebook — `notebooks/acadkit_analysis.ipynb`.** Reads the JSON export:
+attendance by weekday and start time, component spread and the same
+empirical-Bayes prior the odds use, attendance against marks (Spearman),
+the sync history, deadline load, and forecast calibration (Brier score and
+a reliability chart) once an archived semester supplies final grades.
+Runs in Colab with nothing installed. `notebooks/*.json` is gitignored.
 
 ### Crash reporting
 
