@@ -17,7 +17,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bodyRows,
   findDetailTable,
+  isComponentTable,
   scrapeAttendance,
   scrapeComponents,
   scrapeMarks,
@@ -170,5 +172,26 @@ describe("sp.srmist.edu.in — marks", () => {
 
   it("never reads the attendance table as marks", () => {
     expect(api.scrapeMarks(tablesOf(ATTENDANCE_HTML))).toEqual([]);
+  });
+});
+
+/**
+ * What the bookmarklet's modal walk calls. It used to reach for helpers
+ * that stayed private here when the parser moved out of it, so on this
+ * page it threw before opening a single modal.
+ */
+describe("sp.srmist.edu.in — the bookmarklet's modal walk", () => {
+  it("recognises the component modal's table, and only that one", () => {
+    expect(tablesOf(COMPONENT_MODAL_HTML).some(isComponentTable)).toBe(true);
+    expect(tablesOf(ATTENDANCE_HTML).some(isComponentTable)).toBe(false);
+    expect(tablesOf(MARKS_SUMMARY_HTML).some(isComponentTable)).toBe(false);
+  });
+
+  it("walks the summary's rows below the header", () => {
+    const found = findDetailTable(tablesOf(MARKS_SUMMARY_HTML));
+    expect(found).not.toBeNull();
+    const rows = bodyRows(found!.table);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.querySelector("th") === null)).toBe(true);
   });
 });

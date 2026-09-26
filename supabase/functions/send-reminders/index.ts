@@ -115,16 +115,14 @@ Deno.serve(async (req) => {
 
   // Only the devices that actually subscribed
   const { data: subs } = await sb.from("push_subscriptions").select("*");
-  const deviceIds = [...new Set((subs ?? []).map((s) => s.device_id))];
+  const deviceIds: string[] = [...new Set((subs ?? []).map((s) => s.device_id as string))];
   if (deviceIds.length === 0) return new Response(JSON.stringify({ sent: 0 }));
-
-  const inSemester = date >= semStart && date <= semEnd;
 
   for (const pin of deviceIds) {
     const [{ data: settings }, { data: subjects }, { data: timetable }, { data: attendance }, { data: deadlines }, { data: snapshots }] =
       await Promise.all([
         sb.from("settings").select("declared_holidays,sem_start,sem_end,theme").eq("device_id", pin).maybeSingle(),
-        sb.from("subjects").select("id,name,code,short_name").eq("device_id", pin),
+        sb.from("subjects").select("id,name,code,short_name,medical_leave").eq("device_id", pin),
         sb.from("timetable_slots").select("*").eq("device_id", pin),
         sb.from("attendance").select("subject_id,date,start_time,status").eq("device_id", pin),
         sb.from("deadlines").select("id,type,subject_id,due_date,status").eq("device_id", pin),
@@ -223,10 +221,21 @@ Deno.serve(async (req) => {
         total: rows.length,
       };
     }
+    /**
+     * The bar each subject is held to, matching minAttendanceFor in
+     * src/lib/attendance.ts: 65% where medical leave is granted, else 75%.
+     * Whole percentages, so the maths below stays in integers — 0.65 has
+     * no exact binary form, and dividing by it was a class out.
+     */
+    const barById = new Map<string, number>(
+      (subjects ?? []).map((s) => [s.id as string, s.medical_leave ? 65 : 75])
+    );
     const declared = ((settings?.declared_holidays ?? []) as Array<{ date: string }>).map((h) => h.date);
-    // Per device, exactly as the app reads it.
+    // Per device, exactly as the app reads it. The window has to be read
+    // before anything asks whether today is inside it.
     const semStart = (settings?.sem_start as string | null) || DEFAULT_START;
     const semEnd = (settings?.sem_end as string | null) || DEFAULT_END;
+    const inSemester = date >= semStart && date <= semEnd;
     const dayOrder = inSemester && !OFFICIAL_HOLIDAYS[date] ? effectiveMap(declared, semStart, semEnd)[date] : undefined;
     const todaySlots = (timetable ?? []).filter((s) => s.day_order === dayOrder);
 
@@ -299,17 +308,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // 4) Low-attendance alert (once/day at 08:00)
+    // 4) Low-attendance alert (once/day at 08:00), against each subject's
+    //    own bar — a subject on medical leave at 70% is not below it.
     if (ist.getHours() === 8) {
       for (const subject of subjects ?? []) {
         const { attended, total } = heldFor(subject.id, subject.code as string | null);
-        if (total >= 4 && attended / total < 0.75) {
+        const bar = barById.get(subject.id) ?? 75;
+        if (total >= 4 && 100 * attended < bar * total) {
           msgs.push({
             device_id: pin,
             kind: "low_attendance",
             ref: `low|${subject.id}|${date}`,
             title: pickCopy(
-              `${subject.name ?? "A subject"} below 75%`,
+              `${subject.name ?? "A subject"} below ${bar}%`,
               `${subject.name ?? "a subject"} is cooked`
             ),
             body: pickCopy(
@@ -324,9 +335,10 @@ Deno.serve(async (req) => {
 
     // 5) Morning verdict (08:00): can today actually be skipped?
     //
-    // Mirrors src/lib/skipAdvice.ts — a subject's skip budget is how
-    // many future classes it can still miss and finish at or above 75%:
-    //   attended + remaining - k >= 0.75 * (held + remaining)
+    // Mirrors `skipBudget` in src/lib/projections.ts — a subject's skip
+    // budget is how many future classes it can still miss and finish at
+    // or above its bar (65 on medical leave, else 75):
+    //   100 * (attended + remaining - k) >= bar * (held + remaining)
     // Today's repeats of one subject spend the budget cumulatively, so
     // the day is walked rather than each class judged on its own.
     if (ist.getHours() === 8 && dayOrder && todaySlots.length) {
@@ -346,17 +358,20 @@ Deno.serve(async (req) => {
 
       const spent = new Map<string, number>();
       const mustAttend: string[] = [];
+      let firstBar = 75;
       for (const slot of todaySlots) {
         const { attended: p, total: t } = heldFor(
           slot.subject_id,
           codeById.get(slot.subject_id) ?? null
         );
         const rem = remaining.get(slot.subject_id) ?? 0;
-        const budget = Math.floor(p + rem - 0.75 * (t + rem));
+        const bar = barById.get(slot.subject_id) ?? 75;
+        const budget = Math.floor((100 * (p + rem) - bar * (t + rem)) / 100);
         const used = (spent.get(slot.subject_id) ?? 0) + 1;
         spent.set(slot.subject_id, used);
         if (budget - used < 0) {
           const name = subjName.get(slot.subject_id) ?? "A subject";
+          if (!mustAttend.length) firstBar = bar;
           if (!mustAttend.includes(name)) mustAttend.push(name);
         }
       }
@@ -374,7 +389,7 @@ Deno.serve(async (req) => {
               body: pickCopy(
                 mustAttend.length > 1
                   ? `${mustAttend.length} subjects today are out of skip budget.`
-                  : "Missing today drops you below 75%.",
+                  : `Missing today drops you below ${firstBar}%.`,
                 mustAttend.length > 1
                   ? `${mustAttend.length} subjects today are broke.`
                   : "miss today and you're under."

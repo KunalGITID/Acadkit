@@ -3,11 +3,13 @@
  *
  *   node scripts/portal-sync/build.mjs --pin 1234
  *
- * Reads Supabase credentials from .env.local (or the environment), inlines
- * them along with your PIN, minifies, and writes an install page you drag
- * to the bookmarks bar. The output embeds the ingest secret and PIN, so it is
- * gitignored — treat it like the AcadKit URL itself.
+ * Reads the Supabase URL and INGEST_SECRET from .env.local (or the
+ * environment), derives a token for your PIN, minifies, and writes an
+ * install page you drag to the bookmarks bar. The output embeds the PIN
+ * and its token — not the secret — so it is gitignored; treat it like the
+ * AcadKit URL itself.
  */
+import { createHmac } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,9 +37,11 @@ function env() {
 
 const e = env();
 const diagOnly = process.argv.includes("--diagnostics");
-// The bookmarklet no longer writes to PostgREST — it posts to the
-// portal-ingest edge function, so what it needs embedded is that
-// function's URL and its ingest secret, not the anon key.
+// The bookmarklet posts to the portal-ingest edge function, so what it
+// needs embedded is that function's URL and a token for one PIN:
+// HMAC-SHA256(INGEST_SECRET, pin), which the function recomputes. The
+// secret itself used to be embedded, and the function trusted whatever
+// PIN arrived with it — one bookmarklet could write into any account.
 const url = diagOnly ? "" : e.VITE_SUPABASE_URL;
 const secret = diagOnly ? "" : (arg("secret") || e.INGEST_SECRET);
 const pin = diagOnly ? "" : arg("pin");
@@ -67,11 +71,15 @@ if (!diagOnly) {
   }
 }
 
+const token = diagOnly ? "" : createHmac("sha256", secret).update(pin).digest("hex");
+
+// Function replacers: a plain string replacement treats `$&` and friends
+// in the value as patterns.
 const source = readFileSync(resolve(here, "portal-sync.js"), "utf8")
-  .replace("__INGEST_URL__", ingest)
-  .replace("__INGEST_SECRET__", secret)
-  .replace("__PIN__", pin)
-  .replace("__DIAG_ONLY__", String(diagOnly));
+  .replace("__INGEST_URL__", () => ingest)
+  .replace("__INGEST_TOKEN__", () => token)
+  .replace("__PIN__", () => pin)
+  .replace("__DIAG_ONLY__", () => String(diagOnly));
 
 const { outputFiles } = await build({
   // resolveDir so the shared parser import resolves; bundled because
@@ -142,7 +150,7 @@ describes the page you run it on.</p>
 <li>Open the portal, then pick that bookmark from the address bar.</li>
 </ol>
 <textarea readonly onclick="this.select()">${esc(href)}</textarea>
-<div class="warn">This file has an ingest secret and your PIN baked in. That pair can submit portal data for this PIN &mdash; it cannot read your data or reach any other account &mdash; but keep it off shared machines. It is gitignored for that reason.</div>
+<div class="warn">This file has your PIN and a token for it baked in. That pair can submit portal data for this PIN &mdash; it cannot read your data or reach any other account &mdash; but keep it off shared machines. It is gitignored for that reason.</div>
 `;
 
 const name = diagOnly ? "diagnostics.html" : "install.html";

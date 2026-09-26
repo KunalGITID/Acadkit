@@ -121,7 +121,7 @@ function col(hs: string[], re: RegExp, not?: RegExp): number {
 }
 
 /** Body rows, skipping the row that was consumed as the header. */
-function bodyRows(table: Element): Element[] {
+export function bodyRows(table: Element): Element[] {
   const all = rowsOf(table);
   const head = kids(table, ["thead"])[0];
   if (head) return all.slice(kids(head, ["tr"]).length);
@@ -274,6 +274,17 @@ export function scrapeMarks(all: Element[]): PortalMarkRow[] {
 const RE_COMPONENT = /^component$/;
 const RE_MARK_PAIR = /mark\s*\/\s*max/;
 export const RE_DETAIL_BTN = "button[onclick*='ComponentWiseMarks']";
+
+/**
+ * Whether a table is the component modal's. The bookmarklet polls for
+ * one to appear after clicking "View Details"; it used to spell this
+ * check out with helpers that stayed private here when the parser moved
+ * out of it, which left the modal walk calling functions that no longer
+ * existed.
+ */
+export function isComponentTable(table: Element): boolean {
+  return col(headersOf(table), RE_COMPONENT) >= 0;
+}
 
 /** "2.00 / 5.00" -> { obtained: 2, max: 5 }. "Abs" counts as 0. */
 export function splitPair(text: unknown): { obtained: number; max: number } | null {

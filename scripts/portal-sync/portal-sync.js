@@ -1,9 +1,9 @@
 /**
  * AcadKit portal sync — bookmarklet source.
  *
- * Runs on an SRM Academia page that shows your attendance and/or marks,
- * scrapes the tables, shows you what it found, and on confirmation writes
- * to Supabase via PostgREST.
+ * Runs on an SRM portal page that shows your attendance and/or marks,
+ * scrapes the tables, shows you what it found, and on confirmation posts
+ * them to the portal-ingest edge function.
  *
  * It never sees your SRM password: it runs inside the page you already
  * logged into. Build with `node scripts/portal-sync/build.mjs --pin 1234`.
@@ -13,18 +13,15 @@
  * preview panel shows nothing rather than writing something wrong.
  */
 import {
+  bodyRows,
   cellsOf,
-  classify,
   findDetailTable,
-  low,
+  isComponentTable,
   norm,
-  num,
   RE_DETAIL_BTN,
-  rowsOf,
   scrapeAttendance,
   scrapeComponents,
   scrapeMarks,
-  splitPair,
   tablesIn as tables,
   diagnose as sharedDiagnose,
 } from "../../src/lib/portal/parse";
@@ -34,7 +31,9 @@ import {
 
   var CFG = {
     ingest: "__INGEST_URL__",
-    secret: "__INGEST_SECRET__",
+    // HMAC-SHA256(INGEST_SECRET, pin): good for this PIN only. The
+    // secret itself never leaves the machine that builds the bookmarklet.
+    token: "__INGEST_TOKEN__",
     pin: "__PIN__",
   };
 
@@ -42,21 +41,6 @@ import {
   // panel only reports what it sees, so the capture step can be run on a
   // portal we haven't taught the parser yet without handling any secrets.
   var DIAG_ONLY = __DIAG_ONLY__;
-
-  var norm = function (s) {
-    return String(s == null ? "" : s).replace(/ /g, " ").replace(/\s+/g, " ").trim();
-  };
-  var low = function (s) {
-    return norm(s).toLowerCase();
-  };
-  var num = function (s) {
-    var m = norm(s).match(/-?\d+(?:\.\d+)?/);
-    return m ? parseFloat(m[0]) : null;
-  };
-  /** Today in the browser's timezone as YYYY-MM-DD (en-CA is ISO-shaped). */
-  var today = function () {
-    return new Date().toLocaleDateString("en-CA");
-  };
 
   // ---------- document collection ----------
 
@@ -71,7 +55,7 @@ import {
     var frames = document.querySelectorAll("iframe, frame");
     for (var i = 0; i < frames.length; i++) {
       try {
-        var d = frames[i].contentDocument;
+        var d = /** @type {HTMLIFrameElement} */ (frames[i]).contentDocument;
         if (d && d.querySelector) docs.push(d);
         else blocked++;
       } catch (e) {
@@ -105,8 +89,7 @@ import {
       if (!isOpen(mods[i])) continue;
       var tbl = mods[i].querySelectorAll("table");
       for (var j = 0; j < tbl.length; j++) {
-        var hs = headers(tbl[j]);
-        if (col(hs, RE_COMPONENT) < 0) continue;
+        if (!isComponentTable(tbl[j])) continue;
         var text = norm(tbl[j].textContent);
         if (text && text !== prev) return Promise.resolve({ table: tbl[j], text: text });
       }
@@ -116,9 +99,9 @@ import {
   }
 
   function closeModal() {
-    var btn = document.querySelector(
+    var btn = /** @type {HTMLElement | null} */ (document.querySelector(
       ".modal.show [data-dismiss='modal'], .modal.show [data-bs-dismiss='modal']"
-    );
+    ));
     if (btn) btn.click();
     return sleep(400);
   }
@@ -139,7 +122,7 @@ import {
     function step(i) {
       if (i >= rows.length) return Promise.resolve(out);
       var c = cellsOf(rows[i]);
-      var btn = rows[i].querySelector(RE_DETAIL_BTN);
+      var btn = /** @type {HTMLElement | null} */ (rows[i].querySelector(RE_DETAIL_BTN));
       var code = c && c.length > found.iCode
         ? norm(c[found.iCode].textContent).toUpperCase()
         : "";
@@ -171,9 +154,9 @@ import {
    * writes began failing with 42501.
    *
    * It posts to an edge function now, which writes with the service
-   * role. The embedded secret grants exactly one capability — submit
-   * portal data for one device_id — instead of the full-account access
-   * a Supabase refresh token would have meant. That matters here more
+   * role. The embedded token grants exactly one capability — submit
+   * portal data for this PIN — instead of the full-account access a
+   * Supabase refresh token would have meant. That matters here more
    * than usual: a bookmarklet's URL is visible in the browser's
    * bookmark manager and syncs between devices.
    */
@@ -182,7 +165,7 @@ import {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-ingest-secret": CFG.secret,
+        "x-ingest-token": CFG.token,
       },
       body: JSON.stringify({
         device_id: CFG.pin,
@@ -255,19 +238,26 @@ import {
     document.body.appendChild(host);
     var root = host.attachShadow({ mode: "open" });
 
+    // Scraped text is the portal's content, not ours: escape it before it
+    // becomes markup, on a page where the ingest token is in scope.
+    var esc = function (v) {
+      return String(v).replace(/[&<>"']/g, function (ch) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch];
+      });
+    };
     var rows = "";
     attendance.forEach(function (a) {
       var pct = a.conducted ? ((a.conducted - a.absent) / a.conducted) * 100 : 0;
       rows +=
-        "<tr><td>" + a.subject_code + "</td><td>attendance</td><td>" +
-        (a.conducted - a.absent) + "/" + a.conducted + " · " + pct.toFixed(1) + "%" +
-        (a.percentage !== null ? " <i>(portal: " + a.percentage + "%)</i>" : "") +
+        "<tr><td>" + esc(a.subject_code) + "</td><td>attendance</td><td>" +
+        esc(a.conducted - a.absent) + "/" + esc(a.conducted) + " · " + pct.toFixed(1) + "%" +
+        (a.percentage !== null ? " <i>(portal: " + esc(a.percentage) + "%)</i>" : "") +
         "</td></tr>";
     });
     marks.forEach(function (m) {
       rows +=
-        "<tr><td>" + m.subject_code + "</td><td>" + m.label + "</td><td>" +
-        m.marks_obtained + "/" + m.max_marks + "</td></tr>";
+        "<tr><td>" + esc(m.subject_code) + "</td><td>" + esc(m.label) + "</td><td>" +
+        esc(m.marks_obtained) + "/" + esc(m.max_marks) + "</td></tr>";
     });
     if (!rows) rows = "<tr><td colspan=3 class=empty>Nothing recognised on this page.</td></tr>";
 
@@ -340,7 +330,7 @@ import {
     }
 
     root.getElementById("go").onclick = function () {
-      var btn = root.getElementById("go");
+      var btn = /** @type {HTMLButtonElement} */ (root.getElementById("go"));
       btn.disabled = true;
       btn.textContent = "Syncing…";
       push(attendance, marks, log)
@@ -357,25 +347,6 @@ import {
   }
 
   // ---------- go ----------
-
-  // Tests drive the scrapers directly against fixture markup; the panel
-  // and the network calls are not exercised there.
-  if (typeof window !== "undefined" && window.__ACADKIT_SYNC_TEST__) {
-    window.__acadkitSync = {
-      scrapeAttendance: scrapeAttendance,
-      scrapeMarks: scrapeMarks,
-      scrapeComponents: scrapeComponents,
-      collectComponentMarks: collectComponentMarks,
-      findDetailTable: findDetailTable,
-      splitPair: splitPair,
-      tables: tables,
-      documents: documents,
-      classify: classify,
-      splitHead: splitHead,
-      diagnose: diagnose,
-    };
-    return;
-  }
 
   var found = documents();
   var all = tables(found.docs);
