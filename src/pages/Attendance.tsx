@@ -36,6 +36,7 @@ import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
 import { relativeDay, todayISO } from "@/lib/dates";
 import { attendanceTrend } from "@/lib/projections";
 import { syncHealth } from "@/lib/syncHealth";
+import { PortalCheck } from "@/components/viz/portal-check";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
@@ -295,6 +296,8 @@ export default function Attendance() {
           )}
         </div>
       </div>
+
+      <PortalCheck />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         {/* Overall gauge */}
