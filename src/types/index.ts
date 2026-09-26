@@ -244,4 +244,6 @@ export interface Settings {
   /** Theme, synced across devices (migration 018). Null = never chosen. */
   theme?: string | null;
   theme_mode?: string | null;
+  /** Evening minutes the study planner may use each day (migration 029). */
+  study_evening_minutes?: number | null;
 }

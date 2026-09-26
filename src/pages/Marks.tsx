@@ -1,5 +1,6 @@
 import { listEntry } from "@/lib/enter";
 import { ExamPrep } from "@/components/study/exam-prep";
+import { StudyPlanCard } from "@/components/study/study-plan";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -246,6 +247,7 @@ export default function Marks() {
       </div>
 
       <ExamPrep />
+      <StudyPlanCard />
 
       <div className="space-y-4">
             <section className="card flex flex-col items-center gap-2 p-6 lg:flex-row lg:justify-between lg:px-10">
