@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { baseName, opensInBrowser, type StudyFile, type StudyHit, type StudyManifest } from "@/lib/studyFiles";
-import type { PrepData } from "@/lib/examPrep";
+import type { PrepData, TopicsData } from "@/lib/examPrep";
 
 const BUCKET = "study-files";
 
@@ -42,6 +42,16 @@ export async function signStudyFiles(files: StudyFile[]): Promise<Record<string,
       : `${row.signedUrl}&download=${encodeURIComponent(baseName(p))}`;
   }
   return byKey;
+}
+
+/** Topics mined from past papers by the sync, or null before it has run. */
+export async function fetchStudyTopics(pin: string): Promise<TopicsData | null> {
+  const { data, error } = await supabase.storage.from(BUCKET).download(`${pin}/topics.json`);
+  if (error) {
+    if (/not.?found|does not exist/i.test(error.message)) return null;
+    throw error;
+  }
+  return JSON.parse(await data.text()) as TopicsData;
 }
 
 /** The scan's exam prep for this PIN, or null before any sync has written it. */

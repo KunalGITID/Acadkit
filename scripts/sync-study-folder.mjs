@@ -5,7 +5,7 @@
  *
  *   npm run sync:files              upload what changed, remove what's gone
  *   npm run sync:files -- --dry-run show what would change, touch nothing
- *   npm run sync:files -- --no-index        skip the search index
+ *   npm run sync:files -- --no-index        skip the search index and past-paper topics
  *   npm run sync:files -- --reindex         rebuild the search index from scratch
  *
  * Reads from .env.local:
@@ -33,6 +33,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { indexStudyFolder } from "./study-index/index.mjs";
+import { mineTopics } from "./study-index/topics.mjs";
 
 const BUCKET = "study-files";
 const MAX_BYTES = 50 * 1024 * 1024;
@@ -381,6 +382,26 @@ if (!noIndex) {
     await indexStudyFolder({ supabase, pin, files, url, key: serviceKey, reindex });
   } catch (err) {
     console.error(`Search index: stopped — ${err.message}. The files synced; run again to finish indexing.`);
+  }
+
+  // Past-paper topics: which questions keep coming back, by how many
+  // papers asked them. Written as <pin>/topics.json for Exam prep.
+  try {
+    const topics = await mineTopics({ files, url, key: serviceKey });
+    if (topics) {
+      const { error } = await bucket.upload(`${pin}/topics.json`, JSON.stringify(topics), {
+        contentType: "application/json",
+        upsert: true,
+        cacheControl: "0",
+      });
+      if (error) console.error(`Couldn't write topics: ${error.message}`);
+      else {
+        const n = topics.subjects.reduce((a, t) => a + t.topics.length, 0);
+        console.log(`Topics: ${n} repeated topics across ${topics.subjects.length} subjects.`);
+      }
+    }
+  } catch (err) {
+    console.error(`Topics: stopped — ${err.message}`);
   }
 }
 
