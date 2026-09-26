@@ -8,6 +8,12 @@ describe("cleanPage", () => {
   });
 });
 
+describe("cleanPage — what the database can't store", () => {
+  it("drops NULs, control characters and unpaired surrogates, keeping real emoji", () => {
+    expect(cleanPage("a\u0000b\u0007c \ud83d end \ud83d\ude00")).toBe("a b c end \ud83d\ude00");
+  });
+});
+
 describe("chunkPages", () => {
   const sentence = "The banker's algorithm checks whether granting a request leaves the system in a safe state. ";
 

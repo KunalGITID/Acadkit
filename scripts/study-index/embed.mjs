@@ -13,7 +13,7 @@
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function embedTexts(texts, { url, key, batch = 12, concurrency = 2 }) {
+export async function embedTexts(texts, { url, key, batch = 8, concurrency = 3 }) {
   const out = new Array(texts.length);
   const endpoint = `${String(url).replace(/\/$/, "")}/functions/v1/study-search`;
 

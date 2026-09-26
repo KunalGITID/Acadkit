@@ -110,6 +110,7 @@ const OR_LINE = /^\(?\s*or\s*\)?$/i;
  */
 export function splitQuestions(text) {
   const lines = String(text ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
     .split("\n")
     .map((l) => l.replace(/\s+/g, " ").trim())
     .filter((l) => l && !NOISE.some((re) => re.test(l)));

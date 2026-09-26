@@ -7,9 +7,18 @@
  * of them. Cuts land on a line or sentence end where there is one.
  */
 
+/**
+ * Characters Postgres won't store or JSON won't carry: NUL and the other
+ * control characters (a PDF's text layer had NULs, and the insert failed
+ * with "invalid input syntax for type json"), and a surrogate half without
+ * its pair.
+ */
+const UNSTORABLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
 /** Tidy a page: rejoin words hyphenated across lines, collapse spacing, drop bare page numbers. */
 export function cleanPage(text) {
   return String(text ?? "")
+    .replace(UNSTORABLE, " ")
     .replace(/\r/g, "")
     .replace(/(\w)-\n(?=[a-z])/g, "$1")
     .split("\n")

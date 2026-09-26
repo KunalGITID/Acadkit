@@ -17,6 +17,12 @@ const PAGED = new Set(["pdf", "pptx"]);
 /** A 300-page book is searchable enough from its first 400 passages. */
 const MAX_CHUNKS_PER_FILE = 400;
 const INSERT_BATCH = 100;
+/**
+ * Files indexed at once. Most files are a handful of passages, so one at
+ * a time spent the run waiting on round trips: the first full index took
+ * over two hours that way. Each file still writes all or nothing.
+ */
+const FILE_CONCURRENCY = 3;
 
 const shaOf = (key) => key.slice(key.lastIndexOf("/") + 1).split(".")[0];
 const missingTable = (e) => e?.code === "42P01" || e?.code === "PGRST205";
@@ -61,13 +67,14 @@ export async function indexStudyFolder({ supabase, pin, files, url, key, reindex
   const noText = [];
   let passages = 0;
   let done = 0;
-  for (const f of todo) {
+  const queue = [...todo];
+  async function indexOne(f) {
     const { pages, ocr } = await extractText(f.full, f.ext, shaOf(f.key));
     const chunks = chunkPages(pages).slice(0, MAX_CHUNKS_PER_FILE);
-    done++;
     if (chunks.length === 0) {
+      done++;
       noText.push(f.path);
-      continue;
+      return;
     }
     const title = titleFor(f.path);
     const paged = PAGED.has(f.ext);
@@ -97,9 +104,15 @@ export async function indexStudyFolder({ supabase, pin, files, url, key, reindex
       throw err;
     }
     passages += rows.length;
+    done++;
     const scanned = ocr.some(Boolean) ? " (OCR)" : "";
     log(`  ✓ ${done}/${todo.length} ${f.path} — ${rows.length} passages${scanned}`);
   }
+  await Promise.all(
+    Array.from({ length: Math.min(FILE_CONCURRENCY, queue.length) }, async () => {
+      for (let f = queue.shift(); f; f = queue.shift()) await indexOne(f);
+    })
+  );
 
   for (let i = 0; i < gone.length; i += 100) {
     const { error } = await supabase.from("study_chunks").delete().eq("device_id", pin).in("file_key", gone.slice(i, i + 100));
