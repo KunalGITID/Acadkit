@@ -39,18 +39,29 @@ export function usePendingAutoMarks(): PendingMark[] {
  * Guarded by a ref rather than a dependency list: the write invalidates
  * the attendance query, which recomputes the pending list, which would
  * otherwise re-trigger this effect in a loop.
+ *
+ * Waits until settings, timetable and attendance have all been fetched
+ * in this session. The first data on screen comes from the persisted
+ * cache, which can be a week old: guessing against it wrote "present"
+ * rows for a timetable since replaced, and those then showed up as
+ * extra classes.
  */
 export function useAutoMarkRunner(): void {
-  const { data: settings } = useSettings();
+  const settingsQ = useSettings();
+  const timetableQ = useTimetable();
+  const attendanceQ = useAttendance();
   const pending = usePendingAutoMarks();
   const autoMark = useAutoMark();
   const ran = useRef(false);
 
-  const enabled = settings?.auto_mark_present === true;
+  const enabled = settingsQ.data?.auto_mark_present === true;
+  const fresh = [settingsQ, timetableQ, attendanceQ].every(
+    (q) => q.isFetchedAfterMount && !q.isError
+  );
 
   useEffect(() => {
-    if (!enabled || ran.current || !pending.length) return;
+    if (!enabled || !fresh || ran.current || !pending.length) return;
     ran.current = true;
     autoMark.mutate(pending);
-  }, [enabled, pending, autoMark]);
+  }, [enabled, fresh, pending, autoMark]);
 }

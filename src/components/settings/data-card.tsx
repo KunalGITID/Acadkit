@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppStore } from "@/store/app";
-import { type AcadkitExport } from "@/api/queries";
 import { CalendarPlus, CalendarX2, Download, Loader2, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,14 +13,16 @@ import {
   fetchSettings,
   fetchSubjects,
   fetchTimetable,
+  seedAccount,
+  type AcadkitExport,
 } from "@/api/queries";
 import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
+import { todayISO } from "@/lib/dates";
 import { buildIcs, countEvents } from "@/lib/ics";
 
 export function DataCard() {
   const { confirm } = useDialog();
   const pin = useAppStore((s) => s.pin)!;
-  const resetPin = useAppStore((s) => s.resetPin);
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<AcadkitExport | null>(null);
@@ -67,7 +68,7 @@ export function DataCard() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `acadkit-export-${pin}-${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = `acadkit-export-${todayISO()}.json`;
             a.click();
             URL.revokeObjectURL(url);
             toast.success("Export downloaded");
@@ -96,18 +97,19 @@ export function DataCard() {
             const window = semesterWindow(settings);
             const effMap = buildEffectiveMap(settings?.declared_holidays ?? [], window);
             // Only what's ahead: nobody wants past classes replayed
-            // into their calendar.
+            // into their calendar. Today in India, not UTC — before 5:30am
+            // the UTC date is still yesterday.
             const ics = buildIcs({
               subjects,
               timetable,
               effMap,
-              from: new Date().toISOString().slice(0, 10),
+              from: todayISO(),
             });
             const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `acadkit-timetable-${pin}.ics`;
+            a.download = "acadkit-timetable.ics";
             a.click();
             URL.revokeObjectURL(url);
             toast.success(`${countEvents(ics)} classes exported`);
@@ -171,15 +173,19 @@ export function DataCard() {
         onClick={async () => {
           const ok = await confirm({
             title: "Delete everything?",
-            body: `Subjects, attendance, marks, deadlines and settings for PIN ${pin}. This cannot be undone.`,
+            body: "Subjects, attendance, marks, deadlines, past semesters and settings on this account. This cannot be undone.",
             confirmLabel: "Delete it all",
             destructive: true,
           });
           if (!ok) return;
           void run("reset", async () => {
             await deleteAllData(pin);
-            qc.clear();
-            resetPin();
+            // Same PIN, set up again. It is still yours, so there is
+            // nothing to claim: sending you back through onboarding used
+            // to claim a brand-new PIN, and a reload then reopened this
+            // one with no settings row at all.
+            await seedAccount(pin);
+            await qc.resetQueries();
             toast.success("Everything wiped — fresh start");
           });
         }}

@@ -79,22 +79,29 @@ export function attendanceTextClass(pct: number | null, min: number = MIN_ATTEND
   return "text-bad-deep";
 }
 
-/** Classes you can skip / must attend from here, given a running tally. */
+/**
+ * Classes you can skip / must attend from here, given a running tally.
+ *
+ * `min` is a whole percentage and everything stays in integers. As a
+ * fraction, 0.65 has no exact binary form, and dividing by 1 − 0.65 came
+ * out a hair above the true answer — so at the medical-leave bar, every
+ * count that landed exactly on 65% asked for one class more than needed
+ * (9 of 16 said "attend 5"; 13 of 20 is already 65%).
+ */
 function project(
   attended: number,
   total: number,
   min: number
 ): { canBunk: number; needToAttend: number } {
-  const threshold = min / 100;
   if (total <= 0) return { canBunk: 0, needToAttend: 0 };
-  if (attended / total >= threshold) {
-    // attended / (total + b) >= t  →  b <= attended/t − total
-    return { canBunk: Math.max(0, Math.floor(attended / threshold - total)), needToAttend: 0 };
+  if (100 * attended >= min * total) {
+    // 100·attended ≥ min·(total + b)  →  b ≤ (100·attended − min·total) / min
+    return { canBunk: Math.max(0, Math.floor((100 * attended - min * total) / min)), needToAttend: 0 };
   }
-  // (attended + n) / (total + n) >= t  →  n >= (t·total − attended)/(1 − t)
+  // 100·(attended + n) ≥ min·(total + n)  →  n ≥ (min·total − 100·attended) / (100 − min)
   return {
     canBunk: 0,
-    needToAttend: Math.max(0, Math.ceil((threshold * total - attended) / (1 - threshold))),
+    needToAttend: Math.max(0, Math.ceil((min * total - 100 * attended) / (100 - min))),
   };
 }
 

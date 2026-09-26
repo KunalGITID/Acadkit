@@ -245,3 +245,36 @@ describe("On Duty", () => {
     expect(out.total).toBe(21);
   });
 });
+
+/**
+ * The medical-leave bar in floating point. 0.65 has no exact binary
+ * form, and `(0.65·T − a) / 0.35` came out a hair above the true count,
+ * so every answer that landed exactly on 65% asked for one class more.
+ */
+describe("classes to attend at the 65% bar", () => {
+  const ml = { ...subj("ml"), medical_leave: true };
+
+  it("9 of 16 needs 4 more, since 13 of 20 is exactly 65%", () => {
+    expect(computeSubjectAttendance(ml, many("ml", 9, 7)).needToAttend).toBe(4);
+  });
+
+  it("agrees with exact integer arithmetic at both bars", () => {
+    for (const [subject, min] of [[subj("s"), 75], [{ ...subj("s"), medical_leave: true }, 65]] as const) {
+      for (let total = 1; total <= 60; total++) {
+        for (let attended = 0; attended <= total; attended++) {
+          const got = computeSubjectAttendance(
+            subject,
+            many("s", attended, total - attended)
+          );
+          // Smallest n with (a + n)/(t + n) ≥ min%, largest b with a/(t + b) ≥ min%.
+          let need = 0;
+          while (100 * (attended + need) < min * (total + need)) need++;
+          let bunk = 0;
+          while (100 * attended >= min * (total + bunk + 1)) bunk++;
+          expect(got.needToAttend, `${attended}/${total} at ${min}%`).toBe(need);
+          expect(got.canBunk, `${attended}/${total} at ${min}%`).toBe(100 * attended >= min * total ? bunk : 0);
+        }
+      }
+    }
+  });
+});

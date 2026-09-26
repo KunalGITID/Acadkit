@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSurvivalPlan, classesNeeded, type SubjectState } from "@/lib/survival";
+import { buildSurvivalPlan, classesNeeded, survivalPlanFrom, type SubjectState } from "@/lib/survival";
 import type { Subject, TimetableSlot } from "@/types";
 
 function subject(id: string, code = id.toUpperCase()): Subject {
@@ -257,5 +257,50 @@ describe("medical leave in the survival plan", () => {
     expect(byId.get("normal")!.min).toBe(75);
     // And the lower bar asks for fewer classes back.
     expect(byId.get("ml")!.needed).toBeLessThan(byId.get("normal")!.needed);
+  });
+});
+
+/**
+ * A class that already has a record has happened (or was cancelled). The
+ * plan used to count today's marked classes as still to come as well as
+ * in `held`, so every subject marked that day was planned against one
+ * class too many.
+ */
+describe("classes already marked", () => {
+  it("are not counted as still to come", () => {
+    const timetable = [slot("a", 1)];
+    const from = "2026-09-01"; // Day Order 1, as are 09-08
+    const plain = buildSurvivalPlan([state("a", 8, 10)], timetable, EFF_MAP, from);
+    const marked = buildSurvivalPlan(
+      [state("a", 9, 11)], // today's class, marked present, is in held now
+      timetable,
+      EFF_MAP,
+      from,
+      new Set(["a|2026-09-01|09:00:00"])
+    );
+    expect(plain.subjects[0].remaining).toBe(2);
+    expect(marked.subjects[0].remaining).toBe(1);
+    // Held + remaining is the same term either way: 12 classes.
+    expect(marked.subjects[0].held + marked.subjects[0].remaining).toBe(
+      plain.subjects[0].held + plain.subjects[0].remaining
+    );
+    expect(marked.days.map((d) => d.date)).not.toContain("2026-09-01");
+  });
+
+  it("survivalPlanFrom leaves out every recorded class", () => {
+    const a = subject("a");
+    const records = [
+      {
+        id: "r1",
+        device_id: "0404",
+        subject_id: "a",
+        date: "2026-09-01",
+        start_time: "09:00:00",
+        end_time: "09:50:00",
+        status: "present" as const,
+      },
+    ];
+    const plan = survivalPlanFrom([a], records, [], [slot("a", 1)], EFF_MAP, "2026-09-01");
+    expect(plan.subjects[0]).toMatchObject({ attended: 1, held: 1, remaining: 1 });
   });
 });

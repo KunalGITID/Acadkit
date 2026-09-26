@@ -6,12 +6,20 @@
  * subject until the semester ends, then derives skip budgets, recovery
  * needs, end-of-term projections, risk and what-if scenarios from that.
  */
-import { isAttended, isCounted, minAttendanceFor, MIN_ATTENDANCE } from "@/lib/attendance";
+import {
+  computeSubjectAttendance,
+  isAttended,
+  isCounted,
+  minAttendanceFor,
+  MIN_ATTENDANCE,
+  snapshotsByCode,
+} from "@/lib/attendance";
 import type {
   AttendanceRecord,
   Deadline,
   DeclaredHoliday,
   Mark,
+  PortalSnapshot,
   Subject,
   TimetableSlot,
 } from "@/types";
@@ -126,17 +134,27 @@ export function projectSubject(
   timetable: TimetableSlot[],
   effMap: Record<string, number>,
   from: string,
-  semEnd: string = semesterWindow().end
+  semEnd: string = semesterWindow().end,
+  /**
+   * The portal's totals for this subject, when synced. The baseline
+   * comes from `computeSubjectAttendance`, the same function every other
+   * screen uses: counting hand-marked rows alone put a subject the
+   * portal had at 72% on this page as 100% and "safe".
+   */
+  snapshot?: PortalSnapshot
 ): SubjectProjection {
   // The bar this subject has to clear. Medical leave condones it to
   // 65%, which routinely turns "cannot be saved" into "attend
-  // everything from here and you sit the exam".
-  const min = minAttendanceFor(subject) / 100;
+  // everything from here and you sit the exam". Kept as a whole
+  // percentage for the integer arithmetic below.
+  const minPct = minAttendanceFor(subject);
+  const min = minPct / 100;
 
-  const counted = records.filter((r) => isCounted(r.status));
-  const attended = counted.filter((r) => isAttended(r.status)).length;
-  const held = counted.length;
-  const currentPct = held > 0 ? (attended / held) * 100 : null;
+  const { attended, total: held, percentage: currentPct } = computeSubjectAttendance(
+    subject,
+    records,
+    snapshot
+  );
 
   const markedKeys = new Set(records.map((r) => `${r.subject_id}|${r.date}|${r.start_time}`));
   const future = futureOccurrences(subject.id, timetable, effMap, markedKeys, from, semEnd);
@@ -149,13 +167,20 @@ export function projectSubject(
   const pacePct =
     rate !== null && finalTotal > 0 ? ((attended + rate * remaining) / finalTotal) * 100 : null;
 
-  // S future skips keep you ≥75%:  (attended + remaining − S)/finalTotal ≥ 0.75
-  const skipBudget = Math.max(0, Math.floor(attended + remaining - min * finalTotal));
+  // Both in integers, with the bar as a whole percentage: 0.65 has no
+  // exact binary form, and dividing by 1 − 0.65 asked for one class too
+  // many whenever the answer landed exactly on the bar.
+  //
+  // S future skips keep you at the bar:  100·(attended + remaining − S) ≥ min·finalTotal
+  const skipBudget = Math.max(
+    0,
+    Math.floor((100 * (attended + remaining) - minPct * finalTotal) / 100)
+  );
 
-  // If below: smallest streak K of future attends so (attended+K)/(held+K) ≥ 0.75
+  // If below: smallest streak K of future attends so 100·(attended+K) ≥ min·(held+K)
   let mustAttendStreak = 0;
-  if (currentPct !== null && currentPct < min * 100) {
-    mustAttendStreak = Math.max(0, Math.ceil((min * held - attended) / (1 - min)));
+  if (currentPct !== null && currentPct < minPct) {
+    mustAttendStreak = Math.max(0, Math.ceil((minPct * held - 100 * attended) / (100 - minPct)));
   }
   const reachable = bestPct >= min * 100 - 1e-9;
 
@@ -311,9 +336,9 @@ export interface ProjectionReport {
  * Everything here reads off `plan` (src/lib/plan.ts) rather than the
  * old earned-over-entered ratio, so a subject with one 5/5 assignment
  * reports 5 marks banked of 100 with 95 unplayed — not "100%, on pace
- * for O". The fields kept their names because the SGPA maths above and
- * `sgpaTarget.ts` read them, but every one of them now means "of the
- * whole course" rather than "of what happens to be marked".
+ * for O". The fields kept their names because the SGPA maths above
+ * reads them, but every one of them now means "of the whole course"
+ * rather than "of what happens to be marked".
  */
 /**
  * Whether you will be allowed to sit the end-sem at all.
@@ -511,10 +536,13 @@ export function buildProjection(
    * What to assume the end-sem returns, as a percentage of it. Null
    * solves it like any other component. See `SolveOptions` in plan.ts.
    */
-  assumedExternalPct: number | null = null
+  assumedExternalPct: number | null = null,
+  /** The portal's totals, the attendance baseline everywhere else too. */
+  snapshots: PortalSnapshot[] = []
 ): ProjectionReport {
   const effMap = buildEffectiveMap(declared, window);
   const from = fromDate > window.end ? window.end : fromDate;
+  const snapByCode = snapshotsByCode(snapshots);
 
   const recordsBySubject = new Map<string, AttendanceRecord[]>();
   for (const r of attendance) {
@@ -524,7 +552,15 @@ export function buildProjection(
   }
 
   const perSubject = subjects.map((s) =>
-    projectSubject(s, recordsBySubject.get(s.id) ?? [], timetable, effMap, from, window.end)
+    projectSubject(
+      s,
+      recordsBySubject.get(s.id) ?? [],
+      timetable,
+      effMap,
+      from,
+      window.end,
+      snapByCode.get(s.code.trim().toUpperCase())
+    )
   );
 
   const sum = (f: (p: SubjectProjection) => number) => perSubject.reduce((a, p) => a + f(p), 0);

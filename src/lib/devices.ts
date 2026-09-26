@@ -7,6 +7,31 @@
  * change one — which is what makes a stale value dangerous rather than
  * merely untidy.
  */
+import type { ClaimResult } from "@/lib/auth";
+
+/**
+ * Claim a PIN nobody owns, for a brand-new account.
+ *
+ * The claim is the lock — device_owners' primary key turns a PIN someone
+ * else holds into "taken" rather than a shared one — so this claims
+ * first and the caller seeds afterwards. The other order cannot work
+ * under owner-scoped RLS: writing a PIN's rows before owning it is
+ * exactly what the policies refuse, which left every new sign-up stuck
+ * on onboarding. A "does this PIN have data?" pre-check was no help
+ * either, for the same reason: every PIN you don't own reads back empty.
+ */
+export async function claimFreshPin(
+  claim: (pin: string) => Promise<ClaimResult>,
+  generate: () => string,
+  attempts = 10
+): Promise<string> {
+  for (let i = 0; i < attempts; i++) {
+    const pin = generate();
+    if ((await claim(pin)) !== "taken") return pin;
+  }
+  throw new Error("Couldn't find a free account slot — try again.");
+}
+
 /**
  * Which PIN a signed-in device should open, given what the account owns.
  *

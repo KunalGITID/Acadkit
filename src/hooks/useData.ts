@@ -31,7 +31,26 @@ export function usePin(): string {
   return pin ?? lastPin;
 }
 
+/**
+ * For rows the client shows but never addresses by id — an attendance
+ * row is keyed by (subject, date, start_time), so its optimistic id only
+ * has to be unique on screen.
+ */
 const tempId = () => `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+/** A row to insert. Its id is generated here (see `withId`); the server fills the rest. */
+type NewRow<T> = Omit<T, "id" | "device_id" | "created_at" | "added_at"> & { id?: string };
+
+/**
+ * Inserts carry an id generated on the client, so the row the UI shows
+ * before the write lands is the row the server stores. With a
+ * placeholder id, adding something offline and then editing or deleting
+ * it replayed the second write against `temp-…`, which a uuid column
+ * rejects — and the edit was lost.
+ */
+function withId<T extends { id?: string }>(row: T): T & { id: string } {
+  return { ...row, id: row.id ?? crypto.randomUUID() };
+}
 
 function invalidate(qc: QueryClient, pin: string, roots: string[]) {
   for (const root of roots) void qc.invalidateQueries({ queryKey: [root, pin] });
@@ -64,6 +83,8 @@ function useOptimistic<TVars, TData>(opts: {
   extraRoots?: string[];
   updater: (old: TData | undefined, vars: TVars) => TData | undefined;
   errorMessage?: string;
+  /** Runs once per call, before the optimistic update and the write see the variables. */
+  prepare?: (vars: TVars) => TVars;
 }) {
   const qc = useQueryClient();
   const key = [opts.root, opts.pin];
@@ -87,10 +108,11 @@ function useOptimistic<TVars, TData>(opts: {
   });
 
   const pin = opts.pin;
+  const prepare = opts.prepare ?? ((vars: TVars) => vars);
   return {
     ...m,
-    mutate: (vars: TVars) => m.mutate({ pin, vars }),
-    mutateAsync: (vars: TVars) => m.mutateAsync({ pin, vars }),
+    mutate: (vars: TVars) => m.mutate({ pin, vars: prepare(vars) }),
+    mutateAsync: (vars: TVars) => m.mutateAsync({ pin, vars: prepare(vars) }),
   };
 }
 
@@ -126,11 +148,12 @@ export function useSubjects() {
 
 export function useAddSubject() {
   const pin = usePin();
-  return useOptimistic<Omit<Subject, "id" | "device_id" | "created_at">, Subject[]>({
+  return useOptimistic<NewRow<Subject>, Subject[]>({
     pin,
     root: "subjects",
     name: "subjects.add",
-    updater: (old, s) => [...(old ?? []), { ...s, id: tempId(), device_id: pin }],
+    prepare: withId,
+    updater: (old, s) => [...(old ?? []), { ...s, id: s.id!, device_id: pin }],
   });
 }
 
@@ -168,11 +191,12 @@ export function useTimetable() {
 
 export function useAddSlot() {
   const pin = usePin();
-  return useOptimistic<Omit<TimetableSlot, "id" | "device_id" | "created_at">, TimetableSlot[]>({
+  return useOptimistic<NewRow<TimetableSlot>, TimetableSlot[]>({
     pin,
     root: "timetable",
     name: "timetable.add",
-    updater: (old, slot) => [...(old ?? []), { ...slot, id: tempId(), device_id: pin }],
+    prepare: withId,
+    updater: (old, slot) => [...(old ?? []), { ...slot, id: slot.id!, device_id: pin }],
   });
 }
 
@@ -311,11 +335,12 @@ export function usePortalSnapshots() {
 
 export function useAddMark() {
   const pin = usePin();
-  return useOptimistic<Omit<Mark, "id" | "device_id" | "added_at">, Mark[]>({
+  return useOptimistic<NewRow<Mark>, Mark[]>({
     pin,
     root: "marks",
     name: "marks.add",
-    updater: (old, mark) => [...(old ?? []), { ...mark, id: tempId(), device_id: pin }],
+    prepare: withId,
+    updater: (old, mark) => [...(old ?? []), { ...mark, id: mark.id!, device_id: pin }],
   });
 }
 
@@ -372,11 +397,12 @@ export function useDeleteArchive() {
 
 export function useAddDeadline() {
   const pin = usePin();
-  return useOptimistic<Omit<Deadline, "id" | "device_id" | "created_at">, Deadline[]>({
+  return useOptimistic<NewRow<Deadline>, Deadline[]>({
     pin,
     root: "deadlines",
     name: "deadlines.add",
-    updater: (old, d) => [...(old ?? []), { ...d, id: tempId(), device_id: pin }],
+    prepare: withId,
+    updater: (old, d) => [...(old ?? []), { ...d, id: d.id!, device_id: pin }],
   });
 }
 

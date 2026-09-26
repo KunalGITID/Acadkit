@@ -17,7 +17,7 @@ import { Badge, Dot, EmptyState, Skeleton } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { Segmented } from "@/components/ui/segmented";
-import { useAttendance, useDeadlines, useMarks, useSettings, useSubjects, useTimetable , usePortalSnapshots } from "@/hooks/useData";
+import { useAttendance, useDeadlines, useMarks, usePortalSnapshots, useSettings, useSubjects, useTimetable } from "@/hooks/useData";
 import { attendanceColor } from "@/lib/attendance";
 import {
   buildProjection,
@@ -230,7 +230,10 @@ export default function Insights() {
         // by the target SGPA, so the two can never disagree.
         settings?.target_sgpa ?? 8.5,
         deadlines ?? [],
-        settings?.assumed_external_pct ?? null
+        settings?.assumed_external_pct ?? null,
+        // The portal baseline, as on the Attendance page — without it
+        // this page counted hand-marked classes only.
+        snapshots ?? []
       ),
     [
       subjects,
@@ -242,6 +245,7 @@ export default function Insights() {
       settings?.target_sgpa,
       settings?.assumed_external_pct,
       deadlines,
+      snapshots,
     ]
   );
 

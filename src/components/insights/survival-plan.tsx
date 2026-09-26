@@ -4,10 +4,9 @@ import { BadgeCheck, CalendarClock, Share2 } from "lucide-react";
 import { Badge, EmptyState } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { useTone } from "@/hooks/useTone";
-import { computeOverallAttendance } from "@/lib/attendance";
 import { formatDate, todayISO } from "@/lib/dates";
 import { renderSurvivalCard, shareCard } from "@/lib/shareCard";
-import { buildSurvivalPlan } from "@/lib/survival";
+import { survivalPlanFrom } from "@/lib/survival";
 import { say, VOICE } from "@/lib/voice";
 import { cn } from "@/lib/utils";
 import type {
@@ -33,18 +32,10 @@ export function SurvivalPlan({
   const tone = useTone();
   const [sharing, setSharing] = useState(false);
 
-  const plan = useMemo(() => {
-    // Same shape computeOverallAttendance uses: records grouped by
-    // subject, snapshots matched by code, so the portal baseline counts
-    // here exactly as it does on the attendance page.
-    const overall = computeOverallAttendance(subjects, attendance, snapshots);
-    const states = overall.subjects.map((s) => ({
-      subject: s.subject,
-      attended: s.attended,
-      held: s.total,
-    }));
-    return buildSurvivalPlan(states, timetable, effMap, todayISO());
-  }, [subjects, attendance, snapshots, timetable, effMap]);
+  const plan = useMemo(
+    () => survivalPlanFrom(subjects, attendance, snapshots, timetable, effMap, todayISO()),
+    [subjects, attendance, snapshots, timetable, effMap]
+  );
 
   if (!plan.days.length) {
     return (

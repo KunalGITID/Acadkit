@@ -57,6 +57,17 @@ export interface MutationEnvelope<TVars> {
 }
 
 /**
+ * Every named write runs in one queue, in the order it was made.
+ *
+ * React Query runs mutations in parallel unless they share a scope, and
+ * that includes replaying paused ones: an offline "add deadline" then
+ * "mark it done" came back as two concurrent requests, and the update
+ * could reach the server before the row it updates. The scope is saved
+ * with each paused mutation, so the order survives a restart too.
+ */
+export const WRITE_SCOPE = "acadkit-writes";
+
+/**
  * Teach the client how to run each mutation by name, so mutations
  * rehydrated from storage have a function to call.
  *
@@ -66,6 +77,7 @@ export interface MutationEnvelope<TVars> {
 export function registerMutationDefaults(qc: QueryClient): void {
   for (const name of Object.keys(MUTATION_FNS) as MutationName[]) {
     qc.setMutationDefaults([name], {
+      scope: { id: WRITE_SCOPE },
       mutationFn: (envelope: unknown) => {
         const { pin, vars } = envelope as MutationEnvelope<unknown>;
         return MUTATION_FNS[name](pin, vars);

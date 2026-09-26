@@ -9,7 +9,7 @@
  */
 import { dehydrate, hydrate, MutationObserver, onlineManager, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
-import { MUTATION_FNS, registerMutationDefaults, type MutationName } from "@/api/mutations";
+import { MUTATION_FNS, registerMutationDefaults, WRITE_SCOPE, type MutationName } from "@/api/mutations";
 
 const NAMES = Object.keys(MUTATION_FNS) as MutationName[];
 
@@ -100,6 +100,66 @@ describe("a write made offline survives the app being killed", () => {
       expect(sent[0]).toEqual({ pin: "1234", vars: record });
     } finally {
       onlineManager.setOnline(wasOnline);
+    }
+  });
+});
+
+/**
+ * Order, not just delivery. React Query resumes paused mutations in
+ * parallel unless they share a scope, so an offline "add a deadline" and
+ * "mark it done" came back as two concurrent requests — and the update
+ * could land before the row it updates existed.
+ */
+describe("writes made offline replay in the order they were made", () => {
+  it("runs a queued update only after the insert before it has finished", async () => {
+    const wasOnline = onlineManager.isOnline();
+    try {
+      onlineManager.setOnline(false);
+      const qc1 = new QueryClient();
+      registerMutationDefaults(qc1);
+      for (const [key, vars] of [
+        ["deadlines.add", { id: "d-1", title: "FT-2" }],
+        ["deadlines.update", { id: "d-1", patch: { status: "done" } }],
+      ] as const) {
+        const observer = new MutationObserver<unknown, Error, unknown>(qc1, { mutationKey: [key] });
+        void observer.mutate({ pin: "1234", vars }).catch(() => {});
+      }
+      await Promise.resolve();
+      const frozen = dehydrate(qc1, { shouldDehydrateMutation: (m) => m.state.isPaused });
+      expect(frozen.mutations).toHaveLength(2);
+
+      const log: string[] = [];
+      const qc2 = new QueryClient();
+      registerMutationDefaults(qc2);
+      qc2.setMutationDefaults(["deadlines.add"], {
+        mutationFn: async () => {
+          log.push("add:start");
+          // Slow enough that a parallel replay would start the update first.
+          await new Promise((r) => setTimeout(r, 20));
+          log.push("add:end");
+        },
+      });
+      qc2.setMutationDefaults(["deadlines.update"], {
+        mutationFn: async () => {
+          log.push("update:start");
+        },
+      });
+      hydrate(qc2, JSON.parse(JSON.stringify(frozen)));
+      onlineManager.setOnline(true);
+      await qc2.resumePausedMutations();
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(log).toEqual(["add:start", "add:end", "update:start"]);
+    } finally {
+      onlineManager.setOnline(wasOnline);
+    }
+  });
+
+  it("puts every named write in the same scope", () => {
+    const qc = new QueryClient();
+    registerMutationDefaults(qc);
+    for (const name of NAMES) {
+      expect(qc.getMutationDefaults([name]).scope?.id, name).toBe(WRITE_SCOPE);
     }
   });
 });

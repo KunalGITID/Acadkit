@@ -1,5 +1,5 @@
-import { toast } from "sonner";
 import type { Suggestion, SuggestionStatus } from "@/lib/suggestions";
+import { labelMatchKey } from "@/lib/componentLabel";
 import { supabase } from "@/lib/supabase";
 import { SEED_SUBJECTS, SEMESTER_START, SEMESTER_END } from "@/data/semester";
 import type {
@@ -19,149 +19,13 @@ function throwIf(error: { message: string } | null): void {
 }
 
 /**
- * Columns arrive by migration, so a write naming one the project
- * hasn't got retries without it rather than failing outright — and
- * says which field it dropped, since a value that silently reverts to
- * its previous state is the most confusing thing this can do.
+ * The table isn't there at all: a project that hasn't run its migration.
+ * That is "nothing yet", and the only error a read may swallow — any
+ * other failure returned as an empty list would overwrite good cached
+ * data with nothing, and every number built on it would jump.
  */
-
-/** Everything pending, as one paste for the Supabase SQL editor. */
-export const PENDING_MIGRATIONS_SQL = `-- AcadKit setup: greeting name, lab tags, internal-only subjects, history
-alter table settings add column if not exists name text;
-alter table timetable_slots
-  add column if not exists slot_type text not null default 'theory'
-  check (slot_type in ('theory', 'lab'));
-alter table subjects
-  add column if not exists internal_only boolean not null default false;
-
-create table if not exists semester_archives (
-  id uuid primary key default gen_random_uuid(),
-  device_id text not null,
-  label text not null,
-  sgpa numeric,
-  credits numeric,
-  summary jsonb not null default '[]'::jsonb,
-  sem_start date,
-  sem_end date,
-  archived_at timestamptz default now()
-);
-alter table semester_archives enable row level security;
-drop policy if exists "anon_all_semester_archives" on semester_archives;
-create policy "anon_all_semester_archives" on semester_archives
-  for all to anon using (true) with check (true);
-
--- Portal sync (012): attendance snapshots + de-duplicated portal marks
-create table if not exists portal_snapshots (
-  id uuid primary key default gen_random_uuid(),
-  device_id text not null,
-  subject_code text not null,
-  conducted numeric not null,
-  absent numeric not null,
-  percentage numeric,
-  as_of date not null default current_date,
-  synced_at timestamptz not null default now(),
-  unique (device_id, subject_code)
-);
-create index if not exists idx_portal_snapshots_device on portal_snapshots(device_id);
-alter table portal_snapshots enable row level security;
-drop policy if exists "anon_all_portal_snapshots" on portal_snapshots;
-create policy "anon_all_portal_snapshots" on portal_snapshots
-  for all to anon using (true) with check (true);
-alter table marks
-  add column if not exists source text not null default 'manual'
-  check (source in ('manual', 'portal'));
-create unique index if not exists idx_marks_portal_unique
-  on marks(device_id, subject_id, label)
-  where source = 'portal';
-
--- Auto-marked attendance (013)
-alter table attendance
-  add column if not exists auto_marked boolean not null default false;
-create index if not exists idx_attendance_auto_marked
-  on attendance(device_id, auto_marked) where auto_marked;
-alter table settings
-  add column if not exists auto_mark_present boolean not null default false;
-
--- Assessment plan + per-subject target (021)
-alter table subjects
-  add column if not exists assessment jsonb,
-  add column if not exists target_grade text;
-alter table settings add column if not exists assumed_external_pct numeric;
-alter table subjects add column if not exists medical_leave boolean;
-alter table subjects drop constraint if exists subjects_target_grade_check;
-alter table subjects add constraint subjects_target_grade_check
-  check (target_grade is null or target_grade in ('O','A+','A','B+','B','C'));`;
-
-const OPTIONAL_COLUMNS: Array<{ table: string; column: string; enables: string }> = [
-  { table: "settings", column: "name", enables: "greeting name that follows your PIN" },
-  { table: "timetable_slots", column: "slot_type", enables: "theory/lab class tags" },
-  { table: "subjects", column: "internal_only", enables: "internal-only subjects" },
-  { table: "subjects", column: "assessment", enables: "per-subject mark split & test plan" },
-  { table: "subjects", column: "medical_leave", enables: "medical-leave attendance (65%)" },
-  { table: "settings", column: "assumed_external_pct", enables: "assumed end-sem score" },
-  { table: "semester_archives", column: "id", enables: "semester history & CGPA" },
-  { table: "portal_snapshots", column: "id", enables: "portal attendance sync" },
-  { table: "marks", column: "source", enables: "portal marks sync" },
-  { table: "attendance", column: "auto_marked", enables: "auto-marking past classes" },
-];
-
-/** Which optional features are blocked because their column is missing. */
-export async function missingMigrations(): Promise<string[]> {
-  const missing: string[] = [];
-  await Promise.all(
-    OPTIONAL_COLUMNS.map(async ({ table, column, enables }) => {
-      const { error } = await supabase.from(table).select(column).limit(1);
-      if (error) missing.push(enables);
-    })
-  );
-  return missing;
-}
-
-/** https://supabase.com/dashboard/project/<ref>/sql/new for this project. */
-export function sqlEditorUrl(): string {
-  const ref = new URL(import.meta.env.VITE_SUPABASE_URL as string).hostname.split(".")[0];
-  return `https://supabase.com/dashboard/project/${ref}/sql/new`;
-}
-
-async function withColumnFallback<T extends Record<string, unknown>>(
-  payload: T,
-  optionalColumns: string[],
-  run: (payload: Record<string, unknown>) => PromiseLike<{ error: { message: string } | null }>
-): Promise<void> {
-  const { error } = await run(payload);
-  if (!error) return;
-
-  // Loop rather than strip once: PostgREST names a single unknown column
-  // per error, so a migration that adds two (021 adds `assessment` and
-  // `target_grade`) surfaces the second only after the first is gone.
-  // Stripping one and giving up turned a recoverable save into a thrown
-  // error on exactly the subjects this fallback exists to protect.
-  const stripped: Record<string, unknown> = { ...payload };
-  let last = error;
-  for (let i = 0; i < optionalColumns.length; i++) {
-    const missing = optionalColumns.find(
-      (col) => col in stripped && last.message.includes(`'${col}'`)
-    );
-    if (!missing) throw new Error(last.message);
-    delete stripped[missing];
-    const retry = await run(stripped);
-    if (!retry.error) break;
-    last = retry.error;
-    if (i === optionalColumns.length - 1) throw new Error(last.message);
-  }
-
-  // Loud, and it names the column. Silently dropping a field means the
-  // value you just typed reappears as whatever it was before, with no
-  // explanation — the single most confusing thing this fallback can do.
-  // Worth knowing: a column can be missing from PostgREST's *schema
-  // cache* even after the migration has run, in which case the fix is
-  // to reload the cache rather than to run anything again.
-  const dropped = optionalColumns.filter((col) => !(col in stripped) && col in payload);
-  toast.warning(`Saved without “${dropped.join("”, “")}”`, {
-    description:
-      "That column isn't visible to the API yet. Settings → Finish setup has the SQL; if you've already run it, reload the schema cache (Supabase → API → Reload).",
-    duration: 10000,
-  });
+function isMissingTable(error: { code?: string } | null): boolean {
+  return error?.code === "42P01" || error?.code === "PGRST205";
 }
 
 // ---------- settings / account ----------
@@ -177,46 +41,48 @@ export async function fetchSettings(pin: string): Promise<Settings | null> {
 }
 
 /**
- * Settings columns arrive by migration too, so a write that names one
- * the project hasn't got should degrade rather than throw — the same
- * treatment `subjects` has had since 007.
+ * An upsert, not an update: an update against a PIN with no settings row
+ * matches nothing and succeeds, so every change made on such an account
+ * was silently thrown away. Only the columns in `patch` are written when
+ * the row exists; a missing row is created with the column defaults.
  */
 export async function updateSettings(pin: string, patch: Partial<Settings>): Promise<void> {
-  await withColumnFallback(
-    { ...patch },
-    ["assumed_external_pct", "name", "theme", "theme_mode", "auto_mark_present"],
-    (payload) => supabase.from("settings").update(payload).eq("device_id", pin)
-  );
-}
-/** Does any data exist under this PIN? (settings row or subjects) */
-export async function accountExists(pin: string): Promise<boolean> {
-  const settings = await fetchSettings(pin);
-  if (settings) return true;
-  const { count, error } = await supabase
-    .from("subjects")
-    .select("id", { count: "exact", head: true })
-    .eq("device_id", pin);
+  const { error } = await supabase
+    .from("settings")
+    .upsert({ ...patch, device_id: pin }, { onConflict: "device_id" });
   throwIf(error);
-  return (count ?? 0) > 0;
 }
 
-/** First-time setup for a fresh PIN: settings row + starter subjects. */
+/**
+ * First-time setup for a PIN you have already claimed: settings row +
+ * starter subjects.
+ *
+ * Safe to run on a PIN that has data — each part is only written when it
+ * is missing — so retrying a setup that failed halfway can neither reset
+ * your settings nor seed the subjects twice.
+ */
 export async function seedAccount(pin: string): Promise<void> {
-  const { error: sErr } = await supabase.from("settings").upsert(
-    {
+  if (!(await fetchSettings(pin))) {
+    const { error } = await supabase.from("settings").insert({
       device_id: pin,
       semester: 3,
       sem_start: SEMESTER_START,
       sem_end: SEMESTER_END,
       declared_holidays: [],
-    },
-    { onConflict: "device_id" }
-  );
-  throwIf(sErr);
-  const { error: subErr } = await supabase
+    });
+    throwIf(error);
+  }
+  const { count, error } = await supabase
     .from("subjects")
-    .insert(SEED_SUBJECTS.map((s) => ({ ...s, device_id: pin })));
-  throwIf(subErr);
+    .select("id", { count: "exact", head: true })
+    .eq("device_id", pin);
+  throwIf(error);
+  if (!count) {
+    const { error: subErr } = await supabase
+      .from("subjects")
+      .insert(SEED_SUBJECTS.map((s) => ({ ...s, device_id: pin })));
+    throwIf(subErr);
+  }
 }
 
 // ---------- subjects ----------
@@ -232,24 +98,23 @@ export async function fetchSubjects(pin: string): Promise<Subject[]> {
   return (data as Subject[]) ?? [];
 }
 
+/**
+ * `id` is generated on the client and sent with the row, so the row the
+ * UI shows before the write lands is the one the server stores — an edit
+ * queued behind the insert while offline then targets a real row, not a
+ * placeholder id the database would reject.
+ */
 export async function insertSubject(
   pin: string,
-  subject: Omit<Subject, "id" | "device_id" | "created_at">
+  subject: Omit<Subject, "device_id" | "created_at">
 ): Promise<void> {
-  await withColumnFallback(
-    { ...subject, device_id: pin },
-    ["internal_only", "assessment", "target_grade", "medical_leave"],
-    (payload) =>
-      supabase.from("subjects").insert(payload)
-  );
+  const { error } = await supabase.from("subjects").insert({ ...subject, device_id: pin });
+  throwIf(error);
 }
 
 export async function updateSubject(id: string, patch: Partial<Subject>): Promise<void> {
-  await withColumnFallback(
-    { ...patch },
-    ["internal_only", "assessment", "target_grade", "medical_leave"],
-    (payload) => supabase.from("subjects").update(payload).eq("id", id)
-  );
+  const { error } = await supabase.from("subjects").update(patch).eq("id", id);
+  throwIf(error);
 }
 
 export async function deleteSubject(id: string): Promise<void> {
@@ -272,17 +137,15 @@ export async function fetchTimetable(pin: string): Promise<TimetableSlot[]> {
 
 export async function insertSlot(
   pin: string,
-  slot: Omit<TimetableSlot, "id" | "device_id" | "created_at">
+  slot: Omit<TimetableSlot, "device_id" | "created_at">
 ): Promise<void> {
-  await withColumnFallback({ ...slot, device_id: pin }, ["slot_type"], (payload) =>
-    supabase.from("timetable_slots").insert(payload)
-  );
+  const { error } = await supabase.from("timetable_slots").insert({ ...slot, device_id: pin });
+  throwIf(error);
 }
 
 export async function updateSlot(id: string, patch: Partial<TimetableSlot>): Promise<void> {
-  await withColumnFallback({ ...patch }, ["slot_type"], (payload) =>
-    supabase.from("timetable_slots").update(payload).eq("id", id)
-  );
+  const { error } = await supabase.from("timetable_slots").update(patch).eq("id", id);
+  throwIf(error);
 }
 
 export async function deleteSlot(id: string): Promise<void> {
@@ -293,6 +156,28 @@ export async function deleteSlot(id: string): Promise<void> {
 export async function clearTimetable(pin: string): Promise<void> {
   const { error } = await supabase.from("timetable_slots").delete().eq("device_id", pin);
   throwIf(error);
+}
+
+/**
+ * Swap this PIN's rows in `table` for `rows`, inserting before deleting:
+ * if the insert is rejected, the old rows are still there. Deleting first
+ * meant a failed import left you with no timetable at all.
+ */
+async function replaceRows(
+  table: "timetable_slots" | "deadlines",
+  pin: string,
+  rows: Record<string, unknown>[]
+): Promise<void> {
+  const { data: old, error } = await supabase.from(table).select("id").eq("device_id", pin);
+  throwIf(error);
+  const { error: insErr } = await supabase.from(table).insert(rows);
+  throwIf(insErr);
+  const ids = (old ?? []).map((r) => r.id as string);
+  // Chunked: every id rides in the URL.
+  for (let i = 0; i < ids.length; i += 100) {
+    const { error: delErr } = await supabase.from(table).delete().in("id", ids.slice(i, i + 100));
+    throwIf(delErr);
+  }
 }
 
 export interface TimetableImportResult {
@@ -354,8 +239,7 @@ export async function importTimetable(
   // for an import that has nothing to put back.
   if (!rows.length) return { slots: 0, unmatchedCodes: [...unmatched] };
 
-  await clearTimetable(pin);
-  await insertWithRowFallback("timetable_slots", rows, ["slot_type"]);
+  await replaceRows("timetable_slots", pin, rows);
   return { slots: rows.length, unmatchedCodes: [...unmatched] };
 }
 
@@ -534,31 +418,38 @@ export async function importPortalData(
     const { error } = await supabase
       .from("portal_snapshots")
       .upsert(rows, { onConflict: "device_id,subject_code" });
-    if (error) throw error;
+    throwIf(error);
     result.snapshots = rows.length;
   }
 
   if (input.marks.length) {
-    const { data: subjects } = await supabase
+    // Both reads are checked: a failed one used to come back as "no
+    // subjects" (every code reported unmatched) or "no portal marks yet"
+    // (every mark inserted again, into the unique index).
+    const { data: subjects, error: subErr } = await supabase
       .from("subjects")
       .select("id,code")
       .eq("device_id", pin);
+    throwIf(subErr);
     const byCode = new Map(
       (subjects ?? []).map((s) => [String(s.code).trim().toUpperCase(), s.id as string])
     );
 
     // Only rows this sync owns are touched, so a mark typed by hand is
     // never overwritten by a re-import.
-    const { data: existing } = await supabase
+    const { data: existing, error: exErr } = await supabase
       .from("marks")
       .select("id,subject_id,label")
       .eq("device_id", pin)
       .eq("source", "portal");
+    throwIf(exErr);
     const seen = new Map(
       (existing ?? []).map((m) => [`${m.subject_id}|${m.label}`, m.id as string])
     );
 
     const unmatched = new Set<string>();
+    const updates: Record<string, unknown>[] = [];
+    const inserts: Record<string, unknown>[] = [];
     for (const m of input.marks) {
       const subjectId = byCode.get(m.subject_code.trim().toUpperCase());
       if (!subjectId) {
@@ -576,15 +467,19 @@ export async function importPortalData(
         source: "portal",
       };
       const id = seen.get(`${subjectId}|${m.label}`);
-      if (id) {
-        const { error } = await supabase.from("marks").update(row).eq("id", id);
-        if (error) throw error;
-        result.marksUpdated++;
-      } else {
-        const { error } = await supabase.from("marks").insert(row);
-        if (error) throw error;
-        result.marksAdded++;
-      }
+      if (id) updates.push({ id, ...row });
+      else inserts.push(row);
+    }
+    // Two requests, not one per mark.
+    if (updates.length) {
+      const { error } = await supabase.from("marks").upsert(updates, { onConflict: "id" });
+      throwIf(error);
+      result.marksUpdated = updates.length;
+    }
+    if (inserts.length) {
+      const { error } = await supabase.from("marks").insert(inserts);
+      throwIf(error);
+      result.marksAdded = inserts.length;
     }
     result.unmatchedCodes = [...unmatched];
   }
@@ -597,24 +492,29 @@ export async function importPortalData(
 /**
  * Per-subject attendance totals as the portal last reported them.
  * Returns [] if migration 012 hasn't been run, so the app keeps working
- * on manual attendance alone.
+ * on manual attendance alone. Any other failure throws: returning [] for
+ * a dropped request replaced the cached baseline with nothing, and every
+ * attendance number fell back to hand-marked classes until the next
+ * refetch.
  */
 export async function fetchPortalSnapshots(pin: string): Promise<PortalSnapshot[]> {
   const { data, error } = await supabase
     .from("portal_snapshots")
     .select("*")
     .eq("device_id", pin);
-  if (error) return [];
+  if (isMissingTable(error)) return [];
+  throwIf(error);
   return (data as PortalSnapshot[]) ?? [];
 }
 
 async function clearPortalSnapshots(pin: string): Promise<void> {
-  await supabase.from("portal_snapshots").delete().eq("device_id", pin);
+  const { error } = await supabase.from("portal_snapshots").delete().eq("device_id", pin);
+  if (!isMissingTable(error)) throwIf(error);
 }
 
 export async function insertMark(
   pin: string,
-  mark: Omit<Mark, "id" | "device_id" | "added_at">
+  mark: Omit<Mark, "device_id" | "added_at">
 ): Promise<void> {
   const { error } = await supabase.from("marks").insert({ ...mark, device_id: pin });
   throwIf(error);
@@ -644,7 +544,7 @@ export async function fetchDeadlines(pin: string): Promise<Deadline[]> {
 
 export async function insertDeadline(
   pin: string,
-  deadline: Omit<Deadline, "id" | "device_id" | "created_at">
+  deadline: Omit<Deadline, "device_id" | "created_at">
 ): Promise<void> {
   const { error } = await supabase.from("deadlines").insert({ ...deadline, device_id: pin });
   throwIf(error);
@@ -668,8 +568,10 @@ export async function fetchArchives(pin: string): Promise<SemesterArchive[]> {
     .select("*")
     .eq("device_id", pin)
     .order("archived_at", { ascending: false });
-  // Table may not exist yet (migration 010) — degrade to empty.
-  if (error) return [];
+  // Table may not exist yet (migration 010) — degrade to empty. Only
+  // then: an empty history for a dropped request hides your CGPA ladder.
+  if (isMissingTable(error)) return [];
+  throwIf(error);
   return (data as SemesterArchive[]) ?? [];
 }
 
@@ -734,30 +636,41 @@ export async function deleteAllData(pin: string): Promise<void> {
     const { error } = await supabase.from(table).delete().eq("device_id", pin);
     throwIf(error);
   }
-  // archives / snapshots tables may not exist; ignore failure
-  await supabase.from("semester_archives").delete().eq("device_id", pin);
+  // archives / snapshots tables may not exist; nothing else is ignored
+  const { error } = await supabase.from("semester_archives").delete().eq("device_id", pin);
+  if (!isMissingTable(error)) throwIf(error);
   await clearPortalSnapshots(pin);
 }
 
+/**
+ * Everything the account holds, as one file. Archives and portal totals
+ * are in it: without the archives it was a backup that lost your CGPA
+ * history, and without the portal totals, restored attendance fell back
+ * to hand-marked classes only.
+ */
 export async function exportAllData(pin: string) {
-  const [settings, subjects, timetable, attendance, marks, deadlines] = await Promise.all([
-    fetchSettings(pin),
-    fetchSubjects(pin),
-    fetchTimetable(pin),
-    fetchAttendance(pin),
-    fetchMarks(pin),
-    fetchDeadlines(pin),
-  ]);
+  const [settings, subjects, timetable, attendance, marks, deadlines, archives, portalSnapshots] =
+    await Promise.all([
+      fetchSettings(pin),
+      fetchSubjects(pin),
+      fetchTimetable(pin),
+      fetchAttendance(pin),
+      fetchMarks(pin),
+      fetchDeadlines(pin),
+      fetchArchives(pin),
+      fetchPortalSnapshots(pin),
+    ]);
   return {
     acadkit_export: 1,
     exported_at: new Date().toISOString(),
-    pin,
     settings,
     subjects,
     timetable,
     attendance,
     marks,
     deadlines,
+    archives,
+    portal_snapshots: portalSnapshots,
   };
 }
 
@@ -765,81 +678,94 @@ export interface AcadkitExport {
   acadkit_export?: number;
   subjects?: Subject[];
   timetable?: TimetableSlot[];
+  attendance?: AttendanceRecord[];
+  marks?: Mark[];
   deadlines?: Deadline[];
   settings?: Partial<Settings> | null;
+  archives?: SemesterArchive[];
+  portal_snapshots?: PortalSnapshot[];
 }
 
 export interface ImportOptions {
   subjects: boolean; // subjects + timetable
+  history: boolean; // attendance, marks and portal totals
   deadlines: boolean;
   holidays: boolean; // declared holidays + sem dates
+  archives: boolean; // past semesters
 }
 
-async function insertWithRowFallback(
-  table: string,
-  rows: Record<string, unknown>[],
-  optionalColumns: string[]
-): Promise<void> {
-  if (rows.length === 0) return;
-  const { error } = await supabase.from(table).insert(rows);
-  if (!error) return;
-  const missing = optionalColumns.find((c) => error.message.includes(`'${c}'`));
-  if (!missing) throw new Error(error.message);
-  const stripped = rows.map((r) => {
-    const copy = { ...r };
-    delete copy[missing];
-    return copy;
-  });
-  const retry = await supabase.from(table).insert(stripped);
-  throwIf(retry.error);
+export interface ImportResult {
+  subjects: number;
+  slots: number;
+  attendance: number;
+  marks: number;
+  deadlines: number;
+  archives: number;
 }
+
+const codeKey = (code: string) => code.trim().toUpperCase();
 
 /**
- * Import a previously-exported file. Subjects are matched to the
- * current account by **code** so existing attendance/marks stay linked;
- * missing subjects are created. Timetable and deadlines are replaced
- * for the chosen categories (attendance/marks are never touched).
+ * Import a previously-exported file.
+ *
+ * Subjects are matched to the current account by **code**, so existing
+ * attendance and marks stay linked; missing subjects are created with
+ * their marks plans, targets and medical leave. What's already here is
+ * never lost to a file that lacks it:
+ *
+ *  - The timetable and deadlines are replaced only when the file has
+ *    some — a file without a timetable used to clear yours and put
+ *    nothing back — and new rows go in before old ones come out.
+ *  - Attendance, marks, portal totals and archives are merged, never
+ *    replaced: a class you have already marked, a component you already
+ *    have, a newer portal total or an archive of the same name stays.
  */
 export async function importData(
   pin: string,
   data: AcadkitExport,
   opts: ImportOptions
-): Promise<{ subjects: number; slots: number; deadlines: number }> {
+): Promise<ImportResult> {
+  const result: ImportResult = { subjects: 0, slots: 0, attendance: 0, marks: 0, deadlines: 0, archives: 0 };
   const current = await fetchSubjects(pin);
-  const codeToId = new Map<string, string>();
-  for (const s of current) codeToId.set(s.code, s.id);
-  const importedIdToCode = new Map<string, string>();
-  for (const s of data.subjects ?? []) importedIdToCode.set(s.id, s.code);
-
-  let createdSubjects = 0;
-  let createdSlots = 0;
-  let createdDeadlines = 0;
+  const codeToId = new Map(current.map((s) => [codeKey(s.code), s.id]));
+  const importedIdToCode = new Map((data.subjects ?? []).map((s) => [s.id, codeKey(s.code)]));
+  /** This account's id for a subject id from the file. */
+  const localId = (importedId: string | null | undefined): string | undefined => {
+    const code = importedId ? importedIdToCode.get(importedId) : undefined;
+    return code ? codeToId.get(code) : undefined;
+  };
 
   if (opts.subjects) {
-    const missing = (data.subjects ?? []).filter((s) => !codeToId.has(s.code));
-    const rows = missing.map((s) => {
-      const id = crypto.randomUUID();
-      codeToId.set(s.code, id);
-      return {
-        id,
-        device_id: pin,
-        code: s.code,
-        name: s.name,
-        credits: s.credits ?? 0,
-        type: s.type ?? "theory",
-        faculty: s.faculty ?? null,
-        color_hex: s.color_hex ?? "#7c6af7",
-        internal_only: s.internal_only ?? false,
-      };
-    });
-    await insertWithRowFallback("subjects", rows, ["internal_only"]);
-    createdSubjects = rows.length;
+    const rows = (data.subjects ?? [])
+      .filter((s) => !codeToId.has(codeKey(s.code)))
+      .map((s) => {
+        const id = crypto.randomUUID();
+        codeToId.set(codeKey(s.code), id);
+        return {
+          id,
+          device_id: pin,
+          code: s.code,
+          name: s.name,
+          credits: s.credits ?? 0,
+          type: s.type ?? "theory",
+          faculty: s.faculty ?? null,
+          color_hex: s.color_hex ?? "#7c6af7",
+          short_name: s.short_name ?? null,
+          internal_only: s.internal_only ?? false,
+          assessment: s.assessment ?? null,
+          target_grade: s.target_grade ?? null,
+          medical_leave: s.medical_leave ?? null,
+        };
+      });
+    if (rows.length) {
+      const { error } = await supabase.from("subjects").insert(rows);
+      throwIf(error);
+    }
+    result.subjects = rows.length;
 
-    await clearTimetable(pin);
     const slots = (data.timetable ?? [])
       .map((sl) => {
-        const code = importedIdToCode.get(sl.subject_id);
-        const sid = code ? codeToId.get(code) : undefined;
+        const sid = localId(sl.subject_id);
         if (!sid) return null;
         return {
           device_id: pin,
@@ -852,27 +778,123 @@ export async function importData(
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-    await insertWithRowFallback("timetable_slots", slots, ["slot_type"]);
-    createdSlots = slots.length;
+    if (slots.length) await replaceRows("timetable_slots", pin, slots);
+    result.slots = slots.length;
+  }
+
+  if (opts.history) {
+    const attendance = (data.attendance ?? [])
+      .map((r) => {
+        const sid = localId(r.subject_id);
+        if (!sid) return null;
+        return {
+          device_id: pin,
+          subject_id: sid,
+          date: r.date,
+          start_time: r.start_time,
+          end_time: r.end_time,
+          status: r.status,
+          auto_marked: r.auto_marked ?? false,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    if (attendance.length) {
+      // ignoreDuplicates: a class already marked here keeps its answer.
+      // select() returns only the rows actually written.
+      const { data: written, error } = await supabase
+        .from("attendance")
+        .upsert(attendance, { onConflict: "device_id,subject_id,date,start_time", ignoreDuplicates: true })
+        .select("id");
+      throwIf(error);
+      result.attendance = written?.length ?? 0;
+    }
+
+    // A component this account already has — same subject, same label by
+    // match key, same side of the split — is left alone rather than doubled.
+    const markKey = (subjectId: string, m: Pick<Mark, "label" | "is_external">) =>
+      `${subjectId}|${labelMatchKey(m.label)}|${m.is_external ? "x" : "i"}`;
+    const have = new Set((await fetchMarks(pin)).map((m) => markKey(m.subject_id, m)));
+    const marks: Record<string, unknown>[] = [];
+    for (const m of data.marks ?? []) {
+      const sid = localId(m.subject_id);
+      if (!sid || have.has(markKey(sid, m))) continue;
+      have.add(markKey(sid, m));
+      marks.push({
+        device_id: pin,
+        subject_id: sid,
+        component_type: m.component_type,
+        label: m.label,
+        marks_obtained: m.marks_obtained,
+        max_marks: m.max_marks,
+        is_external: m.is_external,
+        source: m.source ?? "manual",
+      });
+    }
+    if (marks.length) {
+      const { error } = await supabase.from("marks").insert(marks);
+      throwIf(error);
+    }
+    result.marks = marks.length;
+
+    // Portal totals are the attendance baseline; a file's only wins where
+    // it is newer than what this account already has.
+    const here = new Map((await fetchPortalSnapshots(pin)).map((s) => [codeKey(s.subject_code), s.as_of]));
+    const snapshots = (data.portal_snapshots ?? [])
+      .filter((s) => {
+        const asOf = here.get(codeKey(s.subject_code));
+        return !asOf || s.as_of > asOf;
+      })
+      .map((s) => ({
+        device_id: pin,
+        subject_code: s.subject_code,
+        conducted: s.conducted,
+        absent: s.absent,
+        percentage: s.percentage,
+        as_of: s.as_of,
+        synced_at: s.synced_at ?? new Date().toISOString(),
+      }));
+    if (snapshots.length) {
+      const { error } = await supabase
+        .from("portal_snapshots")
+        .upsert(snapshots, { onConflict: "device_id,subject_code" });
+      throwIf(error);
+    }
   }
 
   if (opts.deadlines) {
-    const { error } = await supabase.from("deadlines").delete().eq("device_id", pin);
-    throwIf(error);
-    const ds = (data.deadlines ?? []).map((d) => {
-      const code = d.subject_id ? importedIdToCode.get(d.subject_id) : undefined;
-      return {
+    const deadlines = (data.deadlines ?? []).map((d) => ({
+      device_id: pin,
+      subject_id: localId(d.subject_id) ?? null,
+      title: d.title,
+      type: d.type,
+      due_date: d.due_date,
+      status: d.status ?? "pending",
+      priority: d.priority ?? "medium",
+      max_marks: d.max_marks ?? null,
+    }));
+    if (deadlines.length) await replaceRows("deadlines", pin, deadlines);
+    result.deadlines = deadlines.length;
+  }
+
+  if (opts.archives) {
+    const labels = new Set((await fetchArchives(pin)).map((a) => a.label.trim().toLowerCase()));
+    const archives = (data.archives ?? [])
+      .filter((a) => !labels.has(a.label.trim().toLowerCase()))
+      .map((a) => ({
         device_id: pin,
-        subject_id: code ? codeToId.get(code) ?? null : null,
-        title: d.title,
-        type: d.type,
-        due_date: d.due_date,
-        status: d.status ?? "pending",
-        priority: d.priority ?? "medium",
-      };
-    });
-    await insertWithRowFallback("deadlines", ds, []);
-    createdDeadlines = ds.length;
+        label: a.label,
+        sgpa: a.sgpa,
+        credits: a.credits,
+        summary: a.summary ?? [],
+        sem_start: a.sem_start,
+        sem_end: a.sem_end,
+        ...(a.archived_at ? { archived_at: a.archived_at } : {}),
+      }));
+    if (archives.length) {
+      const { error } = await supabase.from("semester_archives").insert(archives);
+      throwIf(error);
+    }
+    result.archives = archives.length;
   }
 
   if (opts.holidays && data.settings) {
@@ -883,12 +905,8 @@ export async function importData(
     });
   }
 
-  return { subjects: createdSubjects, slots: createdSlots, deadlines: createdDeadlines };
+  return result;
 }
-
-// ---------------------------------------------------------------------
-// Shared comparison cards
-// ---------------------------------------------------------------------
 
 // ---------- suggestions (migration 026) ----------
 
@@ -900,7 +918,7 @@ export async function fetchSuggestions(pin: string): Promise<Suggestion[]> {
     .eq("status", "pending");
   // Before migration 026 runs the table doesn't exist; that is "nothing
   // suggested", not an error worth a toast on the home screen.
-  if (error?.code === "42P01" || error?.code === "PGRST205") return [];
+  if (isMissingTable(error)) return [];
   throwIf(error);
   return (data as Suggestion[]) ?? [];
 }

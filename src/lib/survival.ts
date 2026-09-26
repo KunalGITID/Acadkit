@@ -1,6 +1,6 @@
 import { MIN } from "@/lib/projections";
-import { MIN_ATTENDANCE, minAttendanceFor } from "@/lib/attendance";
-import type { Subject, TimetableSlot } from "@/types";
+import { computeOverallAttendance, MIN_ATTENDANCE, minAttendanceFor } from "@/lib/attendance";
+import type { AttendanceRecord, PortalSnapshot, Subject, TimetableSlot } from "@/types";
 
 /**
  * The survival schedule.
@@ -117,11 +117,21 @@ export function classesNeeded(
   return Math.max(0, Math.ceil(target - attended));
 }
 
+/** `subject|date|start_time` — the natural key of an attendance row. */
+const classKey = (subjectId: string, date: string, startTime: string) =>
+  `${subjectId}|${date}|${startTime}`;
+
 export function buildSurvivalPlan(
   states: SubjectState[],
   timetable: TimetableSlot[],
   effMap: Record<string, number>,
-  from: string
+  from: string,
+  /**
+   * Classes that already have a record. They have happened (or were
+   * cancelled), so they are not still to come: counting today's marked
+   * classes as remaining put them in `held` and `remaining` at once.
+   */
+  marked: ReadonlySet<string> = new Set()
 ): SurvivalPlan {
   const slotsByDayOrder = new Map<number, TimetableSlot[]>();
   for (const slot of timetable) {
@@ -142,6 +152,7 @@ export function buildSurvivalPlan(
       a.start_time.localeCompare(b.start_time)
     );
     for (const slot of slots) {
+      if (marked.has(classKey(slot.subject_id, date, slot.start_time))) continue;
       const list = upcoming.get(slot.subject_id) ?? [];
       list.push({ date, slot });
       upcoming.set(slot.subject_id, list);
@@ -170,7 +181,7 @@ export function buildSurvivalPlan(
     // optional — see the note at the top.
     const spend = occurrences.slice(0, slack);
     for (const { date, slot } of spend) {
-      optional.add(`${subject.id}|${date}|${slot.start_time}`);
+      optional.add(classKey(subject.id, date, slot.start_time));
     }
 
     outlooks.push({
@@ -194,12 +205,13 @@ export function buildSurvivalPlan(
     );
     const classes: PlannedClass[] = [];
     for (const slot of slots) {
+      const key = classKey(slot.subject_id, date, slot.start_time);
       const outlook = outlooks.find((o) => o.subject.id === slot.subject_id);
-      if (!outlook) continue;
+      if (!outlook || marked.has(key)) continue;
       classes.push({
         subject: outlook.subject,
         slot,
-        required: !optional.has(`${slot.subject_id}|${date}|${slot.start_time}`),
+        required: !optional.has(key),
       });
     }
     if (!classes.length) continue;
@@ -223,4 +235,31 @@ export function buildSurvivalPlan(
       .filter((o) => o.min !== MIN_ATTENDANCE)
       .map((o) => o.subject),
   };
+}
+
+/**
+ * The plan from the app's raw data — the one way every screen builds it.
+ *
+ * Attendance goes through `computeOverallAttendance`, so the portal
+ * baseline counts exactly as it does on the Attendance page, and every
+ * class that already has a record is left out of what's still to come.
+ * The dashboard card, the free-day watcher and Insights each used to
+ * assemble this themselves.
+ */
+export function survivalPlanFrom(
+  subjects: Subject[],
+  attendance: AttendanceRecord[],
+  snapshots: PortalSnapshot[],
+  timetable: TimetableSlot[],
+  effMap: Record<string, number>,
+  from: string
+): SurvivalPlan {
+  const overall = computeOverallAttendance(subjects, attendance, snapshots);
+  const states = overall.subjects.map((s) => ({
+    subject: s.subject,
+    attended: s.attended,
+    held: s.total,
+  }));
+  const marked = new Set(attendance.map((r) => classKey(r.subject_id, r.date, r.start_time)));
+  return buildSurvivalPlan(states, timetable, effMap, from, marked);
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chooseDevice, entryScreen } from "@/lib/devices";
+import { chooseDevice, claimFreshPin, entryScreen } from "@/lib/devices";
 
 /**
  * This is the logic that stranded a device on PIN 1234 — the mock
@@ -69,5 +69,35 @@ describe("entryScreen", () => {
     // Every launch after the first: the reconcile runs behind the app,
     // so it must never cost a round trip on screen.
     expect(entryScreen({ ...signedIn, pin: "0404" })).toBe("app");
+  });
+});
+
+/**
+ * Onboarding seeded a PIN's rows before claiming it, which owner-scoped
+ * RLS refuses, so no new account could finish setting up. Claiming is
+ * the lock now, and a taken PIN means trying another — never proceeding
+ * on one somebody else owns.
+ */
+describe("claimFreshPin", () => {
+  it("skips PINs that are taken and returns the first it could claim", async () => {
+    const pins = ["1111", "2222", "3333"];
+    const tried: string[] = [];
+    const pin = await claimFreshPin(
+      async (p) => {
+        tried.push(p);
+        return p === "3333" ? "claimed" : "taken";
+      },
+      () => pins.shift()!
+    );
+    expect(pin).toBe("3333");
+    expect(tried).toEqual(["1111", "2222", "3333"]);
+  });
+
+  it("accepts a PIN this account already owns", async () => {
+    expect(await claimFreshPin(async () => "already-yours", () => "0404")).toBe("0404");
+  });
+
+  it("gives up rather than using a PIN it could not claim", async () => {
+    await expect(claimFreshPin(async () => "taken", () => "1234", 3)).rejects.toThrow();
   });
 });

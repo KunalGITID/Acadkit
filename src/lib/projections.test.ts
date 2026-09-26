@@ -179,3 +179,70 @@ describe("attendanceTrend", () => {
     expect(attendanceTrend(shuffled)).toBe("declining");
   });
 });
+
+/**
+ * Insights used to count hand-marked classes only, while every other
+ * screen starts from the portal's totals. The same subject read 72% and
+ * "attend the next 5" on Attendance, and 100% and "safe" here.
+ */
+describe("the projection starts from the portal's totals", () => {
+  const s = subj({ id: "s1", code: "21MAB201T" });
+  const slots: TimetableSlot[] = [1, 3, 5].map((d) => ({
+    id: `t${d}`,
+    device_id: "p",
+    subject_id: "s1",
+    day_order: d,
+    start_time: "08:00:00",
+    end_time: "08:50:00",
+    room: null,
+  }));
+  const since: AttendanceRecord[] = ["2026-09-21", "2026-09-22", "2026-09-23"].map((date, i) => ({
+    id: `r${i}`,
+    device_id: "p",
+    subject_id: "s1",
+    date,
+    start_time: "08:00:00",
+    end_time: "08:50:00",
+    status: "present",
+  }));
+  const snapshot = {
+    id: "snap",
+    device_id: "p",
+    subject_code: "21mab201t ", // matched the way snapshotsByCode matches
+    conducted: 40,
+    absent: 12,
+    percentage: 70,
+    as_of: "2026-09-18",
+  };
+  const win = { start: "2026-07-21", end: "2026-11-18" };
+
+  it("agrees with the Attendance page on the same data", () => {
+    const report = buildProjection([s], since, slots, [], [], "2026-09-26", win, 8.5, [], null, [snapshot]);
+    const p = report.perSubject[0];
+    expect(p.attended).toBe(31); // 28 from the portal + 3 marked since
+    expect(p.held).toBe(43);
+    expect(p.currentPct).toBeCloseTo((31 / 43) * 100, 5);
+    expect(p.riskLevel).not.toBe("safe");
+    expect(p.mustAttendStreak).toBe(5);
+  });
+
+  it("without a snapshot, still counts what was marked", () => {
+    const p = buildProjection([s], since, slots, [], [], "2026-09-26", win).perSubject[0];
+    expect(p.held).toBe(3);
+  });
+
+  it("asks for no extra class at the 65% bar", () => {
+    const ml = subj({ id: "s1", code: "21MAB201T", medical_leave: true });
+    // 9 of 16: 13 of 20 is exactly 65%, so the streak is 4, not 5.
+    const recs: AttendanceRecord[] = Array.from({ length: 16 }, (_, i) => ({
+      id: `m${i}`,
+      device_id: "p",
+      subject_id: "s1",
+      date: `2026-08-${String(i + 1).padStart(2, "0")}`,
+      start_time: "08:00:00",
+      end_time: "08:50:00",
+      status: i < 9 ? "present" : "absent",
+    }));
+    expect(projectSubject(ml, recs, slots, {}, "2026-09-26").mustAttendStreak).toBe(4);
+  });
+});

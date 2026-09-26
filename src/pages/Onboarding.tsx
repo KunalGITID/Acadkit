@@ -5,8 +5,9 @@ import { toast } from "sonner";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Button } from "@/components/ui/button";
-import { accountExists, seedAccount } from "@/api/queries";
-import { claimDevice } from "@/lib/auth";
+import { seedAccount } from "@/api/queries";
+import { claimDevice, ownedDevices } from "@/lib/auth";
+import { claimFreshPin } from "@/lib/devices";
 import { generatePin } from "@/lib/pin";
 import { useAppStore } from "@/store/app";
 
@@ -18,11 +19,13 @@ export default function Onboarding() {
   async function createFresh() {
     setBusy(true);
     try {
-      // Avoid colliding with an existing PIN's data
-      let pin = generatePin();
-      for (let i = 0; i < 5 && (await accountExists(pin)); i++) pin = generatePin();
+      // An account that already owns a PIN keeps it: onboarding also shows
+      // when the lookup failed offline, and claiming a second PIN would
+      // split your data across two. Otherwise claim first, then seed — the
+      // policies only let you write rows under a PIN you own.
+      const owned = await ownedDevices();
+      const pin = owned[0] ?? (await claimFreshPin(claimDevice, generatePin));
       await seedAccount(pin);
-      await claimDevice(pin);
       setPin(pin);
       // The PIN is internal now — there is no Settings card to find it
       // in, and your account is what follows you between devices.

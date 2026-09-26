@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, ClipboardList, Clock3, Loader2 } from "lucide-react";
+import { Archive, CalendarDays, ClipboardList, Clock3, ListChecks, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,21 @@ const ROWS: Array<{
     icon: Clock3,
     label: "Subjects & timetable",
     count: (d) => (d.timetable ?? []).length,
-    note: "matches your subjects by code — attendance stays intact",
+    note: "adds missing subjects by code; replaces the timetable only if the file has one",
+  },
+  {
+    key: "history",
+    icon: ListChecks,
+    label: "Attendance & marks",
+    count: (d) => (d.attendance ?? []).length + (d.marks ?? []).length,
+    note: "merged — nothing already marked here is overwritten",
   },
   {
     key: "deadlines",
     icon: ClipboardList,
     label: "Deadlines",
     count: (d) => (d.deadlines ?? []).length,
-    note: "replaces your current deadlines",
+    note: "replaces your current deadlines, if the file has any",
   },
   {
     key: "holidays",
@@ -41,25 +48,40 @@ const ROWS: Array<{
     count: (d) => (d.settings?.declared_holidays ?? []).length,
     note: "declared holidays + semester window",
   },
+  {
+    key: "archives",
+    icon: Archive,
+    label: "Past semesters",
+    count: (d) => (d.archives ?? []).length,
+    note: "your CGPA history — same-named semesters are skipped",
+  },
 ];
+
+/**
+ * Only the timetable is on by default: the file may be a classmate's,
+ * shared for their timetable, and their attendance is not yours.
+ */
+const DEFAULT_OPTIONS: ImportOptions = {
+  subjects: true,
+  history: false,
+  deadlines: false,
+  holidays: false,
+  archives: false,
+};
 
 export function ImportSheet({ data, onClose }: ImportSheetProps) {
   const pin = useAppStore((s) => s.pin)!;
   const qc = useQueryClient();
-  const [opts, setOpts] = useState<ImportOptions>({
-    subjects: true,
-    deadlines: false,
-    holidays: false,
-  });
+  const [opts, setOpts] = useState<ImportOptions>(DEFAULT_OPTIONS);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (data) setOpts({ subjects: true, deadlines: false, holidays: false });
+    if (data) setOpts(DEFAULT_OPTIONS);
   }, [data]);
 
   async function run() {
     if (!data) return;
-    if (!opts.subjects && !opts.deadlines && !opts.holidays) {
+    if (!Object.values(opts).some(Boolean)) {
       toast.error("Pick at least one thing to import");
       return;
     }
@@ -70,8 +92,10 @@ export function ImportSheet({ data, onClose }: ImportSheetProps) {
       toast.success("Imported", {
         description: [
           opts.subjects && `${res.slots} class slots`,
+          opts.history && `${res.attendance} classes and ${res.marks} marks added`,
           opts.deadlines && `${res.deadlines} deadlines`,
           opts.holidays && "holidays",
+          opts.archives && `${res.archives} past semesters`,
         ]
           .filter(Boolean)
           .join(" · "),
@@ -93,7 +117,7 @@ export function ImportSheet({ data, onClose }: ImportSheetProps) {
       open={data !== null}
       onOpenChange={(o) => !o && onClose()}
       title="Import data"
-      description="Choose what to bring in. Selected categories are replaced; the rest is left as-is."
+      description="Choose what to bring in. Nothing you already have is lost to a file that lacks it."
     >
       {!valid ? (
         <p className="py-6 text-center text-sm font-semibold text-bad-deep">
