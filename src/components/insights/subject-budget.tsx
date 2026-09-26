@@ -13,6 +13,7 @@ import {
   type SolvedComponent,
 } from "@/lib/plan";
 import { GRADE_COLORS, GRADE_TABLE } from "@/lib/grades";
+import { formatChance, type SubjectOdds } from "@/lib/odds";
 import type { SubjectGradeProjection } from "@/lib/projections";
 import { Dot } from "@/components/ui/misc";
 import { WhatIf } from "@/components/insights/what-if";
@@ -312,9 +313,9 @@ function EndSemRow({ p, c }: { p: SubjectGradeProjection; c: SolvedComponent }) 
  * "ace what's left" is the one of the three that means anything on day
  * one.
  */
-function Bracket({ p }: { p: SubjectGradeProjection }) {
-  const band = p.plan.band;
+function Bracket({ p, odds }: { p: SubjectGradeProjection; odds?: SubjectOdds }) {
   const graded = p.plan.hasAnyMarks;
+  const range = graded && odds && !odds.final ? odds : null;
   const cells = [
     {
       label: "Banked",
@@ -357,12 +358,12 @@ function Bracket({ p }: { p: SubjectGradeProjection }) {
               {c.label === "At your pace" ? "no marks yet" : "\u00a0"}
             </p>
           )}
-          {c.label === "At your pace" && band && (
+          {c.label === "At your pace" && range && (
             <p
               className="mt-0.5 text-[10px] font-semibold tabular text-muted"
-              title={`±1 SD of your ${band.samples} graded components`}
+              title="Where 8 in 10 simulated semesters finish"
             >
-              {floorTotal(band.low)}–{floorTotal(band.high)}
+              {floorTotal(range.p10)}–{floorTotal(range.p90)}
             </p>
           )}
         </div>
@@ -536,6 +537,51 @@ function Attendance({ p }: { p: SubjectGradeProjection }) {
   );
 }
 
+/** Worst to best, so the bar reads left to right like a scale. */
+const ASCENDING = [...GRADE_TABLE].reverse().map((g) => g.grade);
+
+/**
+ * How likely the target is, and how the rest of the chances fall.
+ *
+ * The ladder below says what each grade would cost; this says how often
+ * you get there if the rest of the semester goes the way your marks so
+ * far suggest (src/lib/odds.ts). Hidden once the subject is finished —
+ * a certainty is already the verdict above.
+ */
+function Odds({ o }: { o: SubjectOdds }) {
+  if (o.final) return null;
+  const shown = ASCENDING.filter((g) => o.distribution[g] > 0.004);
+  return (
+    <div className="mt-3 px-1">
+      <div className="flex items-baseline justify-between gap-3 text-xs">
+        <span className="font-semibold text-muted">
+          Chance of <b style={{ color: GRADE_COLORS[o.target] }}>{o.target}</b> or better
+        </span>
+        <span className="text-sm font-extrabold tabular">{formatChance(o.pTarget)}</span>
+      </div>
+      <div
+        className="mt-1.5 flex h-2 overflow-hidden rounded-full bg-surface-2"
+        role="img"
+        aria-label={shown.map((g) => `${g} ${formatChance(o.distribution[g])}`).join(", ")}
+      >
+        {shown.map((g) => (
+          <span
+            key={g}
+            title={`${g}: ${formatChance(o.distribution[g])}`}
+            style={{ width: `${o.distribution[g] * 100}%`, backgroundColor: GRADE_COLORS[g] }}
+          />
+        ))}
+      </div>
+      <p className="mt-1 text-[10px] font-medium text-muted">
+        {o.evidence === 0
+          ? "No marks here yet, so this leans on how you do in your other subjects."
+          : `From ${o.evidence} graded component${o.evidence === 1 ? "" : "s"} here, and your other subjects.`}
+        {o.barred && " Assumes you can't sit the end-sem."}
+      </p>
+    </div>
+  );
+}
+
 const BAND: Record<string, string> = {
   locked: "border-good/25 bg-good/10",
   "on-track": "border-good/25 bg-good/10",
@@ -544,7 +590,15 @@ const BAND: Record<string, string> = {
   "out-of-reach": "border-bad/25 bg-bad/10",
 };
 
-export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; index: number }) {
+export function SubjectBudgetCard({
+  p,
+  index,
+  odds,
+}: {
+  p: SubjectGradeProjection;
+  index: number;
+  odds?: SubjectOdds;
+}) {
   const settled = useHasAnimated("grade-budgets");
   const split = p.internalOnly
     ? "internals are the whole 100"
@@ -591,6 +645,8 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
           </Link>
         )}
       </div>
+
+      {odds && <Odds o={odds} />}
 
       {p.plan.next && (
         <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-muted">
@@ -642,7 +698,7 @@ export function SubjectBudgetCard({ p, index }: { p: SubjectGradeProjection; ind
         </div>
       )}
 
-      <Bracket p={p} />
+      <Bracket p={p} odds={odds} />
       <GradeRates p={p} />
     </motion.section>
   );

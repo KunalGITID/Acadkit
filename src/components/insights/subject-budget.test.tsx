@@ -15,6 +15,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { SubjectBudgetCard } from "@/components/insights/subject-budget";
+import { gradeOdds } from "@/lib/odds";
 import { buildProjection } from "@/lib/projections";
 import type { AttendanceRecord, Deadline, Mark, Subject, TimetableSlot } from "@/types";
 
@@ -72,13 +73,14 @@ function renderFor(subject: Subject, marks: Mark[], extras: Extras = {}): string
     8.5,
     extras.deadlines ?? []
   );
+  const odds = gradeOdds(report.gradeProjections, report.targetSgpa);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderToStaticMarkup(
     // The card links to /marks when nothing is graded, so it needs a
     // router the same way it needs a query client.
     <MemoryRouter>
       <QueryClientProvider client={qc}>
-        <SubjectBudgetCard p={report.gradeProjections[0]} index={0} />
+        <SubjectBudgetCard p={report.gradeProjections[0]} index={0} odds={odds.subjects[0]} />
       </QueryClientProvider>
     </MemoryRouter>
   );
@@ -279,17 +281,23 @@ describe("SubjectBudgetCard", () => {
     expect(t).toContain("Model 3 Nov");
   });
 
-  it("shows how much your own results swing, once there are enough", () => {
-    // 14/15 then 2/15 averages to the same pace as two 8/15s and says
-    // something very different about how much to trust it.
-    const swingy = text(
-      render([mark("Assignment", 5, 5), mark("CT-1", 14, 15), mark("CT-2", 2, 15)])
-    );
-    expect(swingy).toMatch(/At your pace \d+\/100 \w\+? \d+–\d+/);
+  it("gives the chance of the target, and a likely range around the pace", () => {
+    const t = text(render([mark("Assignment", 5, 5), mark("CT-1", 12, 15)]));
+    expect(t).toMatch(/Chance of A or better (\d+%|>99%|<1%)/);
+    expect(t).toMatch(/At your pace \d+\/100 \w\+? \d+–\d+/);
+    expect(t).toContain("From 2 graded components here");
+  });
 
-    // Two components is not a spread, it is two numbers disagreeing.
-    const tooFew = text(render([mark("Assignment", 5, 5), mark("CT-1", 14, 15)]));
-    expect(tooFew).not.toMatch(/At your pace \d+\/100 \w\+? \d+–\d+/);
+  it("widens that range when your results swing", () => {
+    // 14/15 then 2/15 averages to the same place as two 8/15s and says
+    // something very different about how much to trust it.
+    const range = (marks: Mark[]) => {
+      const m = text(render(marks)).match(/At your pace \d+\/100 \w\+? (\d+)–(\d+)/)!;
+      return Number(m[2]) - Number(m[1]);
+    };
+    const steady = range([mark("Assignment", 3, 5), mark("CT-1", 8, 15), mark("CT-2", 8, 15)]);
+    const swingy = range([mark("Assignment", 3, 5), mark("CT-1", 14, 15), mark("CT-2", 2, 15)]);
+    expect(swingy).toBeGreaterThan(steady);
   });
 
   it("adopts a deadline you logged with marks, without retyping it", () => {

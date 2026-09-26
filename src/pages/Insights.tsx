@@ -34,6 +34,7 @@ import { SwipeHint } from "@/components/ui/swipe-hint";
 import { RISK_STYLE } from "@/components/insights/risk";
 import { SurvivalPlan } from "@/components/insights/survival-plan";
 import { GradesProjection } from "@/components/insights/grades-projection";
+import { gradeOdds } from "@/lib/odds";
 import { cn, haptic } from "@/lib/utils";
 
 
@@ -248,6 +249,12 @@ export default function Insights() {
       snapshots,
     ]
   );
+  // Odds for every grade, simulated from the same projections the cards
+  // are built from, so a card and its odds can't be about different marks.
+  const odds = useMemo(
+    () => gradeOdds(report.gradeProjections, report.targetSgpa),
+    [report]
+  );
 
   if (sL || aL || tL || mL) {
     return (
@@ -302,7 +309,7 @@ export default function Insights() {
         {...viewSwipe}
       >
       {view === "grades" ? (
-        <GradesProjection report={report} />
+        <GradesProjection report={report} odds={odds} />
       ) : view === "plan" ? (
         <SurvivalPlan
           subjects={subjects ?? []}

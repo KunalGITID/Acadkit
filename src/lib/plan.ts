@@ -283,8 +283,6 @@ export interface SubjectPlan {
    * to expect of it. Null means it is solved for like everything else.
    */
   assumedExternal: number | null;
-  /** ±1 SD of your own component scores, or null with too few to say. */
-  band: ConfidenceBand | null;
   /** The soonest dated component still to come. */
   next: SolvedComponent | null;
 }
@@ -342,31 +340,9 @@ export interface SubjectBudget {
   pace: number | null;
   scaled: boolean;
   hasAnyMarks: boolean;
-  /**
-   * How much your results actually vary, and what that does to the
-   * forecast. A single pace line quietly assumes you will reproduce
-   * your average exactly; anyone with a 14/15 and a 2/15 knows that is
-   * not a forecast, it is an average pretending to be one.
-   */
-  band: ConfidenceBand | null;
   /** The soonest dated component still to come. */
   next: SolvedComponent | null;
 }
-
-/** ±1 standard deviation of your own component scores, on the pool. */
-export interface ConfidenceBand {
-  /** Pace minus a deviation, floored at what's already banked. */
-  low: number;
-  /** Pace plus a deviation, capped at the ceiling. */
-  high: number;
-  /** Spread of your component ratios, 0–1. */
-  sd: number;
-  /** Graded components it was measured over. */
-  samples: number;
-}
-
-/** Below this a "spread" is one result disagreeing with another. */
-const MIN_BAND_SAMPLES = 3;
 
 /**
  * Titles that mean the end-sem rather than an internal component.
@@ -484,39 +460,6 @@ function claimDeadlines(
       rivals[0].date = d.due_date.slice(0, 10);
     }
   }
-}
-
-/**
- * The spread of your own component scores.
- *
- * Population deviation over each graded component's ratio, which is the
- * right unit: a 2/15 and a 14/15 are 13% and 93%, and it is that gap —
- * not the raw marks — that says how much a single pace line should be
- * trusted. Below three components there is no spread worth reporting,
- * only two numbers disagreeing.
- */
-function confidenceBand(
-  components: SolvedComponent[],
-  banked: number,
-  pool: number,
-  paceRate: number | null
-): ConfidenceBand | null {
-  if (paceRate === null || pool <= 1e-9) return null;
-  const ratios = components
-    .filter((c) => c.obtained !== null && c.max > 1e-9)
-    .map((c) => (c.obtained as number) / c.max);
-  if (ratios.length < MIN_BAND_SAMPLES) return null;
-
-  const mean = ratios.reduce((a, r) => a + r, 0) / ratios.length;
-  const variance = ratios.reduce((a, r) => a + (r - mean) ** 2, 0) / ratios.length;
-  const sd = Math.sqrt(variance);
-
-  return {
-    low: banked + clamp(paceRate - sd, 0, 1) * pool,
-    high: banked + clamp(paceRate + sd, 0, 1) * pool,
-    sd,
-    samples: ratios.length,
-  };
 }
 
 function budgetFor(
@@ -739,7 +682,6 @@ function budgetFor(
     pace: paceRate === null ? null : banked + paceRate * pool,
     scaled,
     hasAnyMarks: graded.length > 0,
-    band: confidenceBand(components, banked, pool, paceRate),
     next: upcoming[0] ?? null,
   };
 }
@@ -873,7 +815,6 @@ export function solveSubjectPlan(
     pace,
     scaled,
     hasAnyMarks,
-    band,
     next,
   } = budgetFor(subject, marks, options.deadlines ?? [], options.today);
 
@@ -962,7 +903,6 @@ export function solveSubjectPlan(
     scaled,
     perGrade,
     hasAnyMarks,
-    band,
     next,
   };
 }

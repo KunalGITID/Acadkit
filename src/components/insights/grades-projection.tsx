@@ -6,6 +6,7 @@ import { SubjectBudgetCard } from "@/components/insights/subject-budget";
 import { RISK_STYLE } from "@/components/insights/risk";
 import { Dot, EmptyState } from "@/components/ui/misc";
 import { AnimatedNumber } from "@/components/viz/animated-number";
+import { formatChance, type SemesterOdds } from "@/lib/odds";
 import { ceilHalf, floorHalf } from "@/lib/plan";
 import type { buildProjection } from "@/lib/projections";
 import { say, VOICE } from "@/lib/voice";
@@ -35,8 +36,15 @@ function have(n: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
-export function GradesProjection({ report }: { report: ReturnType<typeof buildProjection> }) {
+export function GradesProjection({
+  report,
+  odds,
+}: {
+  report: ReturnType<typeof buildProjection>;
+  odds: SemesterOdds;
+}) {
   const tone = useTone();
+  const oddsById = new Map(odds.subjects.map((o) => [o.subjectId, o]));
   if (report.gradeProjections.length === 0) {
     return (
       <section className="card">
@@ -52,6 +60,35 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
 
   return (
     <div className="space-y-4">
+      {/* Where the semester is likely to land, as a chance rather than a
+          single number. Every subject is simulated from its own marks and
+          how you do elsewhere (src/lib/odds.ts), and SGPA is read off the
+          same draws, so subjects move together the way a real term does. */}
+      {odds.sgpa && (
+        <section className="card p-5">
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                Chance of SGPA {report.targetSgpa.toFixed(1)} or more
+              </p>
+              <p className="mt-0.5 text-xs font-medium text-muted">
+                likely <b className="tabular text-ink">{odds.sgpa.p10.toFixed(2)}</b> to{" "}
+                <b className="tabular text-ink">{odds.sgpa.p90.toFixed(2)}</b> · middle{" "}
+                <b className="tabular text-ink">{odds.sgpa.median.toFixed(2)}</b>
+              </p>
+            </div>
+            <p className="shrink-0 text-3xl font-extrabold tabular accent-gradient-text">
+              {formatChance(odds.sgpa.pTarget)}
+            </p>
+          </div>
+          <p className="mt-3 text-xs font-medium text-muted">
+            The rest of the semester, simulated 3,000 times from your marks so far. A subject
+            with no marks leans on how you do in the others, so this starts wide and narrows as
+            results come in.
+          </p>
+        </section>
+      )}
+
       {/* The per-subject targets are chosen one card at a time. Nothing
           was adding them up, so you could set six of them and never
           find out they came to 7.9. */}
@@ -132,7 +169,7 @@ export function GradesProjection({ report }: { report: ReturnType<typeof buildPr
           Per subject — what's banked, what each test still has to return
         </p>
         {report.gradeProjections.map((p, i) => (
-          <SubjectBudgetCard key={p.subject.id} p={p} index={i} />
+          <SubjectBudgetCard key={p.subject.id} p={p} index={i} odds={oddsById.get(p.subject.id)} />
         ))}
       </div>
 
