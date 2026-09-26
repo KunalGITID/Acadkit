@@ -101,6 +101,18 @@ const NOISE = [
   /\(\s*\d+\s*[x×*]\s*\d+\s*=\s*\d+\s*marks?\s*\)/i, // "(20 x 1 = 20 Marks)"
 ];
 
+/**
+ * Things only a paper's header says. OCR merges and misspells header
+ * rows ("Academie Year", "PO PO PSO-1"), so no one line-rule catches
+ * them all — but a real question almost never carries two of these, and
+ * a header almost always carries several.
+ */
+// Not BL or CO1: those are also each question's own marks columns.
+const HEADER_MARKERS = /test\s*:|date\s*:|course\s+outcome|programm?e?\s+specific|academi[ce]\s+year|q\.?\s*no\b|\bpso\b|\bpo\s+po\b|\bs\.\s?no\b|register\s+no|reg\.?\s*no|\(\s*\d+\s*x\s*\d+/gi;
+// Judged on the opening only: a header starts its block, while a real
+// question can have the next page's header run onto its end.
+const isHeader = (q) => (q.slice(0, 160).match(HEADER_MARKERS) ?? []).length >= 2;
+
 const QUESTION_START = /^(?:q\.?\s*)?(\d{1,2})\s*[.)]\s*(?:[a-e][.)]\s*)?(?=\S)/i;
 const OR_LINE = /^\(?\s*or\s*\)?$/i;
 
@@ -109,8 +121,9 @@ const OR_LINE = /^\(?\s*or\s*\)?$/i;
  * ("30. a. Describe…") and at every "(OR)"; lines in between belong to
  * the question above. Each comes back trimmed to its opening, since an
  * answer key's worked answer follows the question and is not the topic.
+ * `keepHeaders` leaves header blocks in, for auditing what the filter drops.
  */
-export function splitQuestions(text) {
+export function splitQuestions(text, { keepHeaders = false } = {}) {
   const lines = String(text ?? "")
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
     .split("\n")
@@ -125,7 +138,7 @@ export function splitQuestions(text) {
       .replace(/^[a-e][.)]\s+/i, "")
       .replace(/\s+/g, " ")
       .trim();
-    if ((q.match(/[a-z]/gi) ?? []).length >= 20) questions.push(q.slice(0, 300));
+    if ((q.match(/[a-z]/gi) ?? []).length >= 20 && (keepHeaders || !isHeader(q))) questions.push(q.slice(0, 300));
     current = [];
   };
   for (const line of lines) {

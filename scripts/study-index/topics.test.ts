@@ -99,6 +99,16 @@ describe("labelClusters", () => {
     expect(splitQuestions(page)).toEqual(["Explain the working of a circular queue with an example of insertion"]);
   });
 
+  it("drops a header that OCR ran together, typos and all", () => {
+    const headers = [
+      "RA25127040 10009 Academie Year: 2026-27 (ODD) Test: FP-1 S.No. Course POZ POS Outcome COL C04 Date: 17.09.2026 (5 x 4 - 20 Marks)",
+      "Test: FJ - III Date: 06/11//2024 Course Outcome PO PO PO PO Program Specific Outcomes PSO-1 PSO-2 Q. No Question Marks BL C O",
+    ];
+    for (const h of headers) expect(splitQuestions(h)).toEqual([]);
+    // One marker is a question that happens to mention a date.
+    expect(splitQuestions("1. Write a program that parses a date: dd/mm/yyyy and prints the day")).toHaveLength(1);
+  });
+
   it("never names a topic after algebra", () => {
     const [label] = labelClusters([["solve y+x = 2 by fourier series", "fourier series of y+x"]]);
     expect(label).not.toMatch(/y\+x/);
