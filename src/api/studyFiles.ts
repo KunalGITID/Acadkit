@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { baseName, opensInBrowser, type StudyFile, type StudyManifest } from "@/lib/studyFiles";
+import { baseName, opensInBrowser, type StudyFile, type StudyHit, type StudyManifest } from "@/lib/studyFiles";
 import type { PrepData } from "@/lib/examPrep";
 
 const BUCKET = "study-files";
@@ -52,4 +52,17 @@ export async function fetchStudyPrep(pin: string): Promise<PrepData | null> {
     throw error;
   }
   return JSON.parse(await data.text()) as PrepData;
+}
+
+/**
+ * Passages nearest to a query by meaning, from the study-search edge
+ * function (gte-small embeddings, migration 030). It runs as you, so
+ * row-level security limits it to your own files.
+ */
+export async function searchStudyFiles(pin: string, query: string): Promise<StudyHit[]> {
+  const { data, error } = await supabase.functions.invoke("study-search", {
+    body: { query, device_id: pin, limit: 24 },
+  });
+  if (error) throw error;
+  return (data as { results?: StudyHit[] } | null)?.results ?? [];
 }

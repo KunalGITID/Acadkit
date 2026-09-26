@@ -1,13 +1,22 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Folder, FolderSync, Search, X } from "lucide-react";
-import { FileRow } from "@/components/study/file-row";
+import { ChevronLeft, ChevronRight, Folder, FolderSync, Search, Sparkles, X } from "lucide-react";
+import { FileRow, SearchHitRow } from "@/components/study/file-row";
 import { Input } from "@/components/ui/input";
 import { EmptyState, Skeleton } from "@/components/ui/misc";
 import { usePin } from "@/hooks/useData";
-import { fetchStudyManifest, signStudyFiles } from "@/api/studyFiles";
-import { formatSize, listFolder, prettyName, searchFiles } from "@/lib/studyFiles";
+import { fetchStudyManifest, searchStudyFiles, signStudyFiles } from "@/api/studyFiles";
+import { formatSize, groupHits, listFolder, prettyName, searchFiles } from "@/lib/studyFiles";
 
+/** A query this short matches everything and nothing by meaning. */
+const MIN_DEEP = 3;
+
+/** What to say when a search inside files fails, by why it failed. */
+function deepError(err: unknown): string {
+  const status = (err as { context?: { status?: number } } | null)?.context?.status;
+  if (status === 404) return "Search inside files isn't set up yet — on your Mac, run npm run sync:files to build the index.";
+  return "Couldn't search inside your files. Check your connection and try again.";
+}
 
 function synced(at: number): string {
   return new Date(at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -17,6 +26,8 @@ export default function Files() {
   const pin = usePin();
   const [dir, setDir] = useState("");
   const [query, setQuery] = useState("");
+  // The query last sent for a search inside files; results show while the box still says it.
+  const [deep, setDeep] = useState<string | null>(null);
 
   const manifest = useQuery({
     queryKey: ["study-files", pin],
@@ -25,10 +36,32 @@ export default function Files() {
   });
   const files = useMemo(() => manifest.data?.files ?? [], [manifest.data]);
 
-  const searching = query.trim().length > 0;
+  const trimmed = query.trim();
+  const searching = trimmed.length > 0;
+  const deepActive = deep !== null && deep === trimmed;
   const view = useMemo(() => listFolder(files, dir), [files, dir]);
   const results = useMemo(() => (searching ? searchFiles(files, query) : []), [files, query, searching]);
   const shown = searching ? results : view.files;
+
+  // Search by meaning (study-search, migration 030): sent on Enter, not per keystroke.
+  const hits = useQuery({
+    queryKey: ["study-search", pin, deep],
+    queryFn: () => searchStudyFiles(pin, deep!),
+    enabled: deepActive,
+    staleTime: 10 * 60_000,
+    retry: 0,
+  });
+  const grouped = useMemo(
+    () => (deepActive && hits.data ? groupHits(hits.data, files) : []),
+    [deepActive, hits.data, files]
+  );
+  const hitLinks = useQuery({
+    queryKey: ["study-links", pin, grouped.map((g) => g.file.key).join("|")],
+    queryFn: () => signStudyFiles(grouped.map((g) => g.file)),
+    enabled: grouped.length > 0,
+    staleTime: 30 * 60_000,
+    gcTime: 30 * 60_000,
+  });
 
   // Links are signed an hour at a time; refresh well before they lapse.
   const links = useQuery({
@@ -93,7 +126,10 @@ export default function Files() {
           autoComplete="off"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search, e.g. os unit 1"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && trimmed.length >= MIN_DEEP) setDeep(trimmed);
+          }}
+          placeholder="Search, e.g. os unit 1 — Enter searches inside"
           className="pl-11 pr-11"
           aria-label="Search files"
         />
@@ -108,6 +144,34 @@ export default function Files() {
           </button>
         )}
       </div>
+
+      {searching && trimmed.length >= MIN_DEEP && !deepActive && (
+        <button
+          type="button"
+          onClick={() => setDeep(trimmed)}
+          className="card flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-surface-2/60"
+        >
+          <Sparkles className="h-4 w-4 shrink-0 text-accent" />
+          <span className="min-w-0 flex-1 truncate">Search inside files for “{trimmed}”</span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+        </button>
+      )}
+
+      {deepActive && (
+        <section className="card divide-y overflow-hidden p-0">
+          <p className="flex items-center gap-1.5 px-4 py-2.5 text-[11px] font-bold uppercase tracking-widest text-muted">
+            <Sparkles className="h-3 w-3" /> Inside your files
+          </p>
+          {hits.isLoading && <p className="px-4 py-6 text-center text-sm font-medium text-muted">Searching…</p>}
+          {hits.isError && <p className="px-4 py-6 text-center text-sm font-medium text-muted">{deepError(hits.error)}</p>}
+          {hits.data && grouped.length === 0 && (
+            <p className="px-4 py-6 text-center text-sm font-medium text-muted">Nothing inside your files matches that.</p>
+          )}
+          {grouped.map((g) => (
+            <SearchHitRow key={g.file.key} file={g.file} hits={g.hits} query={deep!} href={hitLinks.data?.[g.file.key]} />
+          ))}
+        </section>
+      )}
 
       {!searching && crumbs.length > 0 && (
         <nav className="flex flex-wrap items-center gap-1 px-1 text-sm font-semibold" aria-label="Folder path">

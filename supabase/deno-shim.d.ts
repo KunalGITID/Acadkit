@@ -12,6 +12,15 @@ declare namespace Deno {
   const env: { get(key: string): string | undefined };
 }
 
+/** The edge runtime's built-in inference (gte-small embeddings). */
+declare const Supabase: {
+  ai: {
+    Session: new (model: string) => {
+      run(input: string, options?: { mean_pool?: boolean; normalize?: boolean }): Promise<unknown>;
+    };
+  };
+};
+
 declare module "npm:@supabase/supabase-js@2" {
   export * from "@supabase/supabase-js";
 }

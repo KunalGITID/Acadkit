@@ -5,6 +5,8 @@
  *
  *   npm run sync:files              upload what changed, remove what's gone
  *   npm run sync:files -- --dry-run show what would change, touch nothing
+ *   npm run sync:files -- --no-index        skip the search index
+ *   npm run sync:files -- --reindex         rebuild the search index from scratch
  *
  * Reads from .env.local:
  *   VITE_SUPABASE_URL           same as the app
@@ -30,10 +32,13 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import { indexStudyFolder } from "./study-index/index.mjs";
 
 const BUCKET = "study-files";
 const MAX_BYTES = 50 * 1024 * 1024;
 const dryRun = process.argv.includes("--dry-run");
+const noIndex = process.argv.includes("--no-index");
+const reindex = process.argv.includes("--reindex");
 
 const url = process.env.VITE_SUPABASE_URL;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -259,6 +264,9 @@ if (dryRun) {
     console.log(r.kind === "plan"
       ? `  ? plan ${r.payload.subject_code}: ${r.payload.components.map((c) => `${c.label} ${c.max}`).join(" · ")}`
       : `  ? ${r.payload.subject_code ?? "-"} ${r.payload.label ?? r.payload.type} ${r.payload.due_date}`);
+  if (!noIndex) {
+    await indexStudyFolder({ supabase, pin, files, url, key: serviceKey, reindex, dryRun: true });
+  }
   console.log("Dry run: nothing changed.");
   process.exit(0);
 }
@@ -364,6 +372,16 @@ for (const [kind, migration] of [["deadline", "026"], ["plan", "027"]]) {
     .select("id");
   if (error) console.error(`Couldn't send ${kind} suggestions: ${error.message}. Has migration ${migration} been run?`);
   else console.log(`${kind === "plan" ? "Marks plans" : "Deadlines"}: ${data.length} new, ${rows.length - data.length} already known.`);
+}
+
+// Search by meaning (migration 030): read, cut and embed whatever is new.
+// Last, and never fatal — the files above are synced either way.
+if (!noIndex) {
+  try {
+    await indexStudyFolder({ supabase, pin, files, url, key: serviceKey, reindex });
+  } catch (err) {
+    console.error(`Search index: stopped — ${err.message}. The files synced; run again to finish indexing.`);
+  }
 }
 
 console.log(`Synced. ${files.length} files are on the Files page.`);

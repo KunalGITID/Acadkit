@@ -123,3 +123,63 @@ const VIEWABLE = new Set(["pdf", "png", "jpg", "jpeg", "gif", "webp", "txt", "md
 export function opensInBrowser(path: string): boolean {
   return VIEWABLE.has(extOf(path));
 }
+
+// ---------- search by meaning (migration 030) ----------
+
+/** One passage the study-search function returned. */
+export interface StudyHit {
+  file_key: string;
+  chunk_index: number;
+  /** PDF page or slide, 1-based; null for formats without pages. */
+  page: number | null;
+  content: string;
+  /** Cosine similarity to the query, −1 to 1. */
+  similarity: number;
+}
+
+export interface FileHits {
+  file: StudyFile;
+  /** Best first. */
+  hits: StudyHit[];
+}
+
+/**
+ * Passages grouped by file, best file first. A file that has left the
+ * folder since it was indexed is dropped rather than shown as a dead
+ * link, and one path per content hash is enough.
+ */
+export function groupHits(hits: StudyHit[], files: StudyFile[], limit = 12): FileHits[] {
+  const byKey = new Map<string, StudyFile>();
+  for (const f of files) if (!byKey.has(f.key)) byKey.set(f.key, f);
+  const groups = new Map<string, FileHits>();
+  for (const h of [...hits].sort((a, b) => b.similarity - a.similarity)) {
+    const file = byKey.get(h.file_key);
+    if (!file) continue;
+    const g = groups.get(h.file_key) ?? { file, hits: [] };
+    g.hits.push(h);
+    groups.set(h.file_key, g);
+  }
+  return [...groups.values()].slice(0, limit);
+}
+
+/**
+ * A passage cut to the part worth reading, with the query's words
+ * marked: `[{ text, hit }]`. Matching is on whole-ish words of three or
+ * more letters, case-insensitive; the window centres on the first hit.
+ */
+export function highlight(content: string, query: string, width = 220): Array<{ text: string; hit: boolean }> {
+  const words = [...new Set(query.toLowerCase().match(/[a-z0-9]{3,}/g) ?? [])];
+  const flat = content.replace(/\s+/g, " ").trim();
+  const lower = flat.toLowerCase();
+  const first = words.map((w) => lower.indexOf(w)).filter((i) => i >= 0).sort((a, b) => a - b)[0] ?? 0;
+  const start = Math.max(0, Math.min(first - Math.floor(width / 3), flat.length - width));
+  let text = flat.slice(start, start + width);
+  if (start > 0) text = `…${text}`;
+  if (start + width < flat.length) text = `${text}…`;
+  if (words.length === 0) return [{ text, hit: false }];
+  const pattern = new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
+  return text
+    .split(pattern)
+    .filter((part) => part !== "")
+    .map((part) => ({ text: part, hit: words.includes(part.toLowerCase()) }));
+}
