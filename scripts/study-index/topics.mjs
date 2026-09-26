@@ -96,6 +96,8 @@ const NOISE = [
   // "repeated topic" of all, asked in every paper.
   /srm institute|institute of science|college of engineering|degree examination|candidates admitted|academic year|(odd|even) semester|b\.\s?tech/i,
   /kattankulathur|chengalpattu|srm nagar|invigilator|omr sheet|hall ticket/i, // address, exam-hall instructions
+  // The newer letterhead: "School of Computing … Course Articulation Matrix … Year/Sem".
+  /school of computing|articulation|programme? outcomes?|\bps?o\d{1,2}\b|year\s*[/&]\s*sem|\bsem\s*[:–-]|\bsrm\b|department of|faculty of/i,
   /\(\s*\d+\s*[x×*]\s*\d+\s*=\s*\d+\s*marks?\s*\)/i, // "(20 x 1 = 20 Marks)"
 ];
 
@@ -202,8 +204,9 @@ function terms(text) {
     .toLowerCase()
     .replace(/[’']s\b/g, "s")
     .split(/[^a-z0-9+#]+/)
-    // Numbers and code-like tokens ("15cs302j", OCR's "12da1") name nothing.
-    .filter((w) => w.length >= 3 && !STOP.has(w) && !/\d/.test(w));
+    // Plain words only (c++ and c# excepted): numbers, codes ("15cs302j",
+    // OCR's "12da1") and algebra ("y+x") name nothing.
+    .filter((w) => (/^[a-z]{3,}$/.test(w) || /^[a-z](\+\+|#)$/.test(w)) && !STOP.has(w));
   const bigrams = words.slice(1).map((w, i) => `${words[i]} ${w}`);
   return [...words, ...bigrams];
 }

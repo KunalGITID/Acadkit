@@ -14,6 +14,10 @@
  * its pair.
  */
 const UNSTORABLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+const isHigh = (code) => code >= 0xd800 && code <= 0xdbff;
+const isLow = (code) => code >= 0xdc00 && code <= 0xdfff;
 
 /** Tidy a page: rejoin words hyphenated across lines, collapse spacing, drop bare page numbers. */
 export function cleanPage(text) {
@@ -45,10 +49,15 @@ export function chunkPages(pages, { size = 900, overlap = 150, minLetters = 60 }
         const cut = Math.max(tail.lastIndexOf("\n"), tail.lastIndexOf(". "));
         if (cut > 0) end = half + cut + 1;
       }
-      const content = text.slice(start, end).trim();
+      // Never cut between the two halves of a character stored as a pair
+      // (emoji, and the math italics PDFs use for 𝑥 and 𝑡): half of one
+      // is a character Postgres refuses, and the whole insert fails.
+      if (end < text.length && isHigh(text.charCodeAt(end - 1))) end--;
+      const content = text.slice(start, end).replace(LONE_SURROGATE, "").trim();
       if ((content.match(/[a-z]/gi) ?? []).length >= minLetters) out.push({ page: i + 1, content });
       if (end >= text.length) break;
       start = Math.max(end - overlap, start + 1);
+      if (isLow(text.charCodeAt(start))) start++;
     }
   });
   return out.map((c, index) => ({ ...c, index }));

@@ -65,6 +65,8 @@ export async function indexStudyFolder({ supabase, pin, files, url, key, reindex
   if (dryRun) return { todo: todo.length, gone: gone.length };
 
   const noText = [];
+  /** Files the database refused (bad data in one file), named and skipped rather than ending the run. */
+  const rejected = [];
   let passages = 0;
   let done = 0;
   const queue = [...todo];
@@ -101,7 +103,13 @@ export async function indexStudyFolder({ supabase, pin, files, url, key, reindex
     } catch (err) {
       // All or nothing: a half-written file would look indexed next time.
       await supabase.from("study_chunks").delete().eq("device_id", pin).eq("file_key", f.key);
-      throw err;
+      // Bad data in one file (Postgres code 22xxx) is that file's problem,
+      // not the run's; anything else — network, auth — stops the run.
+      if (!String(err?.code ?? "").startsWith("22")) throw err;
+      done++;
+      rejected.push(`${f.path} (${err.message})`);
+      log(`  ✗ ${done}/${todo.length} ${f.path} — skipped: ${err.message}`);
+      return;
     }
     passages += rows.length;
     done++;
@@ -120,6 +128,7 @@ export async function indexStudyFolder({ supabase, pin, files, url, key, reindex
   }
 
   if (noText.length) log(`  No readable text in ${noText.length} file(s): ${noText.slice(0, 5).join(", ")}${noText.length > 5 ? "…" : ""}`);
-  log(`Search index: ${passages} passages added from ${todo.length - noText.length} files, ${gone.length} files dropped.`);
-  return { indexed: todo.length - noText.length, passages, dropped: gone.length, noText };
+  if (rejected.length) log(`  Skipped ${rejected.length} file(s) the database refused: ${rejected.join("; ")}`);
+  log(`Search index: ${passages} passages added from ${todo.length - noText.length - rejected.length} files, ${gone.length} files dropped.`);
+  return { indexed: todo.length - noText.length - rejected.length, passages, dropped: gone.length, noText, rejected };
 }

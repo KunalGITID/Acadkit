@@ -88,6 +88,22 @@ describe("labelClusters", () => {
     expect(labels[1].split(" · ")).not.toContain("page");
   });
 
+  it("skips the newer letterhead", () => {
+    const page = [
+      "SCHOOL OF COMPUTING",
+      "Course Articulation Matrix: PO1 PO2 PSO1",
+      "CO1 PO3 PSO2 3 2 1",
+      "Year/Sem: II/III",
+      "1. Explain the working of a circular queue with an example of insertion",
+    ].join("\n");
+    expect(splitQuestions(page)).toEqual(["Explain the working of a circular queue with an example of insertion"]);
+  });
+
+  it("never names a topic after algebra", () => {
+    const [label] = labelClusters([["solve y+x = 2 by fourier series", "fourier series of y+x"]]);
+    expect(label).not.toMatch(/y\+x/);
+  });
+
   it("never names a topic after a course code", () => {
     const [label] = labelClusters([["15CS302J paging and segmentation", "15CS302J paging with segmentation"]]);
     expect(label).not.toMatch(/15cs302j/);

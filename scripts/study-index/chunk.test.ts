@@ -14,6 +14,19 @@ describe("cleanPage — what the database can't store", () => {
   });
 });
 
+describe("chunkPages — characters stored as pairs", () => {
+  it("never splits one across a cut, wherever the cuts fall", () => {
+    const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    // PDFs set maths in italic letters outside the basic plane: 𝑥, 𝑦, 𝑡.
+    const math = "A string is stretched between 𝑥 = 0 and 𝑥 = 𝑙, displaced 𝑦(𝑥, 0) = 𝑦0 sin(𝜋𝑥/𝑙) ";
+    for (let offset = 0; offset < 60; offset++) {
+      for (const c of chunkPages(["z".repeat(offset) + math.repeat(30)], { size: 300, overlap: 57 })) {
+        expect(lone.test(c.content)).toBe(false);
+      }
+    }
+  });
+});
+
 describe("chunkPages", () => {
   const sentence = "The banker's algorithm checks whether granting a request leaves the system in a safe state. ";
 
