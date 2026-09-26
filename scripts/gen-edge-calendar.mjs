@@ -39,22 +39,6 @@ await build({
 const sem = await import(pathToFileURL(bundle).href);
 rmSync(tmp, { recursive: true, force: true });
 
-/** Five date→day-order pairs per line, matching semester.ts's shape. */
-function mapLines(map) {
-  const entries = Object.entries(map);
-  const lines = [];
-  for (let i = 0; i < entries.length; i += 5) {
-    lines.push(
-      "  " +
-        entries
-          .slice(i, i + 5)
-          .map(([k, v]) => `"${k}": ${v},`)
-          .join(" ")
-    );
-  }
-  return lines.join("\n");
-}
-
 function holidayLines(map) {
   return Object.entries(map)
     .map(([k, v]) => `  "${k}": ${JSON.stringify(v)},`)

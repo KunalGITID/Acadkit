@@ -1,8 +1,8 @@
 import type { Grade } from "@/lib/grades";
+import { labelMatchKey } from "@/lib/componentLabel";
 import {
   ceilHalf,
   gradeForTargetSgpa,
-  normLabel,
   solveSubjectPlan,
   type SolveOptions,
 } from "@/lib/plan";
@@ -58,10 +58,10 @@ export function deadlineNeed(
 
   // The component this deadline became, or the planned one it named.
   const key = `deadline:${deadline.id}`;
-  const title = normLabel(deadline.title);
+  const title = labelMatchKey(deadline.title);
   const component =
     plan.components.find((c) => c.key === key) ??
-    plan.components.find((c) => normLabel(c.label) === title);
+    plan.components.find((c) => labelMatchKey(c.label) === title);
 
   // Already marked, or not in the budget at all: nothing to ask for.
   if (!component || component.obtained !== null || component.required === null) return null;

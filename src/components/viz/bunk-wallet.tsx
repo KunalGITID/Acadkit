@@ -1,12 +1,11 @@
 import { STAGGER_CAP } from "@/lib/enter";
 import { AnimatePresence, motion } from "framer-motion";
 import { Dot } from "@/components/ui/misc";
-import { MIN_ATTENDANCE } from "@/lib/attendance";
+import { MIN_ATTENDANCE, type SubjectAttendance } from "@/lib/attendance";
 import { AnimatedNumber } from "@/components/viz/animated-number";
 import { buildWallet, pipsFor } from "@/lib/bunkWallet";
 import { useSurvivalPlan } from "@/hooks/useSurvivalPlan";
 import { formatDate } from "@/lib/dates";
-import type { SubjectAttendance } from "@/lib/attendance";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { cn } from "@/lib/utils";

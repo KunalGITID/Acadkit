@@ -48,11 +48,14 @@ export function useSync() {
     };
   }, [qc, pin]);
 
-  // On reconnect: flush edits made while offline, then refetch.
+  // On reconnect, say what's about to sync. The replay and the refetch
+  // are React Query's own: the client resumes paused mutations and
+  // refetches stale queries when it comes back online, and each write's
+  // onSettled invalidates what it touched. Doing both here as well ran
+  // every replay twice over.
   useEffect(() => {
     const onOnline = () => {
       const paused = qc.getMutationCache().getAll().filter((m) => m.state.isPaused).length;
-      void qc.resumePausedMutations().then(() => qc.invalidateQueries());
       if (paused > 0)
         toast.success(`Back online — syncing ${paused} offline change${paused > 1 ? "s" : ""}`);
     };

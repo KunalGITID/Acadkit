@@ -13,7 +13,8 @@ import {
   useUpdateDeadline,
 } from "@/hooks/useData";
 import { derivedTitle } from "@/lib/deadlines";
-import { assessmentFor, normLabel } from "@/lib/plan";
+import { labelMatchKey } from "@/lib/componentLabel";
+import { assessmentFor } from "@/lib/plan";
 import { getDayInfo, semesterWindow } from "@/lib/calendar";
 import { DEFAULT_DUE_TIME, describeDueTime, suggestDueTime } from "@/lib/dueTime";
 import { formatPrep, prepWindows } from "@/lib/prep";
@@ -69,7 +70,7 @@ export function DeadlineSheet({ open, onClose, deadline, defaultDate }: Deadline
       const owner = (subjects ?? []).find((s) => s.id === deadline.subject_id);
       const match = owner
         ? assessmentFor(owner).components.find(
-            (c) => normLabel(c.label) === normLabel(deadline.title)
+            (c) => labelMatchKey(c.label) === labelMatchKey(deadline.title)
           )
         : undefined;
       setComponentKey(match?.key ?? "");

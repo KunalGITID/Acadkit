@@ -73,8 +73,8 @@ export function nextComponentLabel(
  *
  * Migration 024 renames the stored rows, but this is what makes the
  * app correct whether or not that has been run, and on a device that
- * synced before it was. Case and separators go the same way they do in
- * `normLabel`.
+ * synced before it was. Labels match case- and space-insensitively too:
+ * "CT-1" ≡ "ct 1".
  */
 const ROMAN: Record<string, number> = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10 };
 

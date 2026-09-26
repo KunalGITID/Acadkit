@@ -17,8 +17,8 @@ export const supabase = createClient(url, anonKey, {
     persistSession: true,
     autoRefreshToken: true,
     storageKey: "acadkit:auth",
-    // The app never receives an OAuth/magic-link redirect — sign-in is a
-    // 6-digit code typed into the app — so there is no URL to detect.
+    // The app never receives an OAuth/magic-link redirect — sign-in is an
+    // email and password typed into the app — so there is no URL to detect.
     // Enabling this in a PWA also risks consuming a session from a
     // redirect Safari handled instead.
     detectSessionInUrl: false,

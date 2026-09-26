@@ -1,7 +1,9 @@
 /**
- * Identity = a 4-digit PIN stored locally. It is the `device_id` that
- * scopes every row in Supabase, and doubles as the cross-device sync
- * code: enter the same PIN anywhere to load the same data.
+ * The 4-digit PIN: the `device_id` that scopes every row in Supabase.
+ *
+ * An internal partition key, not a password or a sync code. It is claimed
+ * by your account (device_owners), which is what the database checks, and
+ * each signed-in device looks it up again — there is no screen to type it.
  */
 
 const PIN_KEY = "acadkit:pin";

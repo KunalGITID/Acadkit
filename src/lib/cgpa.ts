@@ -4,8 +4,9 @@ import type { SemesterArchive } from "@/types";
  * CGPA across completed semesters, and what this one has to return to
  * move it somewhere.
  *
- * `targets.ts` already answers "what do I need on the next component"
- * for one subject. This is the same inverse arithmetic a level up, and
+ * `deadlineTarget.ts` already answers "what do I need on the next
+ * component" for one subject. This is the same inverse arithmetic a
+ * level up, and
  * it's the question that actually motivates anyone in week three: a
  * semester SGPA is only interesting because of where it leaves the
  * CGPA. Computing it in reverse is the difference between a number you

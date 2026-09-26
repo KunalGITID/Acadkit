@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPrep, prepWindows, totalPrepMinutes } from "@/lib/prep";
+import { formatPrep, prepWindows } from "@/lib/prep";
 import type { TimetableSlot } from "@/types";
 
 const WINDOW = { start: "2026-07-21", end: "2026-08-17" };
@@ -102,11 +102,5 @@ describe("formatPrep", () => {
     expect(formatPrep(45)).toBe("45 min");
     expect(formatPrep(60)).toBe("1h");
     expect(formatPrep(130)).toBe("2h 10m");
-  });
-});
-
-describe("totalPrepMinutes", () => {
-  it("adds up what you actually have", () => {
-    expect(totalPrepMinutes(run("2026-07-28T23:59:00"))).toBe(260);
   });
 });

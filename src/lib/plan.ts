@@ -102,17 +102,6 @@ function share(obtained: number, max: number, weight: number): number {
 }
 
 /**
- * Labels match case- and space-insensitively, and across dialects:
- * "CT-1" ≡ "ct 1" ≡ "FT-1" ≡ "FJ-1". The last part matters because
- * marks recorded under the old auto-naming would otherwise stop
- * matching the plan rows they belong to and become second components —
- * the same test reported twice, once graded and once still owed.
- */
-export function normLabel(s: string): string {
-  return labelMatchKey(s);
-}
-
-/**
  * A subject's assessment, with every older shape filled in.
  *
  * `internal_only` predates this file (migration 008) and is still the
@@ -395,7 +384,6 @@ const EXTERNAL_ALIASES = new Set([
   "endsemexam",
   "endsemesterexam",
   "endsemesterexamination",
-  "endsemesterexamination",
   "finalexam",
   "final",
   "semexam",
@@ -451,7 +439,7 @@ function claimDeadlines(
 
   // 1. By name — the only pairing you control directly.
   for (const c of pending()) {
-    const hit = dated.find((d) => !taken.has(d.id) && normLabel(d.title) === normLabel(c.label));
+    const hit = dated.find((d) => !taken.has(d.id) && labelMatchKey(d.title) === labelMatchKey(c.label));
     if (hit) {
       taken.add(hit.id);
       c.date = hit.due_date.slice(0, 10);
@@ -460,14 +448,14 @@ function claimDeadlines(
 
   // 2. Adopt into free weight; failing that, date by an unambiguous
   //    weight match rather than distorting the plan to fit.
-  const graded = new Set(internalMarks.map((m) => normLabel(m.label)));
+  const graded = new Set(internalMarks.map((m) => labelMatchKey(m.label)));
   let claimed = raw.reduce((sum, c) => sum + c.max, 0);
 
   for (const d of weighed) {
     if (taken.has(d.id)) continue;
-    const key = normLabel(d.title);
+    const key = labelMatchKey(d.title);
     if (graded.has(key) || EXTERNAL_ALIASES.has(key)) continue;
-    if (raw.some((c) => normLabel(c.label) === key)) continue;
+    if (raw.some((c) => labelMatchKey(c.label) === key)) continue;
 
     const max = Number(d.max_marks);
     if (claimed + max <= internalWeight + 1e-9) {
@@ -555,7 +543,7 @@ function budgetFor(
   const used = new Set<string>();
   const byLabel = new Map<string, Mark>();
   for (const m of internalMarks) {
-    const k = normLabel(m.label);
+    const k = labelMatchKey(m.label);
     if (!byLabel.has(k)) byLabel.set(k, m);
   }
 
@@ -571,7 +559,7 @@ function budgetFor(
   const raw: Raw[] = [];
 
   for (const c of assessment.components) {
-    const hit = byLabel.get(normLabel(c.label));
+    const hit = byLabel.get(labelMatchKey(c.label));
     if (hit && !used.has(hit.id)) {
       used.add(hit.id);
       // The declared weight wins over what the mark says it was out of:
@@ -698,8 +686,8 @@ function budgetFor(
     const hit = deadlines.find(
       (d) =>
         d.due_date &&
-        (EXTERNAL_ALIASES.has(normLabel(d.title)) ||
-          normLabel(d.title) === normLabel(external.label))
+        (EXTERNAL_ALIASES.has(labelMatchKey(d.title)) ||
+          labelMatchKey(d.title) === labelMatchKey(external.label))
     );
     if (hit) {
       external.date = hit.due_date.slice(0, 10);

@@ -5,7 +5,9 @@ import { markAlpha } from "./lib/mark.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
-const source = join(root, "public", "icons", "source-logo.png");
+// Kept out of public/: it is the generator's input, not something the
+// app serves, and anything in public/ ships with every deploy.
+const source = join(root, "scripts", "assets", "source-logo.png");
 
 // iOS/macOS 26 (Liquid Glass) auto-masks whatever square you hand it — it
 // applies its own corner radius and specular/glass treatment on top, so the

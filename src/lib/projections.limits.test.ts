@@ -2,17 +2,15 @@
  * The multi-subject layer under sweep.
  *
  * plan.limits.test.ts hardens one subject's budget. This does the same
- * for what sits on top of it: the SGPA bracket, the per-subject target
- * derived from a target SGPA, and `planForSgpa`. The load-bearing claim
- * up here is that these three can't disagree with each other or with
- * the cards, so most of what follows checks exactly that.
+ * for what sits on top of it: the SGPA bracket and the per-subject
+ * target derived from a target SGPA. The load-bearing claim up here is
+ * that these can't disagree with each other or with the cards, so most
+ * of what follows checks exactly that.
  */
 import { describe, expect, it } from "vitest";
 import { buildProjection } from "@/lib/projections";
-import { computeSgpa } from "@/lib/plan";
-import { groupMarksBySubject } from "@/lib/grades";
-import { gradeForTargetSgpa } from "@/lib/plan";
-import { GRADE_TABLE, type Grade } from "@/lib/grades";
+import { computeSgpa, gradeForTargetSgpa } from "@/lib/plan";
+import { GRADE_TABLE, groupMarksBySubject, type Grade } from "@/lib/grades";
 import type { Assessment, Mark, Subject } from "@/types";
 
 let seq = 0;

@@ -124,8 +124,3 @@ export function formatPrep(minutes: number): string {
   const m = minutes % 60;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
-
-/** Total free time before the deadline, for a one-line summary. */
-export function totalPrepMinutes(windows: PrepWindow[]): number {
-  return windows.reduce((sum, w) => sum + w.minutes, 0);
-}

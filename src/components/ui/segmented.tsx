@@ -1,6 +1,5 @@
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
-import { haptic } from "@/lib/utils";
+import { cn, haptic } from "@/lib/utils";
 
 interface SegmentedProps<T extends string | number> {
   /** `highlight` lights up the tab's label (e.g. "today") without adding to the label text. */

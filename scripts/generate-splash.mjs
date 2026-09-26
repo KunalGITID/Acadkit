@@ -19,14 +19,14 @@
  * every install for nothing.
  */
 import sharp from "sharp";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { MARK_SCALE, tintedMark } from "./lib/mark.mjs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
-const source = join(root, "public", "icons", "source-logo.png");
+const source = join(root, "scripts", "assets", "source-logo.png");
 const outDir = join(root, "public", "splash");
 
 /**
@@ -104,11 +104,21 @@ for (const [scheme, theme] of Object.entries(THEMES)) {
   }
 }
 
-// Emitted for index.html; the tags are pasted between the markers there.
-writeFileSync(join(outDir, "links.html"), links.join("\n") + "\n");
+// Written straight into index.html, between its splash markers. The tags
+// used to go to public/splash/links.html to be pasted by hand — a manual
+// step, and a file that then shipped with every deploy.
+const indexPath = join(root, "index.html");
+const html = readFileSync(indexPath, "utf8");
+const START = "<!-- splash:start -->";
+const END = "<!-- splash:end -->";
+const a = html.indexOf(START);
+const b = html.indexOf(END);
+if (a < 0 || b < a) throw new Error("index.html is missing its splash:start / splash:end markers");
+const block = links.map((l) => `    ${l}`).join("\n");
+writeFileSync(indexPath, `${html.slice(0, a + START.length)}\n${block}\n    ${html.slice(b)}`);
 
 console.log(
   `Wrote ${links.length} launch screens to public/splash/ ` +
     `(${DEVICES.length} devices x ${Object.keys(THEMES).length} colour schemes)`
 );
-console.log("Tags written to public/splash/links.html");
+console.log("Tags written into index.html between the splash markers");

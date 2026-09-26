@@ -193,9 +193,6 @@ const db = {
       theme_mode: null,
     },
   ],
-  // Migration 019. Empty to start: sharing is something you do, not
-  // something you arrive with.
-  shared_cards: [],
   subjects: SUBJECTS,
   timetable_slots: TIMETABLE,
   attendance: ATTENDANCE,
@@ -372,30 +369,6 @@ const server = createServer((req, res) => {
   // sign, and the signed-link fetch.
   if (u.pathname.startsWith("/storage/v1/")) return mockStorage(req, res, u);
 
-  /**
-   * The one RPC the app calls. Reading someone else's card goes through
-   * a SECURITY DEFINER function in production, because no RLS policy can
-   * both allow "where code = $1" and forbid "select *" — the mock has no
-   * RLS, but it routes the same way so the client code path is identical.
-   */
-  if (u.pathname === "/rest/v1/rpc/get_shared_card") {
-    let raw = "";
-    req.on("data", (c) => (raw += c));
-    return req.on("end", () => {
-      let code = null;
-      try {
-        code = raw ? JSON.parse(raw).p_code : null;
-      } catch {
-        /* malformed body behaves as no match */
-      }
-      const card = db.shared_cards.find((c) => c.code === code && !c.revoked);
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(
-        JSON.stringify(card ? [{ payload: card.payload, created_at: card.created_at }] : [])
-      );
-    });
-  }
-
   const table = u.pathname.replace(/^\/rest\/v1\//, "");
   if (!(table in db)) {
     res.writeHead(404, { "content-type": "application/json" });
@@ -461,7 +434,7 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`\n  mock Supabase  →  http://127.0.0.1:${PORT}`);
-  console.log(`  seeded PIN     →  ${PIN}  (enter this on the onboarding screen)`);
+  console.log(`  seeded PIN     →  ${PIN}  (any email and password signs in to it)`);
   console.log(`  portal snapshot as of ${AS_OF} on 4 of 6 subjects\n`);
 
   const vite = spawn("npx", ["vite"], {

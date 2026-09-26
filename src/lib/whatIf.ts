@@ -1,4 +1,5 @@
-import { computeSgpa, normLabel } from "@/lib/plan";
+import { labelMatchKey } from "@/lib/componentLabel";
+import { computeSgpa } from "@/lib/plan";
 import { gradeForTotal } from "@/lib/grades";
 import type { Grade, Mark, MarkComponentType, Subject } from "@/types";
 
@@ -47,7 +48,7 @@ export interface WhatIfInput {
 function synthetic(subjectId: string, c: WhatIfComponent, obtained: number): Mark {
   return {
     // Deliberately not a real id: nothing may mistake this for a row.
-    id: `what-if:${subjectId}:${normLabel(c.label)}`,
+    id: `what-if:${subjectId}:${labelMatchKey(c.label)}`,
     device_id: "",
     subject_id: subjectId,
     component_type: c.type,
@@ -71,9 +72,9 @@ function solve(
     // A component is one component: replacing any mark that already
     // carries this label keeps a hypothetical from being counted as a
     // second sitting of the same test.
-    const label = normLabel(component.label);
+    const label = labelMatchKey(component.label);
     next.set(subjectId, [
-      ...(own ?? []).filter((m) => normLabel(m.label) !== label),
+      ...(own ?? []).filter((m) => labelMatchKey(m.label) !== label),
       injected,
     ]);
   }
