@@ -339,7 +339,14 @@ for (let i = 0; i < toRemove.length; i += 100) {
     const kinds = new Set(found.rows.map((r) => r.kind));
     const stale = pending.filter((p) => kinds.has(p.kind) && !current.has(p.key)).map((p) => p.id);
     if (stale.length && !dryRun) {
-      const { error: e2 } = await supabase.from("suggestions").update({ status: "dismissed" }).in("id", stale);
+      // 'withdrawn', not 'dismissed': this is the scan's clean-up, not your
+      // decision, and the app's suggestion ranker learns from your
+      // decisions only (migration 029). Before 029 the status doesn't
+      // exist, so fall back to the old behaviour.
+      let { error: e2 } = await supabase.from("suggestions").update({ status: "withdrawn" }).in("id", stale);
+      if (e2 && /check constraint|violates/i.test(e2.message)) {
+        ({ error: e2 } = await supabase.from("suggestions").update({ status: "dismissed" }).in("id", stale));
+      }
       if (e2) console.error(`Couldn't withdraw stale suggestions: ${e2.message}`);
     }
     if (stale.length) console.log(`Withdrawn (no longer in the scan): ${stale.length}`);

@@ -446,13 +446,26 @@ export function useSuggestions() {
   });
 }
 
+/** Your past Add/Dismiss decisions, which the suggestion ranker learns from. */
+export function useSuggestionHistory() {
+  const pin = usePin();
+  return useQuery({
+    queryKey: ["suggestion_history", pin],
+    queryFn: () => api.fetchSuggestionHistory(pin),
+    staleTime: 5 * 60_000,
+  });
+}
+
 /** Add or Dismiss. Either way the suggestion leaves the list at once. */
 export function useDecideSuggestion() {
   const pin = usePin();
-  return useOptimistic<{ id: string; status: SuggestionStatus }, Suggestion[]>({
+  return useOptimistic<{ id: string; status: SuggestionStatus; decided_at?: string }, Suggestion[]>({
     pin,
     root: "suggestions",
+    extraRoots: ["suggestion_history"],
     name: "suggestions.status",
+    // The moment you tapped, carried in the queued write.
+    prepare: (v) => ({ ...v, decided_at: v.decided_at ?? new Date().toISOString() }),
     updater: (old, { id }) => old?.filter((s) => s.id !== id),
   });
 }

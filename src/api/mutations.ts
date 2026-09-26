@@ -41,7 +41,8 @@ export const MUTATION_FNS = {
 
   "archives.delete": (_pin: string, v: any) => api.deleteArchive(v),
 
-  "suggestions.status": (_pin: string, v: any) => api.setSuggestionStatus(v.id, v.status),
+  "suggestions.status": (_pin: string, v: any) =>
+    api.setSuggestionStatus(v.id, v.status, v.decided_at ?? null),
 } satisfies Record<string, (pin: string, vars: any) => Promise<unknown>>;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 

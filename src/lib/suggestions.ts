@@ -8,7 +8,11 @@ import type { Assessment, Deadline, DeadlineType, MarkComponentType, Subject } f
  * worth showing and what accepting one writes.
  */
 
-export type SuggestionStatus = "pending" | "accepted" | "dismissed";
+/**
+ * "withdrawn" is the sync script's, not yours: the scan no longer
+ * contains it (migration 029). Only accepted and dismissed are decisions.
+ */
+export type SuggestionStatus = "pending" | "accepted" | "dismissed" | "withdrawn";
 
 export interface DeadlineSuggestionPayload {
   /** Course code as the files write it, e.g. "21CSC201J". Null if the note named no subject. */
@@ -43,6 +47,8 @@ interface SuggestionBase {
   evidence: string | null;
   status: SuggestionStatus;
   created_at?: string;
+  /** When you decided it (migration 029); null for the scan's clean-up and older rows. */
+  decided_at?: string | null;
 }
 
 export type DeadlineSuggestion = Extract<Suggestion, { kind: "deadline" }>;
