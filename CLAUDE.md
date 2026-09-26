@@ -586,15 +586,20 @@ can't be told apart from the old clean-up and is skipped. When on, the
 Home card sorts by it and folds anything under 35% into "Probably not
 for you". Moved dates are always first and never folded.
 
-**Study planner — `src/lib/studyPlan.ts`.** gain(h) = stake·(1−ability)·
-(1−e^(−h/τ)), τ = max(1, stake/5) h, weighted by credits. Half-hour blocks
-go greedily to the test whose next block is worth most, each taking the
-*latest* free block before its due time so earlier blocks stay for earlier
-tests. Blocks come from `prepWindows` (gaps between classes) plus
-`settings.study_evening_minutes` from 6:30pm (029; weekends included).
-Stake is the plan component the deadline is (by `deadline:<id>` key or
-label), capped at the sitting's `max_marks`; ability is the odds' posterior
-mean. Card: `components/study/study-plan.tsx`, on Marks under Exam prep.
+**Study log — migration 031, `src/lib/studyLog.ts`.** Replaced the
+study planner (which suggested when to study from free periods; nobody
+acted on it). Home asks once a day how long you studied
+(`components/viz/study-check-in.tsx`): about today from 18:00, before
+that about yesterday if it went unanswered, and "Later" skips a day on
+this device only. Zero is saved as one row with no subject — a rest day
+is recorded, not a gap. Anything more asks which subjects; picking them
+splits the total evenly and it saves only once the split adds up
+(`components/sheets/study-day-sheet.tsx`). A day is saved by deleting
+its rows and inserting the new ones (`study.save`), so an edit never
+leaves the old split behind. `/study-log` (in More) lists days and
+per-subject totals, tap a day to edit. Rows with a subject cascade away
+with it; `clearAcademicData` deletes the rest. Exported as `study_log`.
+`settings.study_evening_minutes` is now unused.
 
 **Search by meaning — migration 030, `scripts/study-index/`,
 `supabase/functions/study-search`.** `npm run sync:files` reads every file

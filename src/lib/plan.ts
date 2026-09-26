@@ -442,6 +442,11 @@ const EXTERNAL_ALIASES = new Set([
   "semesterexam",
   "external",
   "theoryexam",
+  // How the scan and faculty write it: "T-EXT", "Theory Ext".
+  "text",
+  "ext",
+  "theoryext",
+  "theoryexternal",
 ]);
 
 /**

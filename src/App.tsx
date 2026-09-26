@@ -27,6 +27,7 @@ const Calendar = lazy(() => import("@/pages/Calendar"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const AbsentLog = lazy(() => import("@/pages/AbsentLog"));
 const Survival = lazy(() => import("@/pages/Survival"));
+const StudyLog = lazy(() => import("@/pages/StudyLog"));
 const History = lazy(() => import("@/pages/History"));
 const Wrapped = lazy(() => import("@/pages/Wrapped"));
 const Files = lazy(() => import("@/pages/Files"));
@@ -141,6 +142,7 @@ export default function App() {
                   <Route path="/calendar" element={<Calendar />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/log" element={<AbsentLog />} />
+                  <Route path="/study-log" element={<StudyLog />} />
                 <Route path="/history" element={<History />} />
                   <Route path="/wrapped" element={<Wrapped />} />
                   <Route path="/files" element={<Files />} />

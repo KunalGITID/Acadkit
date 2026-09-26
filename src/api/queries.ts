@@ -6,6 +6,7 @@ import type {
   AttendanceRecord,
   AttendanceStatus,
   Deadline,
+  StudyLogEntry,
   ForecastLogRow,
   Mark,
   PortalSnapshot,
@@ -610,6 +611,39 @@ export async function deleteDeadline(id: string): Promise<void> {
   throwIf(error);
 }
 
+// ---------- study log (migration 031) ----------
+
+export async function fetchStudyLog(pin: string): Promise<StudyLogEntry[]> {
+  const { data, error } = await supabase
+    .from("study_log")
+    .select("*")
+    .eq("device_id", pin)
+    .order("date", { ascending: false });
+  // Before 031 is applied the log is simply empty; saving says why.
+  if (isMissingTable(error)) return [];
+  throwIf(error);
+  return (data as StudyLogEntry[]) ?? [];
+}
+
+/**
+ * Replace one day's entries. Delete-then-insert rather than upserting
+ * rows, so shrinking a two-subject day to one leaves nothing behind.
+ * Ids come from the client, so a replay after a restart writes the same
+ * rows rather than new ones.
+ */
+export async function saveStudyDay(
+  pin: string,
+  day: { date: string; entries: Array<{ id: string; subject_id: string | null; minutes: number }> }
+): Promise<void> {
+  const del = await supabase.from("study_log").delete().eq("device_id", pin).eq("date", day.date);
+  throwIf(del.error);
+  if (!day.entries.length) return;
+  const { error } = await supabase
+    .from("study_log")
+    .insert(day.entries.map((e) => ({ ...e, date: day.date, device_id: pin })));
+  throwIf(error);
+}
+
 // ---------- semester archives ----------
 
 export async function fetchArchives(pin: string): Promise<SemesterArchive[]> {
@@ -669,6 +703,10 @@ export async function clearAcademicData(pin: string): Promise<void> {
   }
   // may not exist until migration 012 is run
   await clearPortalSnapshots(pin);
+  // Subject rows cascade away with their subjects; the "didn't study"
+  // markers have no subject, so they go explicitly. Absent before 031.
+  const study = await supabase.from("study_log").delete().eq("device_id", pin);
+  if (!isMissingTable(study.error)) throwIf(study.error);
 }
 
 // ---------- data management ----------
@@ -710,6 +748,7 @@ export async function exportAllData(pin: string) {
     portalSnapshots,
     snapshotHistory,
     forecasts,
+    studyLog,
   ] = await Promise.all([
     fetchSettings(pin),
     fetchSubjects(pin),
@@ -721,6 +760,7 @@ export async function exportAllData(pin: string) {
     fetchPortalSnapshots(pin),
     fetchSnapshotHistory(pin),
     fetchForecasts(pin),
+    fetchStudyLog(pin),
   ]);
   return {
     acadkit_export: 1,
@@ -736,6 +776,7 @@ export async function exportAllData(pin: string) {
     // The two histories (migration 029) — what the analysis notebook reads.
     snapshot_history: snapshotHistory,
     forecasts,
+    study_log: studyLog,
   };
 }
 

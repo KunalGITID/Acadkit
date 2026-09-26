@@ -1,6 +1,5 @@
 import { listEntry } from "@/lib/enter";
 import { ExamPrep } from "@/components/study/exam-prep";
-import { StudyPlanCard } from "@/components/study/study-plan";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -28,6 +27,10 @@ import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
 import { computeOverallAttendance } from "@/lib/attendance";
 import type { Mark, PlannedComponent, Subject } from "@/types";
 import { Segmented } from "@/components/ui/segmented";
+import { SwipeHint } from "@/components/ui/swipe-hint";
+import { haptic } from "@/lib/utils";
+import { useSwipe } from "@/hooks/useSwipe";
+import { slideTransition, slideVariants } from "@/lib/slide";
 import { GradesProjection } from "@/components/insights/grades-projection";
 import { useProjectionReport } from "@/hooks/useProjectionReport";
 
@@ -234,6 +237,25 @@ export default function Marks() {
   // tests you're waiting on are likely to do to that. The last two were
   // the Grades tab on Insights.
   const [view, setView] = useState<"marks" | "targets" | "expected">("marks");
+  // Same order as the switch, so a swipe lands where the eye expects.
+  // Ends are walls rather than wrapping, as on the other swipeable pages.
+  const VIEWS = ["marks", "targets", "expected"] as const;
+  const [dir, setDir] = useState(0);
+  const [swiped, setSwiped] = useState(false);
+  const goView = (next: (typeof VIEWS)[number]) => {
+    setDir(VIEWS.indexOf(next) > VIEWS.indexOf(view) ? 1 : -1);
+    setView(next);
+  };
+  const viewSwipe = useSwipe(
+    () => {
+      const next = VIEWS[VIEWS.indexOf(view) + 1];
+      if (next) { setSwiped(true); haptic(); goView(next); }
+    },
+    () => {
+      const next = VIEWS[VIEWS.indexOf(view) - 1];
+      if (next) { setSwiped(true); haptic(); goView(next); }
+    }
+  );
   const { report, odds } = useProjectionReport();
 
   const result = useMemo(
@@ -278,16 +300,28 @@ export default function Marks() {
           { value: "expected", label: "Expected" },
         ]}
         value={view}
-        onChange={setView}
+        onChange={goView}
         className="w-full sm:w-80"
       />
 
+      <SwipeHint id="marks" dismissed={swiped} />
+
+      <motion.div
+        key={view}
+        custom={dir}
+        variants={slideVariants}
+        initial="enter"
+        animate="center"
+        transition={slideTransition}
+        className="space-y-4"
+        data-swipe
+        {...viewSwipe}
+      >
       {view !== "marks" ? (
         <GradesProjection report={report} odds={odds} mode={view === "expected" ? "expected" : "actual"} />
       ) : (
       <>
       <ExamPrep />
-      <StudyPlanCard />
 
       <div className="space-y-4">
             <section className="card flex flex-col items-center gap-2 p-6 lg:flex-row lg:justify-between lg:px-10">
@@ -346,6 +380,7 @@ export default function Marks() {
       </div>
       </>
       )}
+      </motion.div>
 
       <MarkSheet
         open={sheetOpen}

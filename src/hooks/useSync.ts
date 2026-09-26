@@ -17,6 +17,8 @@ const TABLE_TO_KEY: Record<string, string> = {
   portal_snapshot_history: "snapshot_history",
   // the study-folder sync writes here (migration 026)
   suggestions: "suggestions",
+  // the daily study check-in (migration 031)
+  study_log: "study_log",
 };
 
 /**

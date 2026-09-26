@@ -125,6 +125,13 @@ export function expectedOutlook(
   options: SolveOptions = {}
 ): ExpectedOutlook {
   const stored = expectedFor(subject);
+  // This subject's deadlines only. Handing every subject the whole list
+  // adopted other courses' tests as its own — a subject with nothing
+  // announced showed "21MAB201T Exam", "FT-2" and the rest of the term.
+  options = {
+    ...options,
+    deadlines: (options.deadlines ?? []).filter((d) => d.subject_id === subject.id),
+  };
   const actual = solveSubjectPlan(subject, marks, targetGrade, options);
 
   const injected: Mark[] = [];

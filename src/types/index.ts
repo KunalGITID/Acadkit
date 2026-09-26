@@ -192,6 +192,23 @@ export type DeadlineType = "exam" | "assignment" | "lab" | "other";
 export type DeadlineStatus = "pending" | "done";
 export type DeadlinePriority = "low" | "medium" | "high";
 
+/**
+ * Time spent studying, one row per subject per day (migration 031).
+ *
+ * A day you answered "nothing" is one row with no subject and zero
+ * minutes, so "didn't study" is recorded rather than looking the same
+ * as never having been asked.
+ */
+export interface StudyLogEntry {
+  id: string;
+  device_id: string;
+  /** Local calendar day, YYYY-MM-DD. */
+  date: string;
+  subject_id: string | null;
+  minutes: number;
+  created_at?: string;
+}
+
 export interface Deadline {
   id: string;
   device_id: string;

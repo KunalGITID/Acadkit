@@ -98,6 +98,27 @@ describe("expectedOutlook", () => {
   });
 });
 
+describe("deadlines", () => {
+  const deadline = (subject_id: string, title: string, max: number) =>
+    ({ id: title, device_id: "", subject_id, title, type: "exam", due_date: "2026-11-25T09:00:00Z", max_marks: max }) as never;
+
+  it("adopts only this subject's deadlines", () => {
+    const bare: Subject = { ...base, id: "uhv", assessment: null };
+    const o = expectedOutlook(bare, [], "A", {
+      deadlines: [deadline("os", "21MAB201T Exam", 15), deadline("os", "FT-2", 15)],
+      today: "2026-09-26",
+    });
+    expect(o.rows.map((r) => r.component.label)).not.toContain("21MAB201T Exam");
+    expect(o.rows.map((r) => r.state)).toEqual(["unannounced", "external"]);
+  });
+
+  it("never adopts T-EXT — that's the end-sem, already the external weight", () => {
+    const bare: Subject = { ...base, id: "uhv", assessment: null };
+    const o = expectedOutlook(bare, [], "A", { deadlines: [deadline("uhv", "T-EXT", 40)], today: "2026-09-26" });
+    expect(o.rows.some((r) => r.component.label === "T-EXT")).toBe(false);
+  });
+});
+
 describe("setExpected", () => {
   it("leaves the rest of the assessment alone and clears back to null", () => {
     const withPct = { ...base, assessment: { ...base.assessment!, assumedExternalPct: 80 } };

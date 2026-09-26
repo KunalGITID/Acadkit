@@ -16,6 +16,7 @@ import type {
   Deadline,
   Mark,
   SemesterArchive,
+  StudyLogEntry,
   Settings,
   Subject,
   TimetableSlot,
@@ -382,6 +383,53 @@ export function useDeadlines() {
     queryKey: ["deadlines", pin],
     queryFn: () => api.fetchDeadlines(pin),
   });
+}
+
+// ---------- study log ----------
+
+export function useStudyLog() {
+  const pin = usePin();
+  return useQuery({
+    queryKey: ["study_log", pin],
+    queryFn: () => api.fetchStudyLog(pin),
+  });
+}
+
+/** One day's answer. An empty `entries` means "didn't study" and is stored as such. */
+export interface StudyDay {
+  date: string;
+  entries: Array<{ subject_id: string; minutes: number }>;
+}
+
+export function useSaveStudyDay() {
+  const pin = usePin();
+  return useOptimistic<
+    { date: string; entries: Array<{ id: string; subject_id: string | null; minutes: number }> },
+    StudyLogEntry[]
+  >({
+    pin,
+    root: "study_log",
+    name: "study.save",
+    errorMessage: "Couldn't save your study time",
+    updater: (old, day) => [
+      ...day.entries.map((e) => ({ ...e, date: day.date, device_id: pin })),
+      ...(old ?? []).filter((r) => r.date !== day.date),
+    ],
+  });
+}
+
+/**
+ * Turn an answer into rows: ids made here so a replay writes the same
+ * rows, and zero minutes collapsing to the single "didn't study" marker.
+ */
+export function studyDayRows(day: StudyDay) {
+  const kept = day.entries.filter((e) => e.minutes > 0);
+  return {
+    date: day.date,
+    entries: kept.length
+      ? kept.map((e) => ({ id: crypto.randomUUID(), subject_id: e.subject_id, minutes: Math.round(e.minutes) }))
+      : [{ id: crypto.randomUUID(), subject_id: null, minutes: 0 }],
+  };
 }
 
 // ---------- semester archives ----------

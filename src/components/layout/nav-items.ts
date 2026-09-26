@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  BookOpenCheck,
   CalendarDays,
   Clock3,
   GraduationCap,
@@ -43,6 +44,7 @@ export const NAV_ITEMS: NavItem[] = [
 export const SECONDARY_NAV: NavItem[] = [
   { to: "/survival", label: "Survival", icon: LifeBuoy, blurb: "Which days you can skip" },
   { to: "/log", label: "Absences", icon: ListX, blurb: "Every period you've missed" },
+  { to: "/study-log", label: "Study log", icon: BookOpenCheck, blurb: "Hours you've studied, by subject" },
   { to: "/history", label: "History", icon: History, blurb: "Past semesters and CGPA" },
   // No Wrapped: it plays once, when you archive a semester (History),
   // rather than sitting here to be opened any day of the term.

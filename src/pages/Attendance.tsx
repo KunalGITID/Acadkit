@@ -40,8 +40,11 @@ import { PortalCheck } from "@/components/viz/portal-check";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
-import { cn } from "@/lib/utils";
+import { cn, haptic } from "@/lib/utils";
 import { Segmented } from "@/components/ui/segmented";
+import { SwipeHint } from "@/components/ui/swipe-hint";
+import { useSwipe } from "@/hooks/useSwipe";
+import { slideTransition, slideVariants } from "@/lib/slide";
 import { AttendanceProjection } from "@/components/insights/attendance-projection";
 import { useProjectionReport } from "@/hooks/useProjectionReport";
 
@@ -196,6 +199,25 @@ export default function Attendance() {
   // Where you are, or where the semester ends up. The forecast used to
   // be a tab on Insights, a sheet away from the numbers it projects.
   const [view, setView] = useState<"now" | "forecast">("now");
+  // Same order as the switch, so a swipe lands where the eye expects.
+  // Ends are walls rather than wrapping, as on the other swipeable pages.
+  const VIEWS = ["now", "forecast"] as const;
+  const [dir, setDir] = useState(0);
+  const [swiped, setSwiped] = useState(false);
+  const goView = (next: (typeof VIEWS)[number]) => {
+    setDir(VIEWS.indexOf(next) > VIEWS.indexOf(view) ? 1 : -1);
+    setView(next);
+  };
+  const viewSwipe = useSwipe(
+    () => {
+      const next = VIEWS[VIEWS.indexOf(view) + 1];
+      if (next) { setSwiped(true); haptic(); goView(next); }
+    },
+    () => {
+      const next = VIEWS[VIEWS.indexOf(view) - 1];
+      if (next) { setSwiped(true); haptic(); goView(next); }
+    }
+  );
   const projection = useProjectionReport();
 
   const overall = useMemo(
@@ -311,10 +333,23 @@ export default function Attendance() {
           { value: "forecast", label: "Forecast" },
         ]}
         value={view}
-        onChange={setView}
+        onChange={goView}
         className="w-full sm:w-64"
       />
 
+      <SwipeHint id="attendance" dismissed={swiped} />
+
+      <motion.div
+        key={view}
+        custom={dir}
+        variants={slideVariants}
+        initial="enter"
+        animate="center"
+        transition={slideTransition}
+        className="space-y-4"
+        data-swipe
+        {...viewSwipe}
+      >
       {view === "forecast" ? (
         <AttendanceProjection
           report={projection.report}
@@ -473,6 +508,7 @@ export default function Attendance() {
       <BunkWallet stats={overall.subjects} />
       </>
       )}
+      </motion.div>
 
     </div>
   );

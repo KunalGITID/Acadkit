@@ -46,6 +46,7 @@ import { LiveClassCard } from "@/components/viz/live-class";
 import { ExamCountdown } from "@/components/viz/exam-countdown";
 import { SurvivalCard } from "@/components/viz/survival-card";
 import { SuggestionsCard } from "@/components/viz/suggestions-card";
+import { StudyCheckIn } from "@/components/viz/study-check-in";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { gradeForTotal, groupMarksBySubject } from "@/lib/grades";
 import { computeSgpa } from "@/lib/plan";
@@ -626,6 +627,8 @@ export default function Dashboard() {
           {/* First, because it's the one card asking for a decision —
               and it renders nothing when there isn't one. */}
           <SuggestionsCard />
+          {/* The day's one question; gone once it's answered. */}
+          <StudyCheckIn />
           <ExamCountdown />
           <TodayCard />
         </div>

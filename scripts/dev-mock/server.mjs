@@ -281,6 +281,7 @@ const db = {
   // embedder, so "Search inside files" says it isn't set up.
   portal_snapshot_history: SNAPSHOT_HISTORY,
   forecast_log: [],
+  study_log: [],
   study_chunks: [],
 };
 
