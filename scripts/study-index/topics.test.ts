@@ -32,6 +32,10 @@ describe("which files are papers", () => {
 describe("splitQuestions", () => {
   it("splits at question numbers and at (OR), dropping marks columns", () => {
     const page = [
+      "SRM INSTITUTE OF SCIENCE AND TECHNOLOGY",
+      "SRM Nagar, Kattankulathur – 603203, Chengalpattu District",
+      "B.Tech. DEGREE EXAMINATION, MAY 2023",
+      "21CSC202J – OPERATING SYSTEMS",
       "Reg. No.",
       "PART - B",
       "30. a. Describe a solution to the dining philosopher problem so that no race",
@@ -82,5 +86,11 @@ describe("labelClusters", () => {
     expect(labels[1]).toContain("page replacement");
     // A chosen bigram suppresses its own words.
     expect(labels[1].split(" · ")).not.toContain("page");
+  });
+
+  it("never names a topic after a course code", () => {
+    const [label] = labelClusters([["15CS302J paging and segmentation", "15CS302J paging with segmentation"]]);
+    expect(label).not.toMatch(/15cs302j/);
+    expect(label).toContain("paging");
   });
 });

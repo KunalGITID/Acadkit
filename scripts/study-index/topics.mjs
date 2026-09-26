@@ -22,7 +22,11 @@ import { embedTexts } from "./embed.mjs";
 import { extractText, extractable } from "./text.mjs";
 
 /** Cosine similarity above which two questions are the same topic (gte-small). */
-export const SAME_TOPIC = 0.86;
+export const SAME_TOPIC = 0.87;
+// Tuned on real OS and DSA papers: 0.84 merged whole units ("tree", 65
+// questions), 0.86 still lumped every queue question together, and 0.88
+// began splitting one idea (deadlock) across clusters. gte-small scores
+// unrelated questions from one subject around 0.78, so the band is narrow.
 /** A topic asked in only one paper isn't "most asked" of anything. */
 const MIN_PAPERS = 2;
 const TOPICS_PER_SUBJECT = 12;
@@ -84,9 +88,15 @@ export function pastPapers(files) {
 /** Lines that are furniture, not questions: marks columns, headers, footers. */
 const NOISE = [
   /^[\d\s.,/()-]*$/, // bare numbers: marks, COs, page counts
-  /^(page|reg\.?\s*no|register|time|max(imum)?\.?\s*marks?|duration|course code|course name|part\s*[-–]?\s*[a-c]\b|instructions?)\b/i,
+  /^(page|reg\.?\s*no|register|time|max(imum)?\.?\s*marks?|duration|course code|course name|course title|part\s*[-–]?\s*[a-c]\b|instructions?|note\s*:)/i,
   /^(co|bl|pi|l)\s*\d/i, // CO1, BL2 columns
   /^answer (all|any)\b/i,
+  /^\d{2}[a-z]{2,4}\d{3}[a-z]?\b/i, // a course code heading a line: "21CSC201J – Data Structures…"
+  // Every paper's letterhead: taken for a question, it became the most
+  // "repeated topic" of all, asked in every paper.
+  /srm institute|institute of science|college of engineering|degree examination|candidates admitted|academic year|(odd|even) semester|b\.\s?tech/i,
+  /kattankulathur|chengalpattu|srm nagar|invigilator|omr sheet|hall ticket/i, // address, exam-hall instructions
+  /\(\s*\d+\s*[x×*]\s*\d+\s*=\s*\d+\s*marks?\s*\)/i, // "(20 x 1 = 20 Marks)"
 ];
 
 const QUESTION_START = /^(?:q\.?\s*)?(\d{1,2})\s*[.)]\s*(?:[a-e][.)]\s*)?(?=\S)/i;
@@ -191,7 +201,8 @@ function terms(text) {
     .toLowerCase()
     .replace(/[’']s\b/g, "s")
     .split(/[^a-z0-9+#]+/)
-    .filter((w) => w.length >= 3 && !STOP.has(w) && !/^\d+$/.test(w));
+    // Numbers and code-like tokens ("15cs302j", OCR's "12da1") name nothing.
+    .filter((w) => w.length >= 3 && !STOP.has(w) && !/\d/.test(w));
   const bigrams = words.slice(1).map((w, i) => `${words[i]} ${w}`);
   return [...words, ...bigrams];
 }

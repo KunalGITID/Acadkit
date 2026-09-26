@@ -59,5 +59,7 @@ as $$
   limit greatest(1, least(match_count, 50));
 $$;
 
-revoke all on function match_study_chunks(text, extensions.vector, int) from public;
+-- Supabase grants new functions to anon by default; revoking from public
+-- doesn't undo that, so anon is named. (RLS would return it nothing anyway.)
+revoke all on function match_study_chunks(text, extensions.vector, int) from public, anon;
 grant execute on function match_study_chunks(text, extensions.vector, int) to authenticated;
