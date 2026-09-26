@@ -14,6 +14,7 @@ const TABLE_TO_KEY: Record<string, string> = {
   deadlines: "deadlines",
   // the sync bookmarklet writes here; realtime pushes it straight into the UI
   portal_snapshots: "portal_snapshots",
+  portal_snapshot_history: "snapshot_history",
   // the study-folder sync writes here (migration 026)
   suggestions: "suggestions",
 };

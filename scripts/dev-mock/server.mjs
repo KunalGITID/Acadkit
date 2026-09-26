@@ -93,6 +93,32 @@ const SNAPSHOTS = [
   synced_at: new Date().toISOString(),
 }));
 
+// Sync history (migration 029): three earlier syncs a week apart, then
+// the current snapshot. 21MAB201T's latest sync reports fewer classes
+// held than the one before — deliberately, so the Attendance page's
+// portal check has something to show in the preview.
+const SNAPSHOT_HISTORY = SNAPSHOTS.flatMap((snap, i) => {
+  const rows = [3, 2, 1].map((weeksBack) => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7 - weeksBack * 7);
+    const day = d.toLocaleDateString("en-CA");
+    const conducted = snap.conducted - weeksBack * 5 + (snap.subject_code === "21MAB201T" && weeksBack === 1 ? 7 : 0);
+    const absent = Math.max(0, snap.absent - weeksBack);
+    return {
+      id: uid("hist", i * 10 + weeksBack),
+      device_id: PIN,
+      subject_code: snap.subject_code,
+      conducted,
+      absent,
+      percentage: Number((((conducted - absent) / conducted) * 100).toFixed(2)),
+      as_of: day,
+      synced_at: `${day}T12:00:00.000Z`,
+      source: "bookmarklet",
+    };
+  });
+  return [...rows, { ...snap, id: uid("hist", i * 10), source: "bookmarklet" }];
+});
+
 // A few classes marked by hand since the snapshot, plus history for the
 // two subjects the portal doesn't cover.
 const ATTENDANCE = [];
@@ -251,6 +277,11 @@ const db = {
   })(),
   semester_archives: [],
   push_subscriptions: [],
+  // Migrations 029 and 030. study_chunks stays empty: the preview has no
+  // embedder, so "Search inside files" says it isn't set up.
+  portal_snapshot_history: SNAPSHOT_HISTORY,
+  forecast_log: [],
+  study_chunks: [],
 };
 
 let seq = 1000;

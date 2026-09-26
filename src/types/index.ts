@@ -143,6 +143,39 @@ export interface PortalSnapshot {
   synced_at?: string;
 }
 
+/**
+ * One portal sync of one subject, kept (migration 029). portal_snapshots
+ * holds the latest; this is the record of how it got there.
+ */
+export interface PortalSnapshotHistory {
+  id: string;
+  device_id: string;
+  subject_code: string;
+  conducted: number;
+  absent: number;
+  percentage: number | null;
+  as_of: string; // "YYYY-MM-DD"
+  synced_at: string;
+  source: "bookmarklet" | "paste" | "restore" | "backfill";
+}
+
+/** One week's forecast for a subject, or for the SGPA (`scope = "sgpa"`), migration 029. */
+export interface ForecastLogRow {
+  device_id: string;
+  week_start: string; // Monday, "YYYY-MM-DD"
+  scope: string;
+  target: string | null;
+  p_target: number | null;
+  p_pass: number | null;
+  median: number | null;
+  p10: number | null;
+  p90: number | null;
+  distribution: Record<string, number> | null;
+  evidence: number | null;
+  model: string;
+  created_at?: string;
+}
+
 export type DeadlineType = "exam" | "assignment" | "lab" | "other";
 export type DeadlineStatus = "pending" | "done";
 export type DeadlinePriority = "low" | "medium" | "high";

@@ -6,8 +6,10 @@ import type {
   AttendanceRecord,
   AttendanceStatus,
   Deadline,
+  ForecastLogRow,
   Mark,
   PortalSnapshot,
+  PortalSnapshotHistory,
   SemesterArchive,
   Settings,
   Subject,
@@ -420,6 +422,7 @@ export async function importPortalData(
       .upsert(rows, { onConflict: "device_id,subject_code" });
     throwIf(error);
     result.snapshots = rows.length;
+    await appendSnapshotHistory(rows, "paste");
   }
 
   if (input.marks.length) {
@@ -505,6 +508,53 @@ export async function fetchPortalSnapshots(pin: string): Promise<PortalSnapshot[
   if (isMissingTable(error)) return [];
   throwIf(error);
   return (data as PortalSnapshot[]) ?? [];
+}
+
+/**
+ * Every sync, kept (migration 029). portal_snapshots is overwritten each
+ * time; this is the series the anomaly checks read. A project that
+ * hasn't run 029 simply keeps no history.
+ */
+async function appendSnapshotHistory(
+  rows: Array<Omit<PortalSnapshotHistory, "id" | "source">>,
+  source: PortalSnapshotHistory["source"]
+): Promise<void> {
+  if (!rows.length) return;
+  const { error } = await supabase
+    .from("portal_snapshot_history")
+    .insert(rows.map((r) => ({ ...r, source })));
+  if (!isMissingTable(error)) throwIf(error);
+}
+
+export async function fetchSnapshotHistory(pin: string): Promise<PortalSnapshotHistory[]> {
+  const { data, error } = await supabase
+    .from("portal_snapshot_history")
+    .select("*")
+    .eq("device_id", pin)
+    .order("synced_at", { ascending: true });
+  if (isMissingTable(error)) return [];
+  throwIf(error);
+  return (data as PortalSnapshotHistory[]) ?? [];
+}
+
+/** This week's forecasts; a week already logged keeps its first entry. */
+export async function logForecasts(rows: ForecastLogRow[]): Promise<void> {
+  if (!rows.length) return;
+  const { error } = await supabase
+    .from("forecast_log")
+    .upsert(rows, { onConflict: "device_id,week_start,scope", ignoreDuplicates: true });
+  if (!isMissingTable(error)) throwIf(error);
+}
+
+export async function fetchForecasts(pin: string): Promise<ForecastLogRow[]> {
+  const { data, error } = await supabase
+    .from("forecast_log")
+    .select("*")
+    .eq("device_id", pin)
+    .order("week_start", { ascending: true });
+  if (isMissingTable(error)) return [];
+  throwIf(error);
+  return (data as ForecastLogRow[]) ?? [];
 }
 
 async function clearPortalSnapshots(pin: string): Promise<void> {
@@ -649,17 +699,29 @@ export async function deleteAllData(pin: string): Promise<void> {
  * to hand-marked classes only.
  */
 export async function exportAllData(pin: string) {
-  const [settings, subjects, timetable, attendance, marks, deadlines, archives, portalSnapshots] =
-    await Promise.all([
-      fetchSettings(pin),
-      fetchSubjects(pin),
-      fetchTimetable(pin),
-      fetchAttendance(pin),
-      fetchMarks(pin),
-      fetchDeadlines(pin),
-      fetchArchives(pin),
-      fetchPortalSnapshots(pin),
-    ]);
+  const [
+    settings,
+    subjects,
+    timetable,
+    attendance,
+    marks,
+    deadlines,
+    archives,
+    portalSnapshots,
+    snapshotHistory,
+    forecasts,
+  ] = await Promise.all([
+    fetchSettings(pin),
+    fetchSubjects(pin),
+    fetchTimetable(pin),
+    fetchAttendance(pin),
+    fetchMarks(pin),
+    fetchDeadlines(pin),
+    fetchArchives(pin),
+    fetchPortalSnapshots(pin),
+    fetchSnapshotHistory(pin),
+    fetchForecasts(pin),
+  ]);
   return {
     acadkit_export: 1,
     exported_at: new Date().toISOString(),
@@ -671,6 +733,9 @@ export async function exportAllData(pin: string) {
     deadlines,
     archives,
     portal_snapshots: portalSnapshots,
+    // The two histories (migration 029) — what the analysis notebook reads.
+    snapshot_history: snapshotHistory,
+    forecasts,
   };
 }
 
@@ -684,6 +749,8 @@ export interface AcadkitExport {
   settings?: Partial<Settings> | null;
   archives?: SemesterArchive[];
   portal_snapshots?: PortalSnapshot[];
+  snapshot_history?: PortalSnapshotHistory[];
+  forecasts?: ForecastLogRow[];
 }
 
 export interface ImportOptions {
@@ -859,6 +926,45 @@ export async function importData(
         .upsert(snapshots, { onConflict: "device_id,subject_code" });
       throwIf(error);
     }
+
+    // The histories are appended: a sync this account already has (same
+    // subject, same moment) is not recorded twice.
+    const seen = new Set(
+      (await fetchSnapshotHistory(pin)).map((h) => `${codeKey(h.subject_code)}|${h.synced_at}`)
+    );
+    await appendSnapshotHistory(
+      (data.snapshot_history ?? [])
+        .filter((h) => !seen.has(`${codeKey(h.subject_code)}|${h.synced_at}`))
+        .map((h) => ({
+          device_id: pin,
+          subject_code: h.subject_code,
+          conducted: h.conducted,
+          absent: h.absent,
+          percentage: h.percentage,
+          as_of: h.as_of,
+          synced_at: h.synced_at,
+        })),
+      "restore"
+    );
+    // Forecasts name subjects by id; carry over the ones that map here.
+    await logForecasts(
+      (data.forecasts ?? [])
+        .map((f) => ({
+          device_id: pin,
+          week_start: f.week_start,
+          scope: f.scope === "sgpa" ? "sgpa" : (localId(f.scope) ?? ""),
+          target: f.target,
+          p_target: f.p_target,
+          p_pass: f.p_pass,
+          median: f.median,
+          p10: f.p10,
+          p90: f.p90,
+          distribution: f.distribution,
+          evidence: f.evidence,
+          model: f.model,
+        }))
+        .filter((f) => f.scope !== "")
+    );
   }
 
   if (opts.deadlines) {

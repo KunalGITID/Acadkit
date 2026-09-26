@@ -187,6 +187,16 @@ Deno.serve(async (req) => {
       .upsert(rows, { onConflict: "device_id,subject_code" });
     if (error) return json({ error: `attendance: ${error.message}` }, 500);
     snapshots = rows.length;
+
+    // And the same rows, kept (migration 029): portal_snapshots is
+    // overwritten every sync, this is the history anomaly checks compare
+    // against. A project without the table just keeps no history.
+    const { error: histErr } = await sb
+      .from("portal_snapshot_history")
+      .insert(rows.map((r) => ({ ...r, source: "bookmarklet" })));
+    if (histErr && histErr.code !== "42P01" && histErr.code !== "PGRST205") {
+      return json({ error: `history: ${histErr.message}` }, 500);
+    }
   }
 
   // ---- marks ----

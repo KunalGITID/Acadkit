@@ -333,6 +333,15 @@ export function usePortalSnapshots() {
   });
 }
 
+/** Every portal sync, oldest first (migration 029). Empty before it runs. */
+export function useSnapshotHistory() {
+  const pin = usePin();
+  return useQuery({
+    queryKey: ["snapshot_history", pin],
+    queryFn: () => api.fetchSnapshotHistory(pin),
+  });
+}
+
 export function useAddMark() {
   const pin = usePin();
   return useOptimistic<NewRow<Mark>, Mark[]>({

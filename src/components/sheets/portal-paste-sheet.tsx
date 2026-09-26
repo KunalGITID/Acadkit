@@ -83,7 +83,7 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
         ? await api.importTimetable(pin, parsed.timetable.slots)
         : null;
       await qc.invalidateQueries();
-      broadcastInvalidate(["marks", "attendance", "portal_snapshots", "timetable"]);
+      broadcastInvalidate(["marks", "attendance", "portal_snapshots", "snapshot_history", "timetable"]);
       const bits = [
         out.snapshots ? `${out.snapshots} subject${out.snapshots > 1 ? "s" : ""} updated` : null,
         out.marksAdded ? `${out.marksAdded} mark${out.marksAdded > 1 ? "s" : ""} added` : null,
