@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm run dev        # Start Vite dev server
-npm run build      # Type-check + production build (tsc -b && vite build)
+npm run build      # Type-check everything below + production build (tsc -b && vite build)
 npm run lint       # ESLint
 npm run preview    # Preview production build locally
 npm run test       # Vitest (unit tests for the domain math)
@@ -14,16 +14,26 @@ npm run test       # Vitest (unit tests for the domain math)
 
 Unit tests (Vitest, `src/lib/*.test.ts`) cover the pure domain logic:
 grades/SGPA, attendance (canBunk/needToAttend), the day-order calendar +
-declared-holiday shifting, and the projection engine. UI/data-layer code
-is verified manually via the preview. `vitest.config.ts` runs them in a
-node environment with the `@/` alias.
+declared-holiday shifting, and the projection engine. `src/api/*.test.ts`
+cover offline replay and import/export (the latter against an in-memory
+Supabase stand-in). Other UI code is verified manually via the preview.
+`vitest.config.ts` runs them in a node environment with the `@/` alias.
 
-To regenerate PWA icons after changing the logo: `node scripts/generate-icons.mjs`
+`tsc -b` checks four projects, not just the app: `tsconfig.app.json`
+(src), `tsconfig.node.json` (vite config), `tsconfig.functions.json`
+(the Deno edge functions, with just enough Deno declared in
+`supabase/deno-shim.d.ts`) and `tsconfig.scripts.json` (the portal-sync
+bookmarklet, via `checkJs`). The last two exist because neither Deno
+deploys nor esbuild bundles type-check: `send-reminders` shipped reading
+two variables outside the block that declared them and threw on every
+run, and the bookmarklet called parser helpers that no longer existed.
+
+To regenerate PWA icons after changing the logo (`scripts/assets/source-logo.png`): `node scripts/generate-icons.mjs`
 (this also writes `public/icons/mark.png`, the transparent mark the
 in-app launch screen masks against). Then regenerate the iOS launch
 screens too: `node scripts/generate-splash.mjs`
-(writes `public/splash/` and the `<link>` tags to paste between the
-`splash:start`/`splash:end` markers in `index.html`).
+(writes `public/splash/`, and the `<link>` tags straight into
+`index.html` between its `splash:start`/`splash:end` markers).
 
 After editing the **official holidays** in `src/data/semester.ts`,
 regenerate the edge function's copy and redeploy:
@@ -43,7 +53,7 @@ AcadKit is a single-user academic PWA (React + Vite + TypeScript + Tailwind + fr
 
 The PIN is **not** the security boundary. It used to be: RLS granted the anon role full access and the scoping was client-side, so anyone could walk 0000–9999 and read every account. Migration 015 moved it into the database — a `device_owners` table maps each `device_id` to an `auth.uid()`, and an `owns_device()` SECURITY DEFINER function backs the policies, so all 47 `device_id` queries stayed as they were while the server began enforcing them. Sign-in is email + password (`src/lib/auth.ts`, `src/pages/SignIn.tsx`).
 
-Two consequences worth knowing before touching either: policies are `to authenticated`, so anything still using the anon key gets 42501 (this is what broke the portal bookmarklet and forced the `portal-ingest` function); and signing out has to clear the persisted React Query cache, or the next account sees the last one's data (`src/hooks/useAuthReset.ts`). New PINs are seeded by `seedAccount` in `src/api/queries.ts`.
+Two consequences worth knowing before touching either: policies are `to authenticated`, so anything still using the anon key gets 42501 (this is what broke the portal bookmarklet and forced the `portal-ingest` function); and signing out has to clear the persisted React Query cache, or the next account sees the last one's data (`src/hooks/useAuthReset.ts`). `signOut` (`src/lib/auth.ts`) first takes the device off the account's push reminders — unsubscribing and deleting its row while the session still exists — or it keeps receiving them. New PINs are claimed first (`claimFreshPin` in `src/lib/devices.ts`; the device_owners primary key is the lock) and only then seeded by `seedAccount` in `src/api/queries.ts`, which only writes what is missing, so a retried setup can't reset settings or double the subjects. The other order cannot work: RLS refuses rows under a PIN you don't own yet, and a "does this PIN have data?" pre-check is blind for the same reason. "Reset all data" re-seeds the same PIN rather than going back through onboarding. Settings writes are upserts, because an update against a missing row succeeds and saves nothing.
 
 ### Data flow
 
@@ -56,7 +66,7 @@ Supabase ← src/api/queries.ts ← src/hooks/useData.ts (React Query) ← pages
 - **`src/lib/supabase.ts`** — single Supabase client; credentials from `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (`.env.local`).
 - **`src/lib/plan.ts`** — the assessment-budget engine: per-subject split, component plan, `subjectOutlook` / `computeSgpa` / `solveSubjectPlan`. Everything that answers "what will I get" or "what do I need" comes from here.
 - **`src/api/queries.ts`** — every raw Supabase call, all `.eq("device_id", pin)`-scoped.
-- **`src/hooks/useData.ts`** — React Query hooks. All mutations go through a generic `useOptimistic` helper: cache updated immediately, rolled back on error, invalidated + broadcast on settle. Query keys are `[root, pin]` where root ∈ settings/subjects/timetable/attendance/marks/deadlines.
+- **`src/hooks/useData.ts`** — React Query hooks. All mutations go through a generic `useOptimistic` helper: cache updated immediately, rolled back on error, invalidated + broadcast on settle. Query keys are `[root, pin]` where root ∈ settings/subjects/timetable/attendance/marks/deadlines/portal_snapshots/archives/suggestions. Inserts carry an id generated on the client (`withId`), so an add followed by an edit made offline replays against a real row, not a `temp-` id the uuid column rejects. Every named write shares one mutation `scope` (`WRITE_SCOPE` in `src/api/mutations.ts`), so paused writes replay in the order they were made — React Query otherwise resumes them in parallel.
 
   Writes are **named**, not passed (`src/api/mutations.ts`). Offline,
   React Query pauses a mutation rather than failing it, so `onError`
@@ -259,23 +269,6 @@ of your own graded components, needing at least three. A 14/15 and a
 different about how much to trust the forecast; a bare pace line quietly
 claims a certainty nobody has.
 
-**`src/lib/effort.ts` allocates work across subjects.** It replaced
-`sgpaTarget.planForSgpa`, which allowed each subject exactly one grade
-step — so a target needing two grades from one subject came back as
-"at least one has to climb twice" with no plan attached — and ranked by
-distance rather than return. The allocator ranks by SGPA bought per
-extra mark and lets a subject climb repeatedly, pricing each step from
-where the previous ones left it.
-
-The cost model is worth stating because it is not obvious: the extra
-marks a grade costs is exactly `threshold − pace`. The pool cancels out
-of `(rate − paceRate) × pool` entirely. How *many* more marks you need
-does not depend on how many chances remain — what the pool decides is
-whether the grade is reachable at all and at what rate, which is
-`requiredRate`, carried alongside for exactly that reason. A lift above
-your current pace always costs something, by definition, so there is no
-such thing as a free one.
-
 **Rounding has a direction.** A mark you must reach rounds up
 (`ceilHalf` — 10.4 needed means 10.5); a mark you already hold rounds
 down (`floorHalf` — banking 42.4 and printing 42.5 hands you half a
@@ -313,7 +306,9 @@ subject needs 46 to clear 65%, which there is room for, so the answer
 becomes "attend everything" instead.
 
 
-75% minimum. Computes per-subject `canBunk` / `needToAttend`. Color signal: ≥75% `#4ade80`, 65–74% `#facc15`, <65% `#fb7185`. The DB status value `"holiday"` means "cancelled/no class" in the UI and is excluded from totals. Attendance upsert key: `(device_id, subject_id, date, start_time)`.
+Computes per-subject `canBunk` / `needToAttend` against that bar, in integer arithmetic with the bar as a whole percentage (`projections.ts` does the same for skip budgets and recovery streaks) — as a fraction, 0.65 has no exact binary form and the division asked for one class too many whenever the answer landed exactly on 65%. Colour bands run relative to the bar: at or above it green, within ten points amber, below that red. The DB status value `"holiday"` means "cancelled/no class" in the UI and is excluded from totals. Attendance upsert key: `(device_id, subject_id, date, start_time)`.
+
+**Every screen starts from the portal's totals.** `computeSubjectAttendance` is the one definition, and Insights' projections (`projectSubject`, via `buildProjection`'s `snapshots` argument) go through it too — they used to count hand-marked rows only, so the same subject read 72% on Attendance and 100% "safe" on Insights. The survival plan is built by `survivalPlanFrom` everywhere, which also leaves out classes that already have a record.
 
 ### Pages & layout
 
@@ -445,7 +440,7 @@ Tokens are HSL CSS variables in `src/index.css` (light "paper" / dark "ink", `.d
 
 ### Supabase
 
-Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`, `portal_snapshots`, `device_owners`. Migrations in `supabase/migrations/`; RLS is owner-scoped via `owns_device()` — see the auth note above.
+Tables: `subjects`, `attendance`, `timetable_slots`, `marks`, `deadlines`, `settings`, `portal_snapshots`, `semester_archives`, `suggestions`, `push_subscriptions`, `device_owners`. Migrations in `supabase/migrations/`; RLS is owner-scoped via `owns_device()` — see the auth note above.
 
 ### Study files — `/files`
 
@@ -501,20 +496,18 @@ because they are legitimately assessed in several sittings. The card
 then shows Moved old → new and Move patches `due_date`, keeping your
 time of day (`movedDueDate`).
 
-The Compare page (share codes, migration 019) was removed; the
-`shared_cards` table and `get_shared_card` function are left in the
-database, unused.
+The Compare page (share codes, migration 019) was removed, and
+migration 028 drops its `shared_cards` table and `get_shared_card`
+function.
 
 ### Exam prep and marks plans from the study folder
 
 The weekly scan also writes `_src/acadkit_prep.json`, which the sync
 uploads as `<pin>/prep.json` (paths not in the folder are dropped and
 reported). `src/lib/examPrep.ts` reads it: `upcomingPrep` for the Exam
-prep section on the **Marks** page, folded to one line until opened (`components/study/exam-prep.tsx` — portion,
-pattern, past-paper topic ranking as seen/of, files, and `prepWindows`
-free periods), and `prepForDeadline` for the Prep link that replaces a
-Home deadline's type badge. Topic counts are read from real papers by
-the scan and never computed here.
+prep section on the **Marks** page, folded to one line until opened
+(`components/study/exam-prep.tsx` — portion, pattern, files, and
+`prepWindows` free periods).
 
 Marks plans ride the suggestions table as `kind = 'plan'` (migration
 027 widens the check). `planOffers` shows one only when it differs from
@@ -559,9 +552,6 @@ free of React:
   `auto_marked` (migration 013) so `deleteAutoMarks` can undo exactly
   the app's guesses. Opt-in via `settings.auto_mark_present`; the runner
   lives in `src/hooks/useAutoMark.ts` and fires once per app load.
-- **`src/lib/targets.ts`** — the reverse of the grade table: what the
-  next component must return for a target grade. Adding a component
-  grows the denominator too, so this is not "the gap".
 - **`src/lib/deadlines.ts`** — deadlines are named by what they are.
   There is no title field: a row leads with its subject (falling back to
   the type when unassigned) and carries a type badge. The `title` column
@@ -623,18 +613,7 @@ free of React:
   key test asserts agreement with `computeSubjectAttendance`, since an
   explanation that disagrees with the number it explains is just a
   second opinion.
-- **`src/lib/sgpaTarget.ts`** — `cgpa.ts` says which SGPA this semester
-  needs; this says which subjects have to move to produce it. A target
-  without that second step isn't advice. Everything is read off
-  `projectSubjectGrade` rather than re-derived, so it can't disagree
-  with the cards beneath it. Lifts are single grade steps ordered by
-  **how far above current pace** the required end-sem mark is, not by
-  the mark itself — needing 32 while tracking 30 is a cheaper ask than
-  needing 28 while tracking 18. When the ceiling allows the target but
-  one-grade steps don't reach it, the status says so instead of listing
-  a plan that falls short. `settings.target_sgpa` had been a column
-  since migration 001 that nothing ever read; this is what reads it.
-- **`src/lib/cgpa.ts`** — `targets.ts` one level up. CGPA is
+- **`src/lib/cgpa.ts`** — `deadlineTarget.ts` one level up. CGPA is
   credit-weighted, so `target = (priorPoints + sgpa x currentCredits) /
   (priorCredits + currentCredits)` rearranged for the unknown gives what
   this semester must return. "Secured" is a strong claim and means
@@ -721,8 +700,15 @@ RLS (migration 015) left anon with no policies, so those writes began
 failing with 42501. Embedding a Supabase refresh token instead would put
 a full-account credential in a bookmarklet URL — visible in the browser's
 bookmark manager, and synced across devices — so the write moved
-server-side. The built file carries `INGEST_SECRET`, which grants exactly
-one thing: submit portal data for one `device_id`.
+server-side. The built file carries a token for its own PIN —
+`HMAC-SHA256(INGEST_SECRET, pin)`, hex — which the function recomputes
+from the body's `device_id` and checks with `crypto.subtle.verify`
+(constant time). It grants exactly one thing: submit portal data for
+that PIN. It used to carry the secret itself while the function trusted
+whatever `device_id` came with it, so any one bookmarklet could write
+into every PIN. The function also refuses malformed rows (negative
+counts, absences above conducted, unknown component types) rather than
+writing a bad baseline, and dates `as_of` in IST.
 
 ```bash
 supabase secrets set INGEST_SECRET="<long random string>"
@@ -730,12 +716,14 @@ supabase functions deploy portal-ingest --no-verify-jwt
 ```
 
 ```bash
-node scripts/portal-sync/build.mjs --pin 1234   # → scripts/portal-sync/dist/install.html
+node scripts/portal-sync/build.mjs --pin 1234 --secret "<INGEST_SECRET>"   # → scripts/portal-sync/dist/install.html
 ```
 
-The output embeds the anon key + PIN and is gitignored. `portal-sync.js` is
-the readable source; the build inlines credentials, minifies with esbuild,
-and emits a drag-to-bookmarks install page.
+(`INGEST_SECRET` in `.env.local` works instead of `--secret`.) The output
+embeds the PIN and its token — never the secret — and is gitignored.
+`portal-sync.js` is the readable source; the build derives the token,
+minifies with esbuild, and emits a drag-to-bookmarks install page.
+Rotating `INGEST_SECRET` invalidates every bookmarklet at once.
 
 ```bash
 node scripts/portal-sync/build.mjs --diagnostics   # → dist/diagnostics.html
@@ -826,7 +814,7 @@ broken deploy rather than a stale one, and someone should see that.
 
 ### PWA
 
-`vite.config.ts` via `vite-plugin-pwa`: Supabase calls cached NetworkFirst (5s timeout), Google Fonts CacheFirst. On Node 18 the service worker is intentionally built unminified (workbox `mode` switch) because workbox's terser worker needs global webcrypto.
+`vite.config.ts` via `vite-plugin-pwa`: precache only, no runtime caching. Supabase responses used to be cached NetworkFirst, which left a day of one account's API replies on disk after it signed out; React Query's persisted cache already covers offline, and sign-out clears that one. `public/push-sw.js` deletes the old runtime caches when the new worker activates. On Node 18 the service worker is intentionally built unminified (workbox `mode` switch) because workbox's terser worker needs global webcrypto.
 
 ### Path alias
 

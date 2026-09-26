@@ -21,9 +21,9 @@ offline-persisted mutations) · Zustand · vaul bottom sheets · sonner toasts �
 ### 1. Backend (Supabase)
 
 Create a project at [supabase.com](https://supabase.com) — the free tier is plenty — then run
-every file in `supabase/migrations/` **in order** (001 → 027) in the SQL editor. That creates
+every file in `supabase/migrations/` **in order** (001 → 028) in the SQL editor. That creates
 the tables (`subjects`, `timetable_slots`, `attendance`, `marks`, `deadlines`, `settings`,
-plus `portal_snapshots`, `semester_archives`, `shared_cards`, `push_subscriptions`,
+plus `portal_snapshots`, `semester_archives`, `suggestions`, `push_subscriptions`,
 `device_owners` and `error_log`) and the row-level security policies.
 
 Two settings in the dashboard matter:
@@ -51,7 +51,7 @@ npm install
 npm run dev        # http://localhost:5173
 npm run dev:mock   # no Supabase needed — a mock server with a seeded semester
 npm run test       # Vitest, over the domain maths
-npm run build      # type-check + production build (dist/)
+npm run build      # type-check (app, edge functions, bookmarklet) + production build (dist/)
 npm run preview    # serve the production build
 ```
 
@@ -92,13 +92,14 @@ your account owns on every sign-in. (Older builds asked for it directly — that
 - **Deadlines** that know when they're due: pick a subject, a type and a date, and the time
   fills itself in from the period the thing actually happens in. Each one lists the free
   periods you have before it.
-- **Portal sync** — a desktop bookmarklet (`scripts/portal-sync/`) or, on a phone, copy the
-  portal page and paste it into the app. Attendance, marks *and the timetable grid* come in
+- **Portal sync** — a desktop bookmarklet (`scripts/portal-sync/`, built per PIN with
+  `node scripts/portal-sync/build.mjs --pin <PIN> --secret <INGEST_SECRET>`) or, on a phone,
+  copy the portal page and paste it into the app. Attendance, marks *and the timetable grid* come in
   that way; nothing ever asks for your portal password.
 - **Push reminders** for tomorrow's classes, unmarked attendance, deadlines and a subject
   slipping under the bar, from a scheduled edge function.
 - Semester archive and CGPA ladder, a Wrapped, shareable subject cards, iCalendar export,
-  four themes, and a tone setting for the app's own voice.
+  two themes (each light and dark), and a tone setting for the app's own voice.
 
 ## Per-subject marks structure
 
@@ -115,8 +116,8 @@ from the rest.
 
 ## New semester checklist
 
-Edit `src/data/semester.ts`: update `SEMESTER_START` / `SEMESTER_END`, the `OFFICIAL_HOLIDAYS`
-list, and the `DAY_ORDER_MAP`. Then regenerate the edge function's copy of the holidays with
+Edit `src/data/semester.ts`: update `SEMESTER_START` / `SEMESTER_END` and the `OFFICIAL_HOLIDAYS`
+list (the day-order rotation is generated from them). Then regenerate the edge function's copy of the holidays with
 `node scripts/gen-edge-calendar.mjs` and redeploy it — `src/data/semester.test.ts` fails the
 build if the two drift.
 
