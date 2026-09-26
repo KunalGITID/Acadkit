@@ -1,5 +1,18 @@
 // Imported by the generated service worker (workbox importScripts).
 // Handles incoming Web Push messages + notification taps.
+
+// Earlier builds cached every Supabase API response here, and signing
+// out never cleared it. Drop that cache as this worker takes over, along
+// with the Google Fonts caches from before fonts were bundled.
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    Promise.all(
+      ["supabase-cache", "google-fonts-css", "google-fonts-files"].map((name) =>
+        caches.delete(name)
+      )
+    )
+  );
+});
 self.addEventListener("push", (event) => {
   let data = {};
   try {

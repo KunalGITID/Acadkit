@@ -35,10 +35,14 @@ function toJson(sub: PushSubscription): PushSub {
   };
 }
 
+/**
+ * `getRegistration()`, not `ready`: `ready` never settles on a page with
+ * no service worker (the dev server), and signing out waits on this.
+ */
 export async function getExistingSubscription(): Promise<PushSubscription | null> {
   if (!pushSupported) return null;
-  const reg = await navigator.serviceWorker.ready;
-  return reg.pushManager.getSubscription();
+  const reg = await navigator.serviceWorker.getRegistration();
+  return (await reg?.pushManager.getSubscription()) ?? null;
 }
 
 /** Ask permission + subscribe. Returns the serializable subscription. */

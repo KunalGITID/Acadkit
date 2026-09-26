@@ -23,11 +23,14 @@ export const RQ_CACHE_KEY = "acadkit:rq-cache";
  *
  * The PIN goes too: it identifies whose partition to read, so leaving it
  * behind would point the next account at the last one's data. Onboarding
- * or useAutoDevice resolves it again after the next sign-in.
+ * or useAutoDevice resolves it again after the next sign-in. So does the
+ * local copy of the display name, or the next person is greeted as the
+ * last one until their settings load.
  */
 export function useAuthReset(): void {
   const qc = useQueryClient();
   const resetPin = useAppStore((s) => s.resetPin);
+  const setName = useAppStore((s) => s.setName);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
@@ -40,7 +43,8 @@ export function useAuthReset(): void {
         // is what actually matters for what's on screen.
       }
       resetPin();
+      setName("");
     });
     return () => sub.subscription.unsubscribe();
-  }, [qc, resetPin]);
+  }, [qc, resetPin, setName]);
 }

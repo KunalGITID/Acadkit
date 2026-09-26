@@ -11,7 +11,6 @@ import { SubjectSheet } from "@/components/sheets/subject-sheet";
 import { PortalPasteSheet } from "@/components/sheets/portal-paste-sheet";
 import { usePush } from "@/hooks/usePush";
 import { useSession } from "@/hooks/useSession";
-import { SetupCard } from "@/components/settings/setup-card";
 import { DataCard } from "@/components/settings/data-card";
 import { ThemePicker } from "@/components/settings/theme-picker";
 import { say, VOICE } from "@/lib/voice";
@@ -518,8 +517,9 @@ function AccountCard() {
         disabled={busy}
         onClick={async () => {
           setBusy(true);
-          // Only the session goes. The PIN and its data stay put, so
-          // signing back in returns you to exactly the same place.
+          // The session, this device's reminders and the local cache go;
+          // the data stays on the account, so signing back in returns you
+          // to exactly the same place.
           await signOut();
           setBusy(false);
         }}
@@ -698,7 +698,6 @@ export default function Settings() {
     <div className="mx-auto max-w-2xl space-y-5">
       <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleSettings, tone)}</h1>
 
-      <SetupCard />
 
       <div className="space-y-3">
         <SectionTitle>Profile</SectionTitle>

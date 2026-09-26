@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { unsubscribeFromPush } from "@/lib/push";
 
 /**
  * Email + password, and deliberately no email delivery anywhere in the
@@ -36,7 +37,24 @@ export async function signIn(email: string, password: string): Promise<void> {
   if (error) throw new Error(friendly(error.message));
 }
 
+/**
+ * Sign out, taking this device off the account's reminders first.
+ *
+ * Left subscribed, a signed-out device kept receiving the account's
+ * pushes — subject names and attendance included — and the next account
+ * signed in on it was told reminders were on while they went elsewhere.
+ * The row is deleted while the session still exists, since RLS only lets
+ * you remove your own. Neither step may block the sign-out itself; an
+ * endpoint the browser has dropped is cleaned up by the sender on its
+ * next 404/410.
+ */
 export async function signOut(): Promise<void> {
+  try {
+    const endpoint = await unsubscribeFromPush();
+    if (endpoint) await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+  } catch {
+    // Unsubscribing is best effort; the session still has to end.
+  }
   await supabase.auth.signOut();
 }
 

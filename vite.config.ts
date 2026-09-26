@@ -65,30 +65,10 @@ export default defineConfig({
         globIgnores: ["**/splash/**"],
         // Custom Web Push handlers, loaded into the generated SW
         importScripts: ["push-sw.js"],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "supabase-cache",
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
-              networkTimeoutSeconds: 5,
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: "StaleWhileRevalidate",
-            options: { cacheName: "google-fonts-css" },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "google-fonts-files",
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-        ],
+        // No runtime caching. Supabase responses used to be cached here,
+        // which kept a day of one account's API replies on disk after it
+        // signed out — while React Query's persisted cache already covers
+        // offline, and sign-out clears that one. Fonts ship in the bundle.
       },
     }),
   ],
