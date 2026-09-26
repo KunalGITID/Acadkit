@@ -28,3 +28,7 @@ scripts/portal-sync/dist/
 
 # Supabase CLI working files (project ref, pooler host) — local cache, not source
 supabase/.temp/
+
+# Personal exports analysed by notebooks/ — never commit them
+notebooks/*.json
+notebooks/.ipynb_checkpoints/
