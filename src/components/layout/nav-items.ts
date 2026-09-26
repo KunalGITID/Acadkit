@@ -5,10 +5,9 @@ import {
   GraduationCap,
   History,
   House,
+  LifeBuoy,
   ListX,
-  PartyPopper,
   Settings,
-  Sparkles,
   UserCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -42,14 +41,11 @@ export const NAV_ITEMS: NavItem[] = [
  * single source for both.
  */
 export const SECONDARY_NAV: NavItem[] = [
-  { to: "/insights", label: "Insights", icon: Sparkles, blurb: "Projections, risk and what-ifs" },
+  { to: "/survival", label: "Survival", icon: LifeBuoy, blurb: "Which days you can skip" },
   { to: "/log", label: "Absences", icon: ListX, blurb: "Every period you've missed" },
   { to: "/history", label: "History", icon: History, blurb: "Past semesters and CGPA" },
-  // Wrapped was reachable only from Settings, which is where nobody looks
-  // at the end of term — the one moment it is worth opening. It stays out
-  // of the tab bar (five daily destinations, and this is not one) but
-  // belongs in the drawer with the other occasional pages.
-  { to: "/wrapped", label: "Wrapped", icon: PartyPopper, blurb: "Your semester, counted up" },
+  // No Wrapped: it plays once, when you archive a semester (History),
+  // rather than sitting here to be opened any day of the term.
 ];
 
 /** Contents of the More sheet. Settings has its own button, so it's not repeated here. */

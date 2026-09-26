@@ -5,8 +5,9 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
-import { useAddMark, useDeleteMark, useTimetable, useUpdateMark } from "@/hooks/useData";
-import type { Mark, MarkComponentType, Subject } from "@/types";
+import { useAddMark, useDeleteMark, useTimetable, useUpdateMark, useUpdateSubject } from "@/hooks/useData";
+import { announceComponent } from "@/lib/plan";
+import type { Mark, MarkComponentType, PlannedComponent, Subject } from "@/types";
 import {
   AUTO_LABEL,
   isLabIntegrated,
@@ -25,9 +26,11 @@ interface MarkSheetProps {
   mark: Mark | null;
   /** The subject's existing internal components (for auto-numbering labels). */
   existing: Mark[];
+  /** An announced component to enter the mark for — prefills label and max. */
+  announced?: PlannedComponent | null;
 }
 
-export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetProps) {
+export function MarkSheet({ open, onClose, subject, mark, existing, announced = null }: MarkSheetProps) {
   const { data: timetable } = useTimetable();
   // Lab-integrated courses name their components FJ/LLJ where theory
   // courses use FT/LLT. See src/lib/componentLabel.ts.
@@ -35,6 +38,7 @@ export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetP
   const add = useAddMark();
   const update = useUpdateMark();
   const remove = useDeleteMark();
+  const updateSubject = useUpdateSubject();
 
   const [label, setLabel] = useState("");
   const [componentType, setComponentType] = useState<MarkComponentType>("CT");
@@ -51,6 +55,11 @@ export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetP
       setComponentType(mark.component_type);
       setObtained(String(mark.marks_obtained));
       setMax(String(mark.max_marks));
+    } else if (announced) {
+      setComponentType(announced.type === "External" ? "CT" : announced.type);
+      setLabel(announced.label);
+      setObtained("");
+      setMax(String(announced.max));
     } else {
       setComponentType("CT");
       setLabel(nextLabel("CT"));
@@ -58,7 +67,15 @@ export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetP
       setMax("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mark]);
+  }, [open, mark, announced]);
+
+  /**
+   * No score yet means announced, not marked: it goes into the subject's
+   * plan, so the Targets tab can give it a number to aim at. Only when
+   * adding — clearing the score on an existing mark is a mistake, not an
+   * announcement — and not for a component that is already announced.
+   */
+  const announcing = !mark && !announced && obtained.trim() === "";
 
   function pickType(type: MarkComponentType) {
     setComponentType(type);
@@ -68,6 +85,21 @@ export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetP
 
   function save() {
     if (!subject) return;
+    if (announcing) {
+      const result = announceComponent(subject, {
+        label,
+        type: componentType,
+        max: max.trim() === "" ? NaN : Number(max),
+      }, existing);
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+      updateSubject.mutate({ id: subject.id, patch: { assessment: result.assessment } });
+      toast.success(`${label.trim()} announced — Targets has a number for it now`);
+      onClose();
+      return;
+    }
     const obt = Number(obtained);
     const mx = Number(max);
     if (!label.trim()) {
@@ -95,7 +127,7 @@ export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetP
     <Sheet
       open={open}
       onOpenChange={(o) => !o && onClose()}
-      title={mark ? "Edit marks" : "Add marks"}
+      title={mark ? "Edit marks" : announced ? `Marks for ${announced.label}` : "Add marks"}
       description={subject ? subject.name : undefined}
     >
       <div className="space-y-4">
@@ -140,6 +172,13 @@ export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetP
           </Field>
         </div>
 
+        {!mark && !announced && (
+          <p className="-mt-1 text-xs font-medium text-muted">
+            Not marked yet? Leave Obtained blank to announce it — it's added to the plan with a
+            target, and you fill in the score when it's back.
+          </p>
+        )}
+
         <div className="flex gap-2.5 pt-1">
           {mark && (
             <Button
@@ -156,7 +195,7 @@ export function MarkSheet({ open, onClose, subject, mark, existing }: MarkSheetP
             </Button>
           )}
           <Button size="lg" className="h-12 flex-1" onClick={save}>
-            {mark ? "Save changes" : "Add marks"}
+            {mark ? "Save changes" : announcing ? "Announce component" : "Add marks"}
           </Button>
         </div>
       </div>

@@ -312,14 +312,23 @@ Computes per-subject `canBunk` / `needToAttend` against that bar, in integer ari
 
 ### Pages & layout
 
-Eleven lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/insights`, `/timetable`, `/calendar`, `/log`, `/files`, `/history`, `/wrapped`, `/settings`) plus `Onboarding` and `SignIn`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/insights`, `/log`, `/history`, `/wrapped`) is reached through the **More** sheet on both layouts — the desktop sidebar is the same five, then Study, More, and Settings pinned to the bottom. **Study** (`/files`, `STUDY_ITEM`) is deliberately not in More: it has its own book button in the phone's top bar, beside More and Settings — and on mobile that sheet is which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
+Eleven lazy-loaded pages under `src/pages/` (Dashboard `/`, `/attendance`, `/marks`, `/survival`, `/timetable`, `/calendar`, `/log`, `/files`, `/history`, `/wrapped`, `/settings`; `/insights` redirects to `/survival`) plus `Onboarding` and `SignIn`. `NAV_ITEMS` is exactly the five daily destinations — an iOS tab bar shows no more — and drives both the bottom bar and the top of the sidebar. `SECONDARY_NAV` (`/survival`, `/log`, `/history`) is reached through the **More** sheet on both layouts — the desktop sidebar is the same five, then Study, More, and Settings pinned to the bottom. **Study** (`/files`, `STUDY_ITEM`) is deliberately not in More: it has its own book button in the phone's top bar, beside More and Settings — and on mobile that sheet is which is the only way in for an installed iOS PWA: there's no browser UI to fall back on. `src/components/layout/app-shell.tsx` renders a sidebar on desktop (lg+) and a glass top bar + bottom nav on mobile, with framer-motion page transitions. Shared bottom sheets (vaul) live in `src/components/sheets/`; viz primitives (animated numbers, rings, SGPA dial, heatmap) in `src/components/viz/`.
 
-Marks is now a single view — the segmented Marks/Calculator switcher,
-its slide animation and the swipe between the two went with the
-calculators themselves. A two-tab control whose second tab is empty is
-worse than no control.
+Marks has three tabs — Marks (entry), Targets (the budget cards) and
+Expected. The old Marks/Calculator switcher went with the calculators:
+a two-tab control whose second tab is empty is worse than no control.
 
-**Everything grade-shaped lives on `/insights`.** The Marks page used to
+**Insights was split up.** Its attendance forecast is the Forecast tab
+on Attendance, its grade budget is the Targets tab on Marks (with
+Expected beside it, `src/lib/expected.ts`), and the per-day survival
+plan is its own page in More. Both tabs read `useProjectionReport`
+(`src/hooks/useProjectionReport.ts`), so they project from the same
+inputs. **Wrapped is not in the nav**: History's archive flow navigates
+to it with `state.archived`, anything else is redirected to History,
+and "start the new semester" (clearing the term) is its last card —
+clearing first would delete what the recap counts.
+
+**Everything grade-shaped lives on Marks → Targets** (formerly `/insights`). The Marks page used to
 carry its own calculator strip (`components/marks/calculators.tsx`) —
 "what do I need in the end-sem", a target-SGPA table, and a CGPA pad —
 while Insights carried the projections: two screens answering

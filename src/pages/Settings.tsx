@@ -220,7 +220,7 @@ function AssumedExternalCard() {
         <div>
           <p className="font-bold">Assume the end-sem</p>
           <p className="mt-0.5 text-xs text-muted">
-            Hand the end-sem a fixed score and Insights solves your internals against what's
+            Hand the end-sem a fixed score and Marks → Targets solves your internals against what's
             left of each grade — the question you're actually asking when the exam is the
             easy part. Leave blank to spread targets across it like everything else.
           </p>
@@ -285,7 +285,7 @@ function TargetSgpaCard() {
         <div>
           <p className="font-bold">Target SGPA</p>
           <p className="mt-0.5 text-xs text-muted">
-            What this semester is aiming at. Insights works backwards from it to say which
+            What this semester is aiming at. Marks → Targets works backwards from it to say which
             subjects have to move, and Marks shows the gap.
           </p>
         </div>

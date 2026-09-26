@@ -19,7 +19,7 @@ const SHOWN = 3;
  *
  * This is a summary, not a second copy of the plan: the next few free
  * dates and the day the slack runs out. The full per-class breakdown
- * stays in Insights, one tap away.
+ * is on the Survival page, one tap away.
  */
 export function SurvivalCard() {
   const tone = useTone();
@@ -32,7 +32,7 @@ export function SurvivalCard() {
   const next = plan.freeDays.slice(0, SHOWN);
 
   return (
-    <Link to="/insights" className="card block p-5 transition-transform active:scale-[0.99]">
+    <Link to="/survival" className="card block p-5 transition-transform active:scale-[0.99]">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
           {say(VOICE.survivalTitle, tone)}

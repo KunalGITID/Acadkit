@@ -26,7 +26,7 @@ const Timetable = lazy(() => import("@/pages/Timetable"));
 const Calendar = lazy(() => import("@/pages/Calendar"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const AbsentLog = lazy(() => import("@/pages/AbsentLog"));
-const Insights = lazy(() => import("@/pages/Insights"));
+const Survival = lazy(() => import("@/pages/Survival"));
 const History = lazy(() => import("@/pages/History"));
 const Wrapped = lazy(() => import("@/pages/Wrapped"));
 const Files = lazy(() => import("@/pages/Files"));
@@ -134,7 +134,9 @@ export default function App() {
                   <Route index element={<Dashboard />} />
                   <Route path="/attendance" element={<Attendance />} />
                   <Route path="/marks" element={<Marks />} />
-                  <Route path="/insights" element={<Insights />} />
+                  <Route path="/survival" element={<Survival />} />
+                  {/* Old links and home-screen bookmarks. */}
+                  <Route path="/insights" element={<Navigate to="/survival" replace />} />
                   <Route path="/timetable" element={<Timetable />} />
                   <Route path="/calendar" element={<Calendar />} />
                   <Route path="/settings" element={<Settings />} />

@@ -46,7 +46,7 @@ function pct(rate: number): string {
  * always what the target SGPA implies — the whole reason this is a
  * per-subject control and not one number in Settings.
  */
-function TargetPicker({ p }: { p: SubjectGradeProjection }) {
+export function TargetPicker({ p }: { p: SubjectGradeProjection }) {
   const update = useUpdateSubject();
   const color = GRADE_COLORS[p.targetGrade];
   return (
@@ -218,7 +218,7 @@ function ComponentRow({
  * Committed on blur or Enter rather than per keystroke: it is a write
  * that syncs across devices, not a slider.
  */
-function EndSemRow({ p, c }: { p: SubjectGradeProjection; c: SolvedComponent }) {
+export function EndSemRow({ p, c }: { p: SubjectGradeProjection; c: SolvedComponent }) {
   const update = useUpdateSubject();
   const stored = c.assumed === null ? "" : String(floorHalf(c.assumed));
   const [draft, setDraft] = useState(stored);

@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Share2 } from "lucide-react";
+import { ArrowLeft, Loader2, Share2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/misc";
 import { AnimatedNumber } from "@/components/viz/animated-number";
@@ -23,6 +25,8 @@ import { useTone } from "@/hooks/useTone";
 import { useSwipe } from "@/hooks/useSwipe";
 import { useAppStore } from "@/store/app";
 import { cn } from "@/lib/utils";
+import { useDialog } from "@/components/ui/dialog";
+import { clearAcademicData } from "@/api/queries";
 
 /**
  * The semester as a set of cards you swipe through.
@@ -33,9 +37,15 @@ import { cn } from "@/lib/utils";
  * slides are filtered rather than rendered with a fallback. One made-up
  * stat makes the reader distrust the other nine.
  *
- * It lives outside the tab bar because it is an occasion, not a
- * destination: reached from Settings or a dashboard link, read once, and
- * shared. Putting it in the nav would make it furniture.
+ * It is an occasion, not a destination. It plays once, straight after
+ * you archive a semester in History — the one moment it means anything
+ * — and then offers to clear the term and start the next. Opened any
+ * other way it sends you to History: a recap you can pull up in week
+ * three is furniture, and one you get at the end is a send-off.
+ *
+ * Starting fresh lives on the last card rather than in History because
+ * clearing the term deletes what these cards are counted from. Asking
+ * before the recap had played would have wiped it before you saw it.
  */
 
 interface Slide {
@@ -45,6 +55,15 @@ interface Slide {
 
 export default function Wrapped() {
   const tone = useTone();
+  const location = useLocation();
+  // Set by History's archive flow; nothing else links here. Read once:
+  // page transitions keep this page rendered while it animates out, and
+  // it re-renders with the *next* location — whose state has no label —
+  // so reading it live sent "start the new semester" to History instead
+  // of Home.
+  const [archived] = useState(
+    () => (location.state as { archived?: string } | null)?.archived ?? null
+  );
   const { data: subjects } = useSubjects();
   const { data: attendance } = useAttendance();
   const { data: snapshots } = usePortalSnapshots();
@@ -160,6 +179,8 @@ export default function Wrapped() {
     }
   }
 
+  if (!archived) return <Navigate to="/history" replace />;
+
   if (data.empty) {
     return (
       <div className="space-y-4">
@@ -169,6 +190,7 @@ export default function Wrapped() {
           title={say(VOICE.wrappedTitle, tone)}
           description={say(VOICE.wrappedEmpty, tone)}
         />
+        <StartFresh label={archived} />
       </div>
     );
   }
@@ -178,6 +200,9 @@ export default function Wrapped() {
   return (
     <div className="space-y-4">
       <BackLink />
+      <p className="flex items-center gap-1.5 px-1 text-xs font-bold uppercase tracking-widest text-muted">
+        <Sparkles className="h-3.5 w-3.5 text-accent" /> {archived} · that's a wrap
+      </p>
 
       {/* Story progress: one segment per slide, filled up to where you
           are. Tapping a segment jumps, which is the only affordance a
@@ -253,17 +278,72 @@ export default function Wrapped() {
       {shareNote && (
         <p className="px-1 text-center text-xs font-semibold text-muted">{shareNote}</p>
       )}
+      {/* Only after the last card: the recap first, then the goodbye. */}
+      {index === slides.length - 1 && <StartFresh label={archived} />}
     </div>
+  );
+}
+
+/**
+ * The step archiving used to ask straight away. It clears the term the
+ * cards above were counted from, so it waits until they've been seen.
+ */
+function StartFresh({ label }: { label: string }) {
+  const tone = useTone();
+  const { confirm } = useDialog();
+  const pin = useAppStore((s) => s.pin)!;
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+
+  async function start() {
+    const ok = await confirm({
+      title: "Start the new semester?",
+      body: `${label} is saved in History. This clears its subjects, timetable, attendance and marks — and this recap with them.`,
+      confirmLabel: "Clear and start fresh",
+      destructive: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await clearAcademicData(pin);
+      // Leave before the refetch, so the recap isn't seen emptying out.
+      navigate("/", { replace: true });
+      toast.success(say(VOICE.semesterCleared, tone));
+      await qc.invalidateQueries();
+    } catch (err) {
+      toast.error("Couldn't clear the semester", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <p className="text-sm font-semibold text-muted">
+        Screenshot what you want to keep — this recap goes when the new semester starts.
+      </p>
+      <div className="flex gap-2">
+        <Button variant="secondary" className="flex-1" onClick={() => navigate("/history")}>
+          Not yet
+        </Button>
+        <Button className="flex-1" onClick={start} disabled={busy}>
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+          Start the new semester
+        </Button>
+      </div>
+    </section>
   );
 }
 
 function BackLink() {
   return (
     <Link
-      to="/settings"
+      to="/history"
       className="inline-flex items-center gap-1.5 px-1 text-sm font-semibold text-muted"
     >
-      <ArrowLeft className="h-4 w-4" /> Settings
+      <ArrowLeft className="h-4 w-4" /> History
     </Link>
   );
 }

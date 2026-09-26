@@ -20,7 +20,8 @@ import {
   useSettings,
   useSubjects,
 } from "@/hooks/useData";
-import { clearAcademicData, insertArchive } from "@/api/queries";
+import { insertArchive } from "@/api/queries";
+import { useNavigate } from "react-router-dom";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { computeOverallAttendance } from "@/lib/attendance";
@@ -94,6 +95,7 @@ function SemesterCard({
 export default function History() {
   const tone = useTone();
   const { confirm, promptText } = useDialog();
+  const navigate = useNavigate();
   const pin = useAppStore((s) => s.pin)!;
   const qc = useQueryClient();
   const { data: archives, isLoading } = useArchives();
@@ -166,18 +168,9 @@ export default function History() {
       });
       await qc.invalidateQueries({ queryKey: ["archives", pin] });
       toast.success(say(VOICE.semesterArchived, tone));
-
-      const startFresh = await confirm({
-        title: "Start the new semester?",
-        body: "Clears this semester's subjects, timetable, attendance and marks. Your archived history stays.",
-        confirmLabel: "Clear and start fresh",
-        destructive: true,
-      });
-      if (startFresh) {
-        await clearAcademicData(pin);
-        await qc.invalidateQueries();
-        toast.success(say(VOICE.semesterCleared, tone));
-      }
+      // The recap plays now, while the term it counts is still here;
+      // clearing for the new semester is its last card (Wrapped.tsx).
+      navigate("/wrapped", { state: { archived: label.trim() || defaultLabel } });
     } catch (err) {
       toast.error("Couldn't archive", {
         description: err instanceof Error ? err.message : undefined,

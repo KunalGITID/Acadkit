@@ -1,6 +1,5 @@
 import { listEntry } from "@/lib/enter";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
-import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -9,34 +8,25 @@ import {
   Lightbulb,
   ShieldCheck,
   Siren,
-  Sparkles,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { Badge, Dot, EmptyState, Skeleton } from "@/components/ui/misc";
+import { Badge, Dot, EmptyState } from "@/components/ui/misc";
 import { ProgressRing } from "@/components/viz/progress-ring";
 import { AnimatedNumber } from "@/components/viz/animated-number";
-import { Segmented } from "@/components/ui/segmented";
-import { useAttendance, useDeadlines, useMarks, usePortalSnapshots, useSettings, useSubjects, useTimetable } from "@/hooks/useData";
 import { attendanceColor } from "@/lib/attendance";
 import {
-  buildProjection,
   classDaysLeft,
+  type buildProjection,
   type SubjectProjection,
 } from "@/lib/projections";
 import { formatDate, todayISO } from "@/lib/dates";
-import { buildEffectiveMap, semesterWindow } from "@/lib/calendar";
+import type { semesterWindow } from "@/lib/calendar";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
-import { useSwipe } from "@/hooks/useSwipe";
-import { slideTransition, slideVariants } from "@/lib/slide";
-import { SwipeHint } from "@/components/ui/swipe-hint";
 import { RISK_STYLE } from "@/components/insights/risk";
-import { SurvivalPlan } from "@/components/insights/survival-plan";
-import { GradesProjection } from "@/components/insights/grades-projection";
-import { gradeOdds } from "@/lib/odds";
-import { cn, haptic } from "@/lib/utils";
-
+import { cn } from "@/lib/utils";
+import type { DeclaredHoliday } from "@/types";
 
 /** Risk labels read very differently in the brutal register. */
 const RISK_VOICE = {
@@ -161,164 +151,29 @@ function SubjectProjectionCard({ p, index }: { p: SubjectProjection; index: numb
 }
 
 /**
- * The survival schedule: which of the days ahead you can actually miss.
+ * Where attendance ends up by the last day of term: the overall ring,
+ * what needs attention, patterns, and a card per subject.
  *
- * Everything else in Insights is per subject. This is per *day*, which
- * is the unit you make decisions in — nobody decides "I'll attend 73% of
- * Operating Systems", they decide whether to get up on Tuesday.
+ * Lived on Insights; it's on Attendance now, beside the numbers it
+ * projects forward.
  */
-export default function Insights() {
+export function AttendanceProjection({
+  report,
+  declared,
+  semWindow,
+  noTimetable,
+}: {
+  report: ReturnType<typeof buildProjection>;
+  declared: DeclaredHoliday[];
+  semWindow: ReturnType<typeof semesterWindow>;
+  noTimetable: boolean;
+}) {
   const tone = useTone();
-  const { data: subjects, isLoading: sL } = useSubjects();
-  const { data: attendance, isLoading: aL } = useAttendance();
-  const { data: timetable, isLoading: tL } = useTimetable();
-  const { data: marks, isLoading: mL } = useMarks();
-  // Dates for the assessment plan: a list of what each test owes is
-  // more useful in the order the tests actually arrive.
-  const { data: deadlines } = useDeadlines();
-  const { data: settings } = useSettings();
-  const { data: snapshots } = usePortalSnapshots();
-  const [view, setView] = useState<"attendance" | "grades" | "plan">("attendance");
-  // Same order as the segmented control, so a swipe lands where the eye
-  // expects. Ends are walls rather than wrapping: three tabs are all on
-  // screen, so wrapping past the last one would look like a mis-swipe.
-  const VIEWS = ["attendance", "grades", "plan"] as const;
-  const [dir, setDir] = useState(0);
-  const [swiped, setSwiped] = useState(false);
-  const goView = (next: (typeof VIEWS)[number], delta: number) => {
-    setDir(delta);
-    setView(next);
-  };
-  const stepView = (delta: number) => {
-    const i = VIEWS.indexOf(view);
-    const next = VIEWS[i + delta];
-    if (!next) return;
-    setSwiped(true);
-    haptic();
-    goView(next, delta);
-  };
-  const viewSwipe = useSwipe(() => stepView(1), () => stepView(-1));
-
-  const declared = useMemo(
-    () => settings?.declared_holidays ?? [],
-    [settings?.declared_holidays]
-  );
-  // Depend on the two fields, not the settings object: React Query
-  // hands back a new object on every refetch, so listing `settings`
-  // would satisfy the linter by defeating the memo.
-  const semStart = settings?.sem_start ?? null;
-  const semEnd = settings?.sem_end ?? null;
-  const semWindow = useMemo(
-    () => semesterWindow({ sem_start: semStart, sem_end: semEnd }),
-    [semStart, semEnd]
-  );
-  // Working days ahead, declared holidays already shifted out.
-  const effMap = useMemo(
-    () => buildEffectiveMap(declared, semWindow),
-    [declared, semWindow]
-  );
-  const report = useMemo(
-    () =>
-      buildProjection(
-        subjects ?? [],
-        attendance ?? [],
-        timetable ?? [],
-        marks ?? [],
-        declared,
-        todayISO(),
-        semWindow,
-        // A subject with no target of its own inherits the one implied
-        // by the target SGPA, so the two can never disagree.
-        settings?.target_sgpa ?? 8.5,
-        deadlines ?? [],
-        settings?.assumed_external_pct ?? null,
-        // The portal baseline, as on the Attendance page — without it
-        // this page counted hand-marked classes only.
-        snapshots ?? []
-      ),
-    [
-      subjects,
-      attendance,
-      timetable,
-      marks,
-      declared,
-      semWindow,
-      settings?.target_sgpa,
-      settings?.assumed_external_pct,
-      deadlines,
-      snapshots,
-    ]
-  );
-  // Odds for every grade, simulated from the same projections the cards
-  // are built from, so a card and its odds can't be about different marks.
-  const odds = useMemo(
-    () => gradeOdds(report.gradeProjections, report.targetSgpa),
-    [report]
-  );
-
-  if (sL || aL || tL || mL) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-9 w-40" />
-        <Skeleton className="h-44 w-full" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    );
-  }
-
-  const noTimetable = (timetable ?? []).length === 0;
   const daysLeft = classDaysLeft(declared, todayISO(), semWindow);
   const preSem = todayISO() < semWindow.start;
   const o = report.overall;
 
-  return (
-    <div className="space-y-4">
-      {/* Stacked on phones. The brutalist h1 is clamp(2.25rem, 8vw, …)
-          and wraps to three lines, so a 288px control beside it had
-          nowhere to go but off the right edge — a fixed width can't
-          shrink, so the third tab was simply unreachable. */}
-      <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight lg:text-3xl">
-          <Sparkles className="h-6 w-6 shrink-0 text-accent" />{say(VOICE.titleInsights, tone)}</h1>
-        <Segmented
-          layoutId="insights-view"
-          options={[
-            { value: "attendance", label: "Attendance" },
-            { value: "grades", label: "Grades" },
-            { value: "plan", label: say(VOICE.tabSurvival, tone) },
-          ]}
-          value={view}
-          onChange={(v) => {
-            const next = v as (typeof VIEWS)[number];
-            goView(next, VIEWS.indexOf(next) > VIEWS.indexOf(view) ? 1 : -1);
-          }}
-          className="w-full shrink-0 sm:w-72"
-        />
-      </div>
-
-      <SwipeHint id="insights" dismissed={swiped} />
-
-      <motion.div
-        key={view}
-        custom={dir}
-        variants={slideVariants}
-        initial="enter"
-        animate="center"
-        transition={slideTransition}
-        data-swipe
-        {...viewSwipe}
-      >
-      {view === "grades" ? (
-        <GradesProjection report={report} odds={odds} />
-      ) : view === "plan" ? (
-        <SurvivalPlan
-          subjects={subjects ?? []}
-          attendance={attendance ?? []}
-          snapshots={snapshots ?? []}
-          timetable={timetable ?? []}
-          effMap={effMap}
-        />
-      ) : noTimetable ? (
+  return noTimetable ? (
         <section className="card">
           <EmptyState
             icon={CalendarClock}
@@ -327,7 +182,7 @@ export default function Insights() {
           />
         </section>
       ) : (
-        <>
+        <div className="space-y-4">
           {/* Overall hero */}
           <section className="card flex flex-col items-center gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:px-8">
             <ProgressRing
@@ -402,10 +257,7 @@ export default function Insights() {
                 <SubjectProjectionCard key={p.subject.id} p={p} index={i} />
               ))}
           </div>
-        </>
-      )}
-      </motion.div>
-    </div>
+        </div>
   );
 }
 

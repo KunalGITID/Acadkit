@@ -120,6 +120,7 @@ export function assessmentFor(subject: Subject): Assessment {
     internal,
     complete: raw?.complete ?? false,
     assumedExternalPct: raw?.assumedExternalPct ?? null,
+    expected: raw?.expected ?? null,
     components: (raw?.components ?? []).filter(
       (c) => c && Number.isFinite(c.max) && c.max > 0
     ),
@@ -166,6 +167,81 @@ export function editableAssessment(
       assumedExternalPct: null,
     }
   );
+}
+
+/**
+ * Add a component the moment it's announced, from the Marks page.
+ *
+ * The plan editor lives in the subject sheet under Settings, which is
+ * nowhere near where you are when a faculty member says "FT-3 is out of
+ * 15, next Tuesday". So the mark sheet accepts a component with no score
+ * yet, and this is what it writes.
+ *
+ * Refuses rather than distorts: a label the plan already has (by match
+ * key, so "FT 3" is FT-3) would be the same test twice, and a weight
+ * past what is still unannounced would scale every existing row down to
+ * fit — the failure `claimDeadlines` is written to avoid. A plan marked
+ * complete is in its own units, so there the weight isn't checked.
+ */
+export function announceComponent(
+  subject: Subject,
+  component: { label: string; type: MarkComponentType; max: number },
+  marks: Mark[] = []
+): { assessment: Assessment } | { error: string } {
+  const base = editableAssessment(subject.assessment, !!subject.internal_only);
+  const label = component.label.trim();
+  if (!label) return { error: "Give the component a label" };
+  if (!Number.isFinite(component.max) || component.max <= 0)
+    return { error: "Enter what it's out of" };
+
+  const key = labelMatchKey(label);
+  if (base.components.some((c) => labelMatchKey(c.label) === key))
+    return { error: `${label} is already announced` };
+
+  if (!base.complete) {
+    // Graded marks the plan doesn't name still take their weight — the
+    // budget counts them as "extra" components — so they have to be in
+    // the sum, or the announcement fits here and then rescales the plan.
+    const declared = new Set(base.components.map((c) => labelMatchKey(c.label)));
+    const extras = marks.filter(
+      (m) => !m.is_external && Number(m.max_marks) > 0 && !declared.has(labelMatchKey(m.label))
+    );
+    const claimed =
+      base.components.reduce((s, c) => s + (Number(c.max) || 0), 0) +
+      extras.reduce((s, m) => s + Number(m.max_marks), 0);
+    const free = base.internal - claimed;
+    if (component.max > free + 1e-9) {
+      const taken = extras.length
+        ? ` (${extras.map((m) => `${m.label} /${m.max_marks}`).join(", ")} count toward it — fix the plan in Settings if one is out of the wrong total)`
+        : "";
+      return {
+        error:
+          free <= 1e-9
+            ? `All ${base.internal} internal marks are accounted for${taken}`
+            : `Only ${Math.round(free * 10) / 10} of the ${base.internal} internal marks are left${taken}`,
+      };
+    }
+  }
+
+  const n = base.components.length;
+  return {
+    assessment: {
+      ...base,
+      components: [
+        ...base.components,
+        { key: `a${Date.now().toString(36)}${n}`, label, type: component.type, max: component.max },
+      ],
+    },
+  };
+}
+
+/**
+ * Declared components with no mark yet — what the Marks card shows as
+ * announced, so an announcement doesn't vanish into the plan unseen.
+ */
+export function announcedPending(subject: Subject, marks: Mark[]): PlannedComponent[] {
+  const graded = new Set(marks.filter((m) => !m.is_external).map((m) => labelMatchKey(m.label)));
+  return assessmentFor(subject).components.filter((c) => !graded.has(labelMatchKey(c.label)));
 }
 
 export type ComponentKind =

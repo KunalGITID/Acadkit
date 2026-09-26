@@ -41,6 +41,9 @@ import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Struck } from "@/components/ui/struck";
 import { cn } from "@/lib/utils";
+import { Segmented } from "@/components/ui/segmented";
+import { AttendanceProjection } from "@/components/insights/attendance-projection";
+import { useProjectionReport } from "@/hooks/useProjectionReport";
 
 function SubjectRow({
   stats,
@@ -190,6 +193,10 @@ export default function Attendance() {
   const { data: settings } = useSettings();
   const { data: timetable } = useTimetable();
   const [skipped, setSkipped] = useState<ReadonlySet<string>>(() => new Set());
+  // Where you are, or where the semester ends up. The forecast used to
+  // be a tab on Insights, a sheet away from the numbers it projects.
+  const [view, setView] = useState<"now" | "forecast">("now");
+  const projection = useProjectionReport();
 
   const overall = useMemo(
     () => computeOverallAttendance(subjects ?? [], attendance ?? [], snapshots ?? []),
@@ -297,6 +304,26 @@ export default function Attendance() {
         </div>
       </div>
 
+      <Segmented
+        layoutId="attendance-view"
+        options={[
+          { value: "now", label: "Now" },
+          { value: "forecast", label: "Forecast" },
+        ]}
+        value={view}
+        onChange={setView}
+        className="w-full sm:w-64"
+      />
+
+      {view === "forecast" ? (
+        <AttendanceProjection
+          report={projection.report}
+          declared={projection.declared}
+          semWindow={projection.semWindow}
+          noTimetable={projection.timetable.length === 0}
+        />
+      ) : (
+      <>
       <PortalCheck />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
@@ -444,6 +471,8 @@ export default function Attendance() {
       </div>
 
       <BunkWallet stats={overall.subjects} />
+      </>
+      )}
 
     </div>
   );

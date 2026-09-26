@@ -35,6 +35,18 @@ export interface Assessment {
    * already put this object on every subject.
    */
   assumedExternalPct?: number | null;
+  /**
+   * Marks you expect from tests that have been sat but not returned,
+   * keyed by `labelMatchKey`. Never counted as results — only the
+   * Expected view in Insights reads them (src/lib/expected.ts).
+   */
+  expected?: Record<string, ExpectedMark> | null;
+}
+
+/** What you think a test will return, in the units you entered it in. */
+export interface ExpectedMark {
+  obtained: number;
+  max: number;
 }
 
 export interface Subject {

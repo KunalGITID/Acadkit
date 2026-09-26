@@ -225,6 +225,7 @@ export function planOffers(suggestions: Suggestion[] | undefined, subjects: Subj
         internal: s.payload.internal,
         complete: comps.reduce((sum, c) => sum + c.max, 0) === s.payload.internal,
         assumedExternalPct: current?.assumedExternalPct ?? null,
+        expected: current?.expected ?? null,
         components: comps.map((c) => ({
           key: keep.get(labelMatchKey(c.label)) ?? `s${s.key.slice(0, 8)}${n++}`,
           label: c.label.trim(),

@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { AlertTriangle, GraduationCap } from "lucide-react";
 import { useTone } from "@/hooks/useTone";
 import { CgpaCard } from "@/components/insights/cgpa-card";
+import { ExpectedMarks } from "@/components/insights/expected-marks";
 import { SubjectBudgetCard } from "@/components/insights/subject-budget";
 import { RISK_STYLE } from "@/components/insights/risk";
 import { Dot, EmptyState } from "@/components/ui/misc";
@@ -39,9 +40,15 @@ function have(n: number): string {
 export function GradesProjection({
   report,
   odds,
+  mode = "actual",
 }: {
   report: ReturnType<typeof buildProjection>;
   odds: SemesterOdds;
+  /**
+   * Returned marks only, or with the tests you're waiting on counted at
+   * what you expect. Kept apart so a guess never reads as a result.
+   */
+  mode?: "actual" | "expected";
 }) {
   const tone = useTone();
   const oddsById = new Map(odds.subjects.map((o) => [o.subjectId, o]));
@@ -57,6 +64,9 @@ export function GradesProjection({
       </section>
     );
   }
+
+  if (mode === "expected")
+    return <ExpectedMarks report={report} />;
 
   return (
     <div className="space-y-4">

@@ -23,10 +23,13 @@ import {
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { groupMarksBySubject } from "@/lib/grades";
-import { computeSgpa, floorTotal, type SubjectOutlook } from "@/lib/plan";
+import { announcedPending, computeSgpa, floorTotal, type SubjectOutlook } from "@/lib/plan";
 import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
 import { computeOverallAttendance } from "@/lib/attendance";
-import type { Mark, Subject } from "@/types";
+import type { Mark, PlannedComponent, Subject } from "@/types";
+import { Segmented } from "@/components/ui/segmented";
+import { GradesProjection } from "@/components/insights/grades-projection";
+import { useProjectionReport } from "@/hooks/useProjectionReport";
 
 /**
  * Renders the semester to a PNG and hands it to the OS share sheet,
@@ -112,12 +115,15 @@ function SubjectMarksCard({
   subject: Subject;
   marks: SubjectOutlook;
   index: number;
-  onAdd: (subject: Subject) => void;
+  onAdd: (subject: Subject, announced?: PlannedComponent) => void;
   onEdit: (subject: Subject, mark: Mark) => void;
 }) {
   const settled = useHasAnimated("marks-subjects");
   const tone = useTone();
   const audit = subject.credits === 0;
+  // Announced in the plan, not marked yet. Shown so an announcement
+  // made from here doesn't disappear into Settings.
+  const pending = announcedPending(subject, marks.internalComponents);
 
   return (
     <motion.section
@@ -163,7 +169,7 @@ function SubjectMarksCard({
       </div>
 
       {/* Components */}
-      {marks.internalComponents.length > 0 && (
+      {(marks.internalComponents.length > 0 || pending.length > 0) && (
         <div className="mt-4 flex flex-wrap gap-2">
           {marks.internalComponents.map((m) => (
             <button
@@ -178,6 +184,18 @@ function SubjectMarksCard({
                 {m.marks_obtained}/{m.max_marks}
               </span>
               <Pencil className="h-3 w-3 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+            </button>
+          ))}
+          {pending.map((c) => (
+            <button
+              key={c.key}
+              onClick={() => onAdd(subject, c)}
+              aria-label={`Enter marks for ${c.label}`}
+              className="flex items-center gap-1.5 rounded-xl border border-dashed bg-transparent px-3 py-3 text-xs font-semibold text-muted transition-colors hover:bg-surface-2/50"
+            >
+              {c.label}
+              <span className="tabular">–/{c.max}</span>
+              <Plus className="h-3 w-3" />
             </button>
           ))}
         </div>
@@ -210,7 +228,13 @@ export default function Marks() {
 
   const [sheetSubject, setSheetSubject] = useState<Subject | null>(null);
   const [sheetMark, setSheetMark] = useState<Mark | null>(null);
+  const [sheetAnnounced, setSheetAnnounced] = useState<PlannedComponent | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // What you've got, what each test still has to return, and what the
+  // tests you're waiting on are likely to do to that. The last two were
+  // the Grades tab on Insights.
+  const [view, setView] = useState<"marks" | "targets" | "expected">("marks");
+  const { report, odds } = useProjectionReport();
 
   const result = useMemo(
     () => computeSgpa(subjects ?? [], groupMarksBySubject(marks ?? [])),
@@ -246,6 +270,22 @@ export default function Marks() {
         <ShareButton rows={result.rows} sgpa={result.sgpa} />
       </div>
 
+      <Segmented
+        layoutId="marks-view"
+        options={[
+          { value: "marks", label: "Marks" },
+          { value: "targets", label: "Targets" },
+          { value: "expected", label: "Expected" },
+        ]}
+        value={view}
+        onChange={setView}
+        className="w-full sm:w-80"
+      />
+
+      {view !== "marks" ? (
+        <GradesProjection report={report} odds={odds} mode={view === "expected" ? "expected" : "actual"} />
+      ) : (
+      <>
       <ExamPrep />
       <StudyPlanCard />
 
@@ -288,26 +328,31 @@ export default function Marks() {
                   subject={subject}
                   marks={m}
                   index={i}
-                  onAdd={(s) => {
+                  onAdd={(s, announced) => {
                     setSheetSubject(s);
                     setSheetMark(null);
+                    setSheetAnnounced(announced ?? null);
                     setSheetOpen(true);
                   }}
                   onEdit={(s, mark) => {
                     setSheetSubject(s);
                     setSheetMark(mark);
+                    setSheetAnnounced(null);
                     setSheetOpen(true);
                   }}
                 />
               ))}
         </div>
       </div>
+      </>
+      )}
 
       <MarkSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
         subject={sheetSubject}
         mark={sheetMark}
+        announced={sheetAnnounced}
         existing={(marks ?? []).filter((m) => m.subject_id === sheetSubject?.id)}
       />
     </div>
