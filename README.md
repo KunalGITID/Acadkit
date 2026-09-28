@@ -1,5 +1,7 @@
 # AcadKit
 
+[![CI](https://github.com/KunalGITID/Acadkit/actions/workflows/ci.yml/badge.svg)](https://github.com/KunalGITID/Acadkit/actions/workflows/ci.yml)
+
 A personal academic app for SRM KTR: attendance, marks and SGPA, the Day Order timetable,
 deadlines, and study files. It's a PWA, so you install it to your phone's home screen or run it
 on a Mac, and it syncs across devices when you sign in.
