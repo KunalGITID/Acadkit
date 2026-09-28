@@ -1,0 +1,60 @@
+/** Cutting extracted text into passages for search. */
+
+/** Characters Postgres won't store or JSON won't carry: NUL and the other control characters (a PDF's text layer had NULs, and the insert failed with "invalid input syntax for type json"), and a surrogate half without its pair. */
+const UNSTORABLE = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+const isHigh = (code) => code >= 0xd800 && code <= 0xdbff;
+const isLow = (code) => code >= 0xdc00 && code <= 0xdfff;
+
+/** Tidy a page: rejoin words hyphenated across lines, collapse spacing, drop bare page numbers. */
+export function cleanPage(text) {
+  return String(text ?? "")
+    .replace(UNSTORABLE, " ")
+    .replace(/\r/g, "")
+    .replace(/(\w)-\n(?=[a-z])/g, "$1")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line && !/^(page\s*)?\d+(\s*(of|\/)\s*\d+)?$/i.test(line))
+    .join("\n");
+}
+
+/**
+ * Passages from a document's pages, each remembering its page (1-based)
+ * and its index in the document. Passages with too few letters - a
+ * table of numbers, a page of OCR noise - are dropped.
+ */
+export function chunkPages(pages, { size = 900, overlap = 150, minLetters = 60 } = {}) {
+  const out = [];
+  (pages ?? []).forEach((raw, i) => {
+    const text = cleanPage(raw);
+    let start = 0;
+    while (start < text.length) {
+      let end = Math.min(start + size, text.length);
+      if (end < text.length) {
+        const half = start + Math.floor(size / 2);
+        const tail = text.slice(half, end);
+        const cut = Math.max(tail.lastIndexOf("\n"), tail.lastIndexOf(". "));
+        if (cut > 0) end = half + cut + 1;
+      }
+      // Never cut between the two halves of a character stored as a pair
+      // (emoji, and the math italics PDFs use for 𝑥 and 𝑡): half of one
+      // is a character Postgres refuses, and the whole insert fails.
+      if (end < text.length && isHigh(text.charCodeAt(end - 1))) end--;
+      const content = text.slice(start, end).replace(LONE_SURROGATE, "").trim();
+      if ((content.match(/[a-z]/gi) ?? []).length >= minLetters) out.push({ page: i + 1, content });
+      if (end >= text.length) break;
+      start = Math.max(end - overlap, start + 1);
+      if (isLow(text.charCodeAt(start))) start++;
+    }
+  });
+  return out.map((c, index) => ({ ...c, index }));
+}
+
+/** "OS_21CSC202J/02_Notes/Unit_3_Deadlocks.pdf" → "OS 21CSC202J · Unit 3 Deadlocks". */
+export function titleFor(filePath) {
+  const parts = String(filePath).split("/");
+  const name = parts[parts.length - 1].replace(/\.[a-z0-9]+$/i, "").replace(/[_]+/g, " ").trim();
+  const subject = parts.length > 1 ? parts[0].replace(/[_]+/g, " ").trim() : "";
+  return subject ? `${subject} · ${name}` : name;
+}

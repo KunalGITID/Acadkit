@@ -1,0 +1,749 @@
+import { isNonGraded } from "@/lib/grades";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { Bell, BellOff, CalendarRange, Check, ChevronDown, ClipboardPaste, Gauge, HeartPulse, Loader2, Monitor, Moon, Pencil, Plus, RefreshCw, Sun, Target, UserRound, Wand2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
+import { Dot } from "@/components/ui/misc";
+import { SubjectSheet } from "@/components/sheets/subject-sheet";
+import { PortalPasteSheet } from "@/components/sheets/portal-paste-sheet";
+import { usePush } from "@/hooks/usePush";
+import { useSession } from "@/hooks/useSession";
+import { DataCard } from "@/components/settings/data-card";
+import { ThemePicker } from "@/components/settings/theme-picker";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
+import { syncHealth } from "@/lib/syncHealth";
+import { relativeDay } from "@/lib/dates";
+import { signOut } from "@/lib/auth";
+import {
+  updateSettings as apiUpdateSettings,
+} from "@/api/queries";
+import {
+  useAttendance,
+  useAutoMark,
+  useClearAutoMarks,
+  usePortalSnapshots,
+  useSettings,
+  useSubjects,
+  useUpdateSubject,
+  useUpdateSettings,
+} from "@/hooks/useData";
+import { semesterWindow } from "@/lib/calendar";
+import { describePending } from "@/lib/autoMark";
+import { usePendingAutoMarks } from "@/hooks/useAutoMark";
+import { cn, haptic } from "@/lib/utils";
+import { useAppStore, type ColorMode } from "@/store/app";
+import type { Subject } from "@/types";
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-1 text-xs font-bold uppercase tracking-widest text-muted">{children}</p>
+  );
+}
+
+function ProfileCard() {
+  const pin = useAppStore((s) => s.pin)!;
+  const localName = useAppStore((s) => s.name);
+  const setName = useAppStore((s) => s.setName);
+  const { data: settings } = useSettings();
+  const [input, setInput] = useState(settings?.name ?? localName);
+  const [saved, setSaved] = useState(false);
+
+  // Adopt the cloud name once it loads, unless the user already typed
+  useEffect(() => {
+    if (settings?.name && input === "") setInput(settings.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings?.name]);
+
+  function save() {
+    const name = input.trim();
+    setName(name);
+    // Best-effort cloud copy so the name follows the PIN (needs migration 007)
+    void apiUpdateSettings(pin, { name }).catch(() => {});
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+    toast.success(name ? `Hi, ${name}!` : "Name cleared");
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div>
+        <p className="font-bold">Your name</p>
+        <p className="mt-0.5 text-xs text-muted">
+          Used for the dashboard greeting - "Good morning, {input.trim() || "you"}".
+        </p>
+      </div>
+      <div className="flex gap-2.5">
+        <Input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="e.g. Kunal"
+          maxLength={30}
+        />
+        <Button onClick={save} className="h-12 shrink-0">
+          {saved ? <Check className="h-4 w-4" /> : null}
+          {saved ? "Saved" : "Save"}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+function SemesterDatesCard() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  // Depend on the two fields, not the settings object: React Query
+  // hands back a new object on every refetch, so listing `settings`
+  // would satisfy the linter by defeating the memo.
+  const semStart = settings?.sem_start ?? null;
+  const semEnd = settings?.sem_end ?? null;
+  const defaults = useMemo(
+    () => semesterWindow({ sem_start: semStart, sem_end: semEnd }),
+    [semStart, semEnd]
+  );
+  const [start, setStart] = useState(defaults.start);
+  const [end, setEnd] = useState(defaults.end);
+  const [saved, setSaved] = useState(false);
+
+  // Adopt the loaded/cloud values once, unless the user is mid-edit
+  useEffect(() => {
+    setStart(defaults.start);
+    setEnd(defaults.end);
+  }, [defaults.start, defaults.end]);
+
+  const dirty = start !== defaults.start || end !== defaults.end;
+  const invalid = !start || !end || start >= end;
+
+  function save() {
+    if (invalid) {
+      toast.error("Start date must be before the end date");
+      return;
+    }
+    updateSettings.mutate({ sem_start: start, sem_end: end });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+    toast.success("Semester dates updated - day orders recalculated everywhere");
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/12 text-accent">
+          <CalendarRange className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="font-bold">Semester dates</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Drives the Day Order rotation across the whole app. Update these whenever the
+            semester plan changes.
+          </p>
+        </div>
+      </div>
+      {/* iOS renders date fields natively and won't shrink them below
+          their intrinsic width, so two across overflow and overlap on a
+          phone. Side by side only once there's room. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Classes start">
+          <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+        </Field>
+        <Field label="Semester ends">
+          <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </Field>
+      </div>
+      <Button onClick={save} disabled={!dirty || invalid} className="w-full">
+        {saved ? <Check className="h-4 w-4" /> : null}
+        {saved ? "Saved" : "Save semester dates"}
+      </Button>
+    </section>
+  );
+}
+
+/** Medical leave, for the whole semester. */
+function MedicalLeaveCard() {
+  const { data: subjects } = useSubjects();
+  const update = useUpdateSubject();
+  const list = subjects ?? [];
+  const on = list.length > 0 && list.every((s) => s.medical_leave);
+  const some = list.filter((s) => s.medical_leave);
+
+  function set(next: boolean) {
+    for (const s of list) if (!!s.medical_leave !== next) update.mutate({ id: s.id, patch: { medical_leave: next } });
+    toast.success(next ? "Medical leave on - every subject's bar is now 65%" : "Medical leave off - back to 75%");
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <label className="flex cursor-pointer items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/12 text-accent">
+          <HeartPulse className="h-5 w-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-bold">Medical leave granted (ML)</span>
+          <span className="mt-0.5 block text-xs text-muted">
+            For the whole semester: every subject's attendance bar drops from 75% to 65% - the survival
+            plan, what you can skip, the colours, whether you can sit the end-sem and the reminders all
+            follow.
+          </span>
+          {!on && some.length > 0 && (
+            <span className="mt-1.5 block text-xs font-semibold text-warn-deep">
+              On for {some.map((s) => s.short_name?.trim() || s.name).join(", ")} only. Tick to apply it to every subject.
+            </span>
+          )}
+        </span>
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={list.length === 0}
+          onChange={(e) => set(e.target.checked)}
+          className="mt-1 h-5 w-5 shrink-0 accent-[hsl(var(--accent))]"
+          aria-label="Medical leave granted for this semester"
+        />
+      </label>
+    </section>
+  );
+}
+
+/** The SGPA this semester is aiming at. */
+/** What to expect of the end-sem. */
+function AssumedExternalCard() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const stored = settings?.assumed_external_pct ?? null;
+  const [value, setValue] = useState(stored === null ? "" : String(stored));
+
+  useEffect(() => {
+    setValue(stored === null ? "" : String(stored));
+  }, [stored]);
+
+  const blank = value.trim() === "";
+  const parsed = Number(value);
+  const invalid = !blank && (Number.isNaN(parsed) || parsed < 0 || parsed > 100);
+  const dirty = !invalid && (blank ? stored !== null : parsed !== stored);
+
+  function save() {
+    if (invalid) {
+      toast.error("Pick a percentage between 0 and 100");
+      return;
+    }
+    const next = blank ? null : parsed;
+    updateSettings.mutate({ assumed_external_pct: next });
+    toast.success(
+      next === null
+        ? "End-sem back in the spread"
+        : `Assuming ${next}% in the end-sem`
+    );
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/12 text-accent">
+          <Gauge className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="font-bold">Assume the end-sem</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Hand the end-sem a fixed score and Marks → Targets solves your internals against what's
+            left of each grade - the question you're actually asking when the exam is the
+            easy part. Leave blank to spread targets across it like everything else.
+          </p>
+        </div>
+      </div>
+      <Field label="Expected end-sem score (%)">
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={100}
+          placeholder="blank - solve it like any other component"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      </Field>
+      <p className="text-[11px] text-muted">
+        Only the <b>ask</b> moves. Banked, pace and ceiling stay the true range, so an
+        optimistic guess here can't flatter the forecast.
+      </p>
+      <Button className="w-full" disabled={!dirty} onClick={save}>
+        {dirty ? "Save" : "Saved"}
+      </Button>
+    </section>
+  );
+}
+
+function TargetSgpaCard() {
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
+  const stored = settings?.target_sgpa ?? 8.5;
+  const [value, setValue] = useState(String(stored));
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setValue(String(stored));
+  }, [stored]);
+
+  const parsed = Number(value);
+  // Below 5 is an F average, above 10 is off the scale; neither is a
+  // goal, and both would make every plan nonsense.
+  const invalid = !value || Number.isNaN(parsed) || parsed < 5 || parsed > 10;
+  const dirty = !invalid && parsed !== stored;
+
+  function save() {
+    if (invalid) {
+      toast.error("Pick a target between 5.0 and 10.0");
+      return;
+    }
+    updateSettings.mutate({ target_sgpa: parsed });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+    toast.success(`Aiming at ${parsed.toFixed(1)} SGPA`);
+  }
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/12 text-accent">
+          <Target className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="font-bold">Target SGPA</p>
+          <p className="mt-0.5 text-xs text-muted">
+            What this semester is aiming at. Marks → Targets works backwards from it to say which
+            subjects have to move, and Marks shows the gap.
+          </p>
+        </div>
+      </div>
+      <Field label="Target">
+        <Input
+          type="number"
+          inputMode="decimal"
+          step="0.1"
+          min="5"
+          max="10"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      </Field>
+      <Button onClick={save} disabled={!dirty} className="w-full">
+        {saved ? <Check className="h-4 w-4" /> : null}
+        {saved ? "Saved" : "Save target"}
+      </Button>
+    </section>
+  );
+}
+
+function SubjectsCard() {
+  const { data: subjects } = useSubjects();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editing, setEditing] = useState<Subject | null>(null);
+
+  return (
+    <section className="card p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <p className="font-bold">Subjects</p>
+          <p className="mt-0.5 text-xs text-muted">
+            {(subjects ?? []).length} subjects ·{" "}
+            {(subjects ?? []).reduce((s, x) => s + x.credits, 0)} credits
+          </p>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            setEditing(null);
+            setSheetOpen(true);
+          }}
+        >
+          <Plus className="h-4 w-4" /> Add
+        </Button>
+      </div>
+      <div className="space-y-1.5">
+        {(subjects ?? []).map((s) => (
+          <button
+            key={s.id}
+            onClick={() => {
+              setEditing(s);
+              setSheetOpen(true);
+            }}
+            className="group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-surface-2/70"
+          >
+            <Dot color={s.color_hex} />
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{s.name}</span>
+            <span className="text-xs font-medium text-muted">
+              {s.credits === 0 ? "audit" : isNonGraded(s.code) ? `${s.credits} cr · non-graded` : `${s.credits} cr`}
+            </span>
+            <Pencil className="h-3.5 w-3.5 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+          </button>
+        ))}
+      </div>
+      <SubjectSheet open={sheetOpen} onClose={() => setSheetOpen(false)} subject={editing} />
+    </section>
+  );
+}
+
+function NotificationsCard() {
+  const { supported, subscribed, busy, permission, enable, disable } = usePush();
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start gap-3">
+        <span
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
+            subscribed ? "bg-accent/12 text-accent" : "bg-surface-2 text-muted"
+          )}
+        >
+          {subscribed ? <Bell className="h-5 w-5" /> : <BellOff className="h-5 w-5" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold">Reminders</p>
+          <p className="mt-0.5 text-xs text-muted">
+            Class starting soon, deadlines due, a nudge to mark attendance, and low-attendance
+            alerts.
+          </p>
+        </div>
+      </div>
+
+      {!supported ? (
+        <p className="rounded-2xl bg-surface-2/60 p-3 text-xs font-semibold text-muted">
+          This browser can't do push notifications. On iPhone, install AcadKit to your home
+          screen first (Share → Add to Home Screen), then enable it from there.
+        </p>
+      ) : permission === "denied" ? (
+        <p className="rounded-2xl bg-bad/10 p-3 text-xs font-semibold text-bad-deep">
+          Notifications are blocked in your browser settings - allow them for this site, then try
+          again.
+        </p>
+      ) : (
+        <Button
+          variant={subscribed ? "secondary" : "primary"}
+          className="w-full"
+          disabled={busy}
+          onClick={subscribed ? disable : enable}
+        >
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : subscribed ? (
+            <BellOff className="h-4 w-4" />
+          ) : (
+            <Bell className="h-4 w-4" />
+          )}
+          {subscribed ? "Turn off reminders" : "Turn on reminders"}
+        </Button>
+      )}
+    </section>
+  );
+}
+
+function AutoMarkCard() {
+  const { data: settings } = useSettings();
+  const update = useUpdateSettings();
+  const pending = usePendingAutoMarks();
+  const autoMark = useAutoMark();
+  const clearAuto = useClearAutoMarks();
+  const { data: attendance } = useAttendance();
+
+  const on = settings?.auto_mark_present === true;
+  const autoCount = (attendance ?? []).filter((a) => a.auto_marked).length;
+
+  return (
+    <section className="card space-y-4 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-good/10 text-good-deep">
+            <Wand2 className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-bold">Assume present</p>
+            <p className="text-xs text-muted">
+              Past classes you never marked count as attended. You only record the
+              days you missed.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-label="Assume present for unmarked past classes"
+          onClick={() => update.mutate({ auto_mark_present: !on })}
+          className={cn(
+            "relative h-7 w-12 shrink-0 rounded-full transition-colors",
+            on ? "bg-good" : "bg-surface-2"
+          )}
+        >
+          {/* left-0 is load-bearing: an absolute box with `left: auto` falls back to its static position, which here resolves to 24px - the translate then lands the knob outside the track entirely. */}
+          <span
+            className={cn(
+              "absolute left-0 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform",
+              on ? "translate-x-6" : "translate-x-1"
+            )}
+          />
+        </button>
+      </div>
+
+      <p className="text-xs text-muted">{describePending(pending)}</p>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!pending.length || autoMark.isPending}
+          onClick={() => autoMark.mutate(pending)}
+        >
+          {autoMark.isPending ? "Marking…" : "Catch up now"}
+        </Button>
+        {autoCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={clearAuto.isPending}
+            onClick={() => clearAuto.mutate()}
+          >
+            Undo {autoCount} auto-marked
+          </Button>
+        )}
+      </div>
+
+      <p className="text-[11px] text-muted">
+        Today's classes are never auto-marked, and anything you marked by hand —
+        present, absent, or cancelled - is never changed.
+      </p>
+    </section>
+  );
+}
+
+/** Who you're signed in as, and the way out. */
+function AccountCard() {
+  const { session } = useSession();
+  const [busy, setBusy] = useState(false);
+  const email = session?.user?.email ?? "";
+
+  return (
+    <section className="card flex items-center justify-between gap-4 p-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+          <UserRound className="h-5 w-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="font-bold">Signed in</p>
+          <p className="truncate text-xs text-muted">{email || "—"}</p>
+        </div>
+      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          // The session, this device's reminders and the local cache go;
+          // the data stays on the account, so signing back in returns you
+          // to exactly the same place.
+          await signOut();
+          setBusy(false);
+        }}
+      >
+        Sign out
+      </Button>
+    </section>
+  );
+}
+
+/** A section that starts folded away. */
+function CollapsibleSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="space-y-3">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          haptic();
+          setOpen((o) => !o);
+        }}
+        className="flex w-full items-center justify-between px-1 py-1 text-left"
+      >
+        <span className="text-xs font-bold uppercase tracking-widest text-muted">{title}</span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 text-muted transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="body"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 32 }}
+            // Children have shadows and rings that would be clipped
+            // mid-animation; overflow only hides while moving.
+            className="space-y-3 overflow-hidden"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/** Pull everything down again, on demand. */
+function RefreshCard() {
+  const tone = useTone();
+  const qc = useQueryClient();
+  const { data: snapshots } = usePortalSnapshots();
+  const [busy, setBusy] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+
+  const health = syncHealth(snapshots ?? []);
+
+  return (
+    <section className="card space-y-3 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-accent/10 text-accent">
+            <RefreshCw className={cn("h-5 w-5", busy && "animate-spin")} />
+          </span>
+          <div>
+            <p className="font-bold">Refresh data</p>
+            <p className="mt-0.5 text-xs text-muted">
+              Pull the latest from the server on every device.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          className="shrink-0"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              // refetchQueries, not invalidateQueries: invalidate marks things stale and returns immediately, so the button would finish before anything arrived.
+              await Promise.race([
+                qc.refetchQueries({ type: "active" }),
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error("timeout")), 10_000)
+                ),
+              ]);
+              toast.success("Up to date");
+            } catch {
+              toast.error("Couldn't reach the server", {
+                description: "You're seeing the last data this device stored.",
+              });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Refreshing…" : "Refresh"}
+        </Button>
+      </div>
+
+      <p className="text-xs font-medium text-muted">
+        {health.state === "never"
+          ? say(VOICE.syncNever, tone)
+          : health.state === "stale" && health.days !== null
+            ? say(VOICE.syncStale, tone, health.days)
+            : `Portal data synced ${relativeDay(health.asOf!)}.`}
+      </p>
+
+      {/* Refreshing only pulls what the server already has. */}
+      <Button variant="secondary" className="w-full" onClick={() => setPasteOpen(true)}>
+        <ClipboardPaste className="h-4 w-4" />
+        Paste a portal page
+      </Button>
+      <p className="text-[11px] text-muted">
+        Copy your attendance or marks page from the portal and paste it here - works on your
+        phone. The bookmarklet is still there for a desktop, and does the same thing.
+      </p>
+
+      <PortalPasteSheet open={pasteOpen} onClose={() => setPasteOpen(false)} />
+    </section>
+  );
+}
+
+export default function Settings() {
+  const tone = useTone();
+  const themeMode = useAppStore((s) => s.themeMode);
+  const setThemeMode = useAppStore((s) => s.setThemeMode);
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-5">
+      <h1 className="px-1 text-2xl font-extrabold tracking-tight lg:text-3xl">{say(VOICE.titleSettings, tone)}</h1>
+
+
+      <div className="space-y-3">
+        <SectionTitle>Profile</SectionTitle>
+        <ProfileCard />
+      </div>
+
+      <div className="space-y-3">
+        <SectionTitle>Account</SectionTitle>
+        <AccountCard />
+        <RefreshCard />
+      </div>
+
+      <div className="space-y-3">
+        <SectionTitle>Appearance</SectionTitle>
+        <ThemePicker />
+        <section className="card p-5">
+          <Segmented<ColorMode>
+            layoutId="theme-mode"
+            options={[
+              { value: "light", label: "Light" },
+              { value: "system", label: "System" },
+              { value: "dark", label: "Dark" },
+            ]}
+            value={themeMode}
+            onChange={setThemeMode}
+          />
+          <p className="mt-3 flex items-center justify-center gap-4 text-xs text-muted">
+            <span className="flex items-center gap-1"><Sun className="h-3.5 w-3.5" /> light</span>
+            <span className="flex items-center gap-1"><Monitor className="h-3.5 w-3.5" /> auto</span>
+            <span className="flex items-center gap-1"><Moon className="h-3.5 w-3.5" /> dark</span>
+          </p>
+        </section>
+      </div>
+
+      <div className="space-y-3">
+        <SectionTitle>Notifications</SectionTitle>
+        <NotificationsCard />
+      </div>
+
+      <CollapsibleSection title="Academics">
+        <TargetSgpaCard />
+              <AssumedExternalCard />
+        <SemesterDatesCard />
+        <MedicalLeaveCard />
+        <AutoMarkCard />
+        <SubjectsCard />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Data management">
+        <DataCard />
+      </CollapsibleSection>
+
+      <p className="pb-4 pt-2 text-center text-xs text-muted">
+        {say(VOICE.footer, tone)}
+      </p>
+    </div>
+  );
+}

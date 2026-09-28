@@ -1,0 +1,145 @@
+/** Builds the portal-sync bookmarklet. */
+import { createHmac } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = resolve(here, "../..");
+
+function arg(name) {
+  const i = process.argv.indexOf(`--${name}`);
+  return i > -1 ? process.argv[i + 1] : undefined;
+}
+
+/** Parse .env.local without pulling in a dotenv dependency. */
+function env() {
+  const out = { ...process.env };
+  const file = resolve(root, ".env.local");
+  if (!existsSync(file)) return out;
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (m) out[m[1]] ??= m[2].replace(/^["']|["']$/g, "");
+  }
+  return out;
+}
+
+const e = env();
+const diagOnly = process.argv.includes("--diagnostics");
+// The bookmarklet posts to the portal-ingest edge function, so what it needs embedded is that function's URL and a token for one PIN: HMAC-SHA256(INGEST_SECRET, pin), which the function recomputes.
+const url = diagOnly ? "" : e.VITE_SUPABASE_URL;
+const secret = diagOnly ? "" : (arg("secret") || e.INGEST_SECRET);
+const pin = diagOnly ? "" : arg("pin");
+const ingest = url ? `${url.replace(/\/$/, "")}/functions/v1/portal-ingest` : "";
+
+// A diagnostics build reports what it sees and writes nothing, so it needs
+// no credentials - it is the safe first step on a portal whose markup the
+// parser hasn't been taught yet.
+if (!diagOnly) {
+  const missing = [
+    !url && "VITE_SUPABASE_URL (.env.local)",
+    !secret && "INGEST_SECRET (.env.local) or --secret <value>",
+    !pin && "--pin <your 4-digit AcadKit PIN>",
+  ].filter(Boolean);
+
+  if (missing.length) {
+    console.error(
+      "Missing:\n  " + missing.join("\n  ") +
+      "\n\nOr build a credential-free capture bookmarklet:\n" +
+      "  node scripts/portal-sync/build.mjs --diagnostics"
+    );
+    process.exit(1);
+  }
+  if (!/^\d{4}$/.test(pin)) {
+    console.error(`--pin must be 4 digits, got "${pin}"`);
+    process.exit(1);
+  }
+}
+
+const token = diagOnly ? "" : createHmac("sha256", secret).update(pin).digest("hex");
+
+// Function replacers: a plain string replacement treats `$&` and friends
+// in the value as patterns.
+const source = readFileSync(resolve(here, "portal-sync.js"), "utf8")
+  .replace("__INGEST_URL__", () => ingest)
+  .replace("__INGEST_TOKEN__", () => token)
+  .replace("__PIN__", () => pin)
+  .replace("__DIAG_ONLY__", () => String(diagOnly));
+
+const { outputFiles } = await build({
+  // resolveDir so the shared parser import resolves; bundled because src/lib/portal/parse.ts is the one copy and the app owns it.
+  stdin: { contents: source, loader: "js", resolveDir: here },
+  minify: true,
+  bundle: true,
+  format: "iife",
+  write: false,
+  target: ["safari14", "chrome90"],
+});
+
+const href = "javascript:" + encodeURIComponent(outputFiles[0].text.trim());
+const dist = resolve(here, "dist");
+mkdirSync(dist, { recursive: true });
+
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+
+const STYLE = `
+body{font:15px/1.6 ui-sans-serif,system-ui,-apple-system,sans-serif;max-width:640px;margin:48px auto;padding:0 20px;color:#14161a;background:#fbfbfd}
+h1{font-size:21px;margin:0 0 4px}p{color:#4b515c}code{font:13px ui-monospace,Menlo,monospace;background:#eef0f4;padding:2px 5px;border-radius:4px}
+a.bm{display:inline-block;background:#7c6af7;color:#fff;text-decoration:none;font-weight:600;padding:11px 20px;border-radius:10px;margin:14px 0}
+ol{padding-left:20px}li{margin:7px 0}textarea{width:100%;height:110px;font:11px ui-monospace,Menlo,monospace;border:1px solid #dcdfe6;border-radius:8px;padding:10px;background:#fff}
+.warn{background:#fff6e5;border:1px solid #f5dfae;border-radius:9px;padding:11px 14px;font-size:13.5px;margin:20px 0}
+`;
+
+const page = diagOnly
+  ? `<!doctype html><meta charset=utf-8><title>AcadKit portal diagnostics</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>${STYLE}</style>
+<h1>AcadKit portal diagnostics</h1>
+<p>Captures the table structure of a portal page so the parser can be taught to read it.
+<b>No credentials are baked into this build</b> and it writes nothing anywhere &mdash; it only
+describes the page you run it on.</p>
+<a class="bm" href="${esc(href)}">AcadKit Diagnostics</a>
+<p style="font-size:13.5px">Drag that button to your bookmarks bar.</p>
+<h3>Using it</h3>
+<ol>
+<li>Log in to the student portal as usual.</li>
+<li>Navigate to the <b>attendance</b> report and wait for the numbers to appear.</li>
+<li>Click the <b>AcadKit Diagnostics</b> bookmark.</li>
+<li>Read the dump over for anything you would rather not share, then copy it.</li>
+<li>Repeat on the <b>marks</b> report &mdash; it is a separate capture.</li>
+</ol>
+<div class="warn">The portal routes on the URL hash, so the report has to be on screen
+<em>before</em> you click &mdash; the dump describes whatever is rendered at that moment.</div>
+`
+  : `<!doctype html><meta charset=utf-8><title>AcadKit portal sync</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>${STYLE}</style>
+<h1>AcadKit portal sync</h1>
+<p>Syncs marks and attendance from the SRM portal into AcadKit &mdash; PIN <code>${esc(pin)}</code>.</p>
+<a class="bm" href="${esc(href)}">AcadKit Sync</a>
+<p style="font-size:13.5px">Drag that button to your bookmarks bar. Clicking it here does nothing useful &mdash; it only works on a portal page.</p>
+<h3>Using it</h3>
+<ol>
+<li>Open the SRM portal and log in as usual.</li>
+<li>Go to the attendance / marks report page.</li>
+<li>Click the <b>AcadKit Sync</b> bookmark.</li>
+<li>Check the preview panel, then hit <b>Sync to AcadKit</b>.</li>
+</ol>
+<h3>On iPhone</h3>
+<ol>
+<li>Bookmark any page in Safari.</li>
+<li>Edit the bookmark, rename it <b>AcadKit Sync</b>, and replace its address with the text below.</li>
+<li>Open the portal, then pick that bookmark from the address bar.</li>
+</ol>
+<textarea readonly onclick="this.select()">${esc(href)}</textarea>
+<div class="warn">This file has your PIN and a token for it baked in. That pair can submit portal data for this PIN &mdash; it cannot read your data or reach any other account &mdash; but keep it off shared machines. It is gitignored for that reason.</div>
+`;
+
+const name = diagOnly ? "diagnostics.html" : "install.html";
+writeFileSync(resolve(dist, name), page);
+
+console.log(
+  `Wrote scripts/portal-sync/dist/${name}  (${(href.length / 1024).toFixed(1)} KB bookmarklet` +
+    (diagOnly ? ", no credentials" : `, PIN ${pin}`) + ")"
+);

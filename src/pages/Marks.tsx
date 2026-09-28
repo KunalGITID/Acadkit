@@ -1,0 +1,395 @@
+import { Struck } from "@/components/ui/struck";
+import { listEntry } from "@/lib/enter";
+import { ExamPrep } from "@/components/study/exam-prep";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { motion } from "framer-motion";
+import { Pencil, Plus, Share2, Target, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge, Dot, Skeleton } from "@/components/ui/misc";
+import { SgpaDial } from "@/components/viz/sgpa-dial";
+import { GradeBadge } from "@/components/viz/grade-badge";
+import { AnimatedNumber } from "@/components/viz/animated-number";
+import { MarkTrend } from "@/components/viz/mark-trend";
+import { MarkSheet } from "@/components/sheets/mark-sheet";
+import {
+  useAttendance,
+  useMarks,
+  usePortalSnapshots,
+  useSettings,
+  useSubjects,
+} from "@/hooks/useData";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
+import { countsInSgpa, groupMarksBySubject } from "@/lib/grades";
+import { announcedPending, computeSgpa, floorTotal, type SubjectOutlook } from "@/lib/plan";
+import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
+import { computeOverallAttendance } from "@/lib/attendance";
+import type { Mark, PlannedComponent, Subject } from "@/types";
+import { Segmented } from "@/components/ui/segmented";
+import { SwipeHint } from "@/components/ui/swipe-hint";
+import { haptic } from "@/lib/utils";
+import { useSwipe } from "@/hooks/useSwipe";
+import { slideTransition, slideVariants } from "@/lib/slide";
+import { GradesProjection } from "@/components/insights/grades-projection";
+import { useProjectionReport } from "@/hooks/useProjectionReport";
+
+/**
+ * Renders the semester to a PNG and hands it to the OS share sheet,
+ * falling back to a download where Web Share can't take files.
+ */
+function ShareButton({
+  rows,
+  sgpa,
+}: {
+  rows: Array<{ subject: Subject; marks: SubjectOutlook }>;
+  sgpa: number | null;
+}) {
+  const { data: settings } = useSettings();
+  const { data: attendance } = useAttendance();
+  const { data: snapshots } = usePortalSnapshots();
+  const [busy, setBusy] = useState(false);
+
+  async function onShare() {
+    setBusy(true);
+    try {
+      const overall = computeOverallAttendance(
+        rows.map((r) => r.subject),
+        attendance ?? [],
+        snapshots ?? []
+      );
+      const data = buildShareData({
+        name: settings?.name,
+        semester: settings?.semester,
+        sgpa,
+        attendancePct: overall.percentage,
+        subjects: rows.map((r) => ({
+          code: r.subject.code,
+          grade: r.marks.grade,
+          color: r.subject.color_hex,
+          hasMarks: r.marks.hasAnyMarks,
+        })),
+      });
+      const blob = await renderShareCard(data);
+      const how = await shareCard(blob, "acadkit-semester.png");
+      toast.success(how === "shared" ? "Shared" : "Image saved");
+    } catch (err) {
+      toast.error((err as Error)?.message ?? "Couldn't create the image");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Button
+      variant="secondary"
+      size="sm"
+      className="shrink-0"
+      disabled={busy}
+      onClick={onShare}
+    >
+      <Share2 className="h-4 w-4" />
+      {busy ? "Rendering…" : "Share"}
+    </Button>
+  );
+}
+
+function Bar({ value, max, color }: { value: number; max: number; color: string }) {
+  return (
+    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-2">
+      <motion.div
+        className="h-full rounded-full"
+        style={{ backgroundColor: color }}
+        initial={{ width: 0 }}
+        animate={{ width: `${max > 0 ? Math.min(100, (value / max) * 100) : 0}%` }}
+        transition={{ type: "spring", stiffness: 60, damping: 18 }}
+      />
+    </div>
+  );
+}
+
+function SubjectMarksCard({
+  subject,
+  marks,
+  index,
+  onAdd,
+  onEdit,
+}: {
+  subject: Subject;
+  marks: SubjectOutlook;
+  index: number;
+  onAdd: (subject: Subject, announced?: PlannedComponent) => void;
+  onEdit: (subject: Subject, mark: Mark) => void;
+}) {
+  const settled = useHasAnimated("marks-subjects");
+  const tone = useTone();
+  const audit = !countsInSgpa(subject);
+  // Announced in the plan, not marked yet. Shown so an announcement
+  // made from here doesn't disappear into Settings.
+  const pending = announcedPending(subject, marks.internalComponents);
+
+  return (
+    <motion.section
+      layout
+      {...listEntry(index, settled)}
+      className="card p-5"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-start gap-2 font-bold">
+            <Dot color={subject.color_hex} className="mt-1.5 shrink-0" />
+            <span className="line-clamp-2">{subject.name}</span>
+          </p>
+          <p className="mt-0.5 text-xs font-medium text-muted">
+            {subject.code} · {audit ? (subject.credits > 0 ? `${subject.credits} credits · non-graded (no SGPA)` : "audit (no SGPA)") : `${subject.credits} credits`}
+            {subject.internal_only ? " · internals = /100" : ""}
+          </p>
+        </div>
+        {marks.hasAnyMarks ? (
+          <GradeBadge grade={marks.grade} />
+        ) : (
+          <Badge className="bg-surface-2 text-muted">no marks</Badge>
+        )}
+      </div>
+
+      {/* Internals so far (raw) */}
+      <div className="mt-4">
+        <div className="mb-1.5 flex items-baseline justify-between text-xs font-semibold">
+          <span className="text-muted">Internals so far</span>
+          <span className="tabular">
+            <AnimatedNumber value={marks.internalObtained} decimals={0} />
+            <span className="text-muted"> / {marks.internalMax}</span>
+          </span>
+        </div>
+        <Bar value={marks.internalObtained} max={marks.internalMax} color={subject.color_hex} />
+        {marks.internalComponents.length > 1 && (
+          <MarkTrend
+            marks={marks.internalComponents}
+            color={subject.color_hex}
+            className="mt-3"
+          />
+        )}
+      </div>
+
+      {/* Components */}
+      {(marks.internalComponents.length > 0 || pending.length > 0) && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {marks.internalComponents.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => onEdit(subject, m)}
+              // px/py rather than a fixed height so the chip still hugs
+              // its label; py-3 takes it from 30px to a tappable 42.
+              className="group flex items-center gap-1.5 rounded-xl border bg-surface-2/50 px-3 py-3 text-xs font-semibold transition-colors hover:bg-surface-2"
+            >
+              {m.label}
+              <span className="tabular text-muted">
+                {m.marks_obtained}/{m.max_marks}
+              </span>
+              <Pencil className="h-3 w-3 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+            </button>
+          ))}
+          {pending.map((c) => (
+            <button
+              key={c.key}
+              onClick={() => onAdd(subject, c)}
+              aria-label={`Enter marks for ${c.label}`}
+              className="flex items-center gap-1.5 rounded-xl border border-dashed bg-transparent px-3 py-3 text-xs font-semibold text-muted transition-colors hover:bg-surface-2/50"
+            >
+              {c.label}
+              <span className="tabular">–/{c.max}</span>
+              <Plus className="h-3 w-3" />
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 flex items-center justify-between border-t pt-4">
+        {marks.hasAnyMarks ? (
+          <p className="flex items-center gap-1.5 text-sm font-bold tabular">
+            <TrendingUp className="h-4 w-4 text-accent" />
+            On pace for <AnimatedNumber value={floorTotal(marks.predictedTotal)} decimals={0} />
+            <span className="text-muted">/ 100</span>
+          </p>
+        ) : (
+          <p className="text-sm font-semibold text-muted">{say(VOICE.noInternals, tone)}</p>
+        )}
+        <Button variant="secondary" size="sm" onClick={() => onAdd(subject)}>
+          <Plus className="h-3.5 w-3.5" /> Add marks
+        </Button>
+      </div>
+    </motion.section>
+  );
+}
+
+export default function Marks() {
+  const tone = useTone();
+  const { data: subjects, isLoading: sLoading } = useSubjects();
+  const { data: marks, isLoading: mLoading } = useMarks();
+  const { data: pageSettings } = useSettings();
+  const targetSgpa = pageSettings?.target_sgpa ?? 8.5;
+
+  const [sheetSubject, setSheetSubject] = useState<Subject | null>(null);
+  const [sheetMark, setSheetMark] = useState<Mark | null>(null);
+  const [sheetAnnounced, setSheetAnnounced] = useState<PlannedComponent | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  // What you've got, what each test still has to return, and what the
+  // tests you're waiting on are likely to do to that. The last two were
+  // the Grades tab on Insights.
+  const [view, setView] = useState<"marks" | "targets">("marks");
+  // Same order as the switch, so a swipe lands where the eye expects.
+  // Ends are walls rather than wrapping, as on the other swipeable pages.
+  const VIEWS = ["marks", "targets"] as const;
+  const [dir, setDir] = useState(0);
+  const [swiped, setSwiped] = useState(false);
+  const goView = (next: (typeof VIEWS)[number]) => {
+    setDir(VIEWS.indexOf(next) > VIEWS.indexOf(view) ? 1 : -1);
+    setView(next);
+  };
+  const viewSwipe = useSwipe(
+    () => {
+      const next = VIEWS[VIEWS.indexOf(view) + 1];
+      if (next) { setSwiped(true); haptic(); goView(next); }
+    },
+    () => {
+      const next = VIEWS[VIEWS.indexOf(view) - 1];
+      if (next) { setSwiped(true); haptic(); goView(next); }
+    }
+  );
+  const { report, odds } = useProjectionReport();
+
+  const result = useMemo(
+    () => computeSgpa(subjects ?? [], groupMarksBySubject(marks ?? [])),
+    [subjects, marks]
+  );
+
+  if (sLoading || mLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-9 w-32" />
+        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative space-y-4">
+      {/* Title, switcher and Share shared one row, and on a 390px phone
+          the three didn't fit - Share was clipped off the right edge.
+          They stack until there is room for a row. */}
+      <div className="flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">
+            <Struck official="academic performance report" honest={say(VOICE.titleMarks, tone)} />
+          </h1>
+          {say(VOICE.subMarks, tone) && (
+            <p className="mt-0.5 text-xs italic text-muted">
+              ({say(VOICE.subMarks, tone)})
+            </p>
+          )}
+        </div>
+        <ShareButton rows={result.rows} sgpa={result.sgpa} />
+      </div>
+
+      <Segmented
+        layoutId="marks-view"
+        options={[
+          { value: "marks", label: "Marks" },
+          { value: "targets", label: "Targets" },
+        ]}
+        value={view}
+        onChange={goView}
+        className="w-full sm:w-80"
+      />
+
+      <SwipeHint id="marks" dismissed={swiped} />
+
+      <motion.div
+        key={view}
+        custom={dir}
+        variants={slideVariants}
+        initial="enter"
+        animate="center"
+        transition={slideTransition}
+        className="space-y-4"
+        data-swipe
+        {...viewSwipe}
+      >
+      {view !== "marks" ? (
+        <GradesProjection report={report} odds={odds} />
+      ) : (
+      <>
+      <ExamPrep />
+
+      <div className="space-y-4">
+            <section className="card flex flex-col items-center gap-2 p-6 lg:flex-row lg:justify-between lg:px-10">
+              <SgpaDial sgpa={result.sgpa} />
+              <div className="flex flex-col items-center gap-1 lg:items-end">
+                <p className="flex items-center gap-2 text-sm font-semibold text-muted">
+                  <Target className="h-4 w-4" />
+                  {result.countedSubjects === 0
+                    ? "Add internal marks to see your predicted SGPA"
+                    : `Predicted from ${result.countedSubjects} subject${result.countedSubjects > 1 ? "s" : ""} · ${result.totalCredits} credits`}
+                </p>
+                {/* The dial says where you are. Without the target beside
+                    it, "8.12" is a fact rather than a position. */}
+                {result.sgpa !== null && (
+                  <p className="text-sm font-bold">
+                    {result.sgpa >= targetSgpa ? (
+                      <span className="text-good-deep">
+                        {(result.sgpa - targetSgpa).toFixed(2)} above your {targetSgpa.toFixed(1)} target
+                      </span>
+                    ) : (
+                      <span className="text-warn-deep">
+                        {(targetSgpa - result.sgpa).toFixed(2)} short of your {targetSgpa.toFixed(1)} target
+                      </span>
+                    )}
+                  </p>
+                )}
+                <p className="max-w-xs text-center text-xs text-muted lg:text-right">
+                  Grades projected from your internal performance so far - O ≥ 91 · A+ ≥ 81 ·
+                  A ≥ 71 · B+ ≥ 61 · B ≥ 56 · C ≥ 50
+                </p>
+              </div>
+            </section>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {result.rows.map(({ subject, marks: m }, i) => (
+                <SubjectMarksCard
+                  key={subject.id}
+                  subject={subject}
+                  marks={m}
+                  index={i}
+                  onAdd={(s, announced) => {
+                    setSheetSubject(s);
+                    setSheetMark(null);
+                    setSheetAnnounced(announced ?? null);
+                    setSheetOpen(true);
+                  }}
+                  onEdit={(s, mark) => {
+                    setSheetSubject(s);
+                    setSheetMark(mark);
+                    setSheetAnnounced(null);
+                    setSheetOpen(true);
+                  }}
+                />
+              ))}
+        </div>
+      </div>
+      </>
+      )}
+      </motion.div>
+
+      <MarkSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        subject={sheetSubject}
+        mark={sheetMark}
+        announced={sheetAnnounced}
+        existing={(marks ?? []).filter((m) => m.subject_id === sheetSubject?.id)}
+      />
+    </div>
+  );
+}

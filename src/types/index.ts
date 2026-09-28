@@ -1,0 +1,250 @@
+export type SubjectType = "theory" | "lab";
+
+/**
+ * Declared here rather than in lib/grades.ts because `Subject` needs it
+ * and types/ is the leaf: the other direction would be a cycle.
+ * `lib/grades.ts` re-exports it, so every existing import still works.
+ */
+export type Grade = "O" | "A+" | "A" | "B+" | "B" | "C" | "F";
+
+/** One declared internal component, in marks out of the internal weight. */
+export interface PlannedComponent {
+  /** Stable across edits so React keys and mark-matching survive renames. */
+  key: string;
+  label: string;
+  type: MarkComponentType;
+  max: number;
+}
+
+/** How a subject's /100 is built: the internal share, and the components that make it up. */
+export interface Assessment {
+  /** Internal share of the /100; the end-sem is the remainder. */
+  internal: number;
+  /** True when `components` is the whole internal breakdown. */
+  complete: boolean;
+  components: PlannedComponent[];
+  /** What to expect of this subject's end-sem, as a percentage of it. */
+  assumedExternalPct?: number | null;
+  /**
+   * Marks you expect from tests that have been sat but not returned,
+   * keyed by `labelMatchKey`. Never counted as results - only the
+   * Expected view in Insights reads them (src/lib/expected.ts).
+   */
+  expected?: Record<string, ExpectedMark> | null;
+}
+
+/** What you think a test will return, in the units you entered it in. */
+export interface ExpectedMark {
+  obtained: number;
+  max: number;
+}
+
+export interface Subject {
+  id: string;
+  device_id: string;
+  code: string;
+  name: string;
+  credits: number;
+  type: SubjectType;
+  faculty: string | null;
+  color_hex: string;
+  /** Overrides the derived abbreviation in tight lists (migration 016). */
+  short_name?: string | null;
+  /** No end-sem exam - internals make the full /100 (migration 008). */
+  internal_only?: boolean | null;
+  /**
+   * Internal/external split and the component breakdown (migration 021).
+   * Null on subjects predating it - `assessmentFor` falls back to
+   * `internal_only` and the 60/40 default.
+   */
+  assessment?: Assessment | null;
+  /**
+   * Medical leave granted for this subject (migration 023), which
+   * condones the attendance bar from 75% down to 65%. Per subject
+   * because ML is granted per case.
+   */
+  medical_leave?: boolean | null;
+  /**
+   * What you're actually aiming for here, which is not always what the
+   * target SGPA implies - a subject you're weak in gets its own number
+   * (migration 021). Null = derive it from settings.target_sgpa.
+   */
+  target_grade?: Grade | null;
+  created_at?: string;
+}
+
+export interface TimetableSlot {
+  id: string;
+  device_id: string;
+  subject_id: string;
+  day_order: number;
+  start_time: string; // "HH:MM:SS"
+  end_time: string;
+  room: string | null;
+  /** Theory vs lab session of the subject (migration 008). */
+  slot_type?: SubjectType | null;
+  created_at?: string;
+}
+
+/** "holiday" is the DB value for a cancelled / no-class slot (constraint predates the rebuild; UI presents it as "Cancelled"). */
+export type AttendanceStatus = "present" | "absent" | "holiday" | "od";
+
+export interface AttendanceRecord {
+  id: string;
+  device_id: string;
+  subject_id: string;
+  date: string; // "YYYY-MM-DD"
+  start_time: string;
+  end_time: string;
+  status: AttendanceStatus;
+  /** Written by auto-marking, not the user (migration 013). */
+  auto_marked?: boolean | null;
+}
+
+export type MarkComponentType = "CT" | "Lab" | "Assignment" | "Project" | "External";
+
+export interface Mark {
+  id: string;
+  device_id: string;
+  subject_id: string;
+  component_type: MarkComponentType;
+  label: string;
+  marks_obtained: number;
+  max_marks: number;
+  is_external: boolean;
+  /** "portal" rows are owned by the bookmarklet sync (migration 012). */
+  source?: MarkSource | null;
+  added_at?: string;
+}
+
+export type MarkSource = "manual" | "portal";
+
+/**
+ * One subject's attendance as the portal last reported it. The portal
+ * only exposes totals, so this is the baseline that per-class records
+ * after `as_of` are layered onto.
+ */
+export interface PortalSnapshot {
+  id: string;
+  device_id: string;
+  subject_code: string;
+  conducted: number;
+  absent: number;
+  /** Percentage as printed by the portal, for cross-checking the parse. */
+  percentage: number | null;
+  as_of: string; // "YYYY-MM-DD"
+  synced_at?: string;
+}
+
+/**
+ * One portal sync of one subject, kept (migration 029). portal_snapshots
+ * holds the latest; this is the record of how it got there.
+ */
+export interface PortalSnapshotHistory {
+  id: string;
+  device_id: string;
+  subject_code: string;
+  conducted: number;
+  absent: number;
+  percentage: number | null;
+  as_of: string; // "YYYY-MM-DD"
+  synced_at: string;
+  source: "bookmarklet" | "paste" | "restore" | "backfill";
+}
+
+/** One week's forecast for a subject, or for the SGPA (`scope = "sgpa"`), migration 029. */
+export interface ForecastLogRow {
+  device_id: string;
+  week_start: string; // Monday, "YYYY-MM-DD"
+  scope: string;
+  target: string | null;
+  p_target: number | null;
+  p_pass: number | null;
+  median: number | null;
+  p10: number | null;
+  p90: number | null;
+  distribution: Record<string, number> | null;
+  evidence: number | null;
+  model: string;
+  created_at?: string;
+}
+
+export type DeadlineType = "exam" | "assignment" | "lab" | "other";
+export type DeadlineStatus = "pending" | "done";
+export type DeadlinePriority = "low" | "medium" | "high";
+
+export interface Deadline {
+  id: string;
+  device_id: string;
+  subject_id: string | null;
+  title: string;
+  type: DeadlineType;
+  due_date: string; // ISO timestamp
+  status: DeadlineStatus;
+  priority: DeadlinePriority;
+  /** What the test is out of, when it carries marks (migration 017). */
+  max_marks?: number | null;
+  created_at?: string;
+}
+
+export interface DeclaredHoliday {
+  date: string; // "YYYY-MM-DD"
+  name: string;
+}
+
+export interface SubjectArchiveRow {
+  code: string;
+  name: string;
+  credits: number;
+  grade: string;
+  points: number;
+  /** /100 at archive time; null for a semester entered from a transcript, which only has grades. */
+  total: number | null;
+  attendancePct: number | null;
+  color_hex: string;
+  /** Shown as "A*". Set by hand when entering a transcript; no reason is stored. */
+  starred?: boolean;
+  /**
+   * The grade card's attendance code, for semesters entered from it: a band,
+   * not a percentage (H ≥95, 9 = 85–94, 8 = 75–84, L <75).
+   */
+  attendanceBand?: "H" | "9" | "8" | "L";
+}
+
+export interface SemesterArchive {
+  id: string;
+  device_id: string;
+  label: string;
+  sgpa: number | null;
+  credits: number | null;
+  summary: SubjectArchiveRow[];
+  sem_start: string | null;
+  sem_end: string | null;
+  archived_at?: string;
+}
+
+export interface Settings {
+  id: string;
+  device_id: string;
+  /** Display name for greetings; column added by migration 007 (optional). */
+  name?: string | null;
+  semester: number;
+  target_sgpa: number;
+  min_attendance: number;
+  sem_start: string | null;
+  sem_end: string | null;
+  declared_holidays: DeclaredHoliday[];
+  current_day_order: number;
+  /** Assume past scheduled classes were attended (migration 013). */
+  auto_mark_present?: boolean | null;
+  /**
+   * What to assume the end-sem returns, as a percentage of it
+   * (migration 022). Null solves it like any other component.
+   */
+  assumed_external_pct?: number | null;
+  /** Theme, synced across devices (migration 018). Null = never chosen. */
+  theme?: string | null;
+  theme_mode?: string | null;
+  /** Evening minutes the study planner may use each day (migration 029). */
+  study_evening_minutes?: number | null;
+}

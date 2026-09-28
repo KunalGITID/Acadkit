@@ -1,0 +1,60 @@
+import type { SubjectAttendance } from "@/lib/attendance";
+
+/** Skips, counted as something you spend rather than a statistic. */
+
+export interface WalletRow {
+  subject: SubjectAttendance;
+  /** Classes skippable while staying ≥ 75%. */
+  left: number;
+  /** Classes already missed. What the balance was spent on. */
+  spent: number;
+  /** Set when the subject is below the line: skips are no longer the question. */
+  owed: number;
+  /** Still safe, but with nothing spare - one absence ends it. */
+  onEdge: boolean;
+}
+
+export interface Wallet {
+  /** Total skips available across every subject. */
+  left: number;
+  /** Total classes already missed. */
+  spent: number;
+  /** Subjects with a balance, richest first. */
+  credit: WalletRow[];
+  /** Subjects below 75%, deepest debt first. */
+  debt: WalletRow[];
+  /** True when no subject has any attendance recorded yet. */
+  empty: boolean;
+}
+
+export function buildWallet(stats: SubjectAttendance[]): Wallet {
+  const rows: WalletRow[] = stats
+    .filter((s) => s.total > 0)
+    .map((s) => ({
+      subject: s,
+      left: s.canBunk,
+      spent: s.total - s.attended,
+      owed: s.needToAttend,
+      onEdge: s.canBunk === 0 && s.needToAttend === 0,
+    }));
+
+  // Edge subjects sort last within credit - the list reads from "plenty
+  // spare" down to "one away", which is the order you care about.
+  const credit = rows.filter((r) => r.owed === 0).sort((a, b) => b.left - a.left);
+  const debt = rows.filter((r) => r.owed > 0).sort((a, b) => b.owed - a.owed);
+
+  return {
+    left: credit.reduce((n, r) => n + r.left, 0),
+    spent: rows.reduce((n, r) => n + r.spent, 0),
+    credit,
+    debt,
+    empty: rows.length === 0,
+  };
+}
+
+/** How many pips to draw for a balance. */
+export const PIP_CAP = 8;
+
+export function pipsFor(left: number): { pips: number; overflow: number } {
+  return { pips: Math.min(left, PIP_CAP), overflow: Math.max(0, left - PIP_CAP) };
+}

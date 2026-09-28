@@ -1,0 +1,362 @@
+import { Struck } from "@/components/ui/struck";
+import { cgpaLadder, completedRecord } from "@/lib/cgpa";
+import { listEntry } from "@/lib/enter";
+import { useHasAnimated } from "@/hooks/useHasAnimated";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { Archive, ChevronDown, GraduationCap, Loader2, Plus, Target, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { useDialog } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Dot, EmptyState, Skeleton } from "@/components/ui/misc";
+import { GradeBadge } from "@/components/viz/grade-badge";
+import { AnimatedNumber } from "@/components/viz/animated-number";
+import {
+  useArchives,
+  useAttendance,
+  usePortalSnapshots,
+  useDeleteArchive,
+  useMarks,
+  useSettings,
+  useSubjects,
+  useUpdateSettings,
+} from "@/hooks/useData";
+import { PastSemesterSheet } from "@/components/sheets/past-semester-sheet";
+import { ATTENDANCE_BANDS } from "@/lib/pastRecord";
+import { DegreePlan } from "@/components/insights/degree-plan";
+import { insertArchive } from "@/api/queries";
+import { useNavigate } from "react-router-dom";
+import { say, VOICE } from "@/lib/voice";
+import { useTone } from "@/hooks/useTone";
+import { computeOverallAttendance } from "@/lib/attendance";
+import { groupMarksBySubject, type Grade } from "@/lib/grades";
+import { computeSgpa } from "@/lib/plan";
+import { useAppStore } from "@/store/app";
+import { formatDate } from "@/lib/dates";
+import { cn } from "@/lib/utils";
+import type { SemesterArchive, SubjectArchiveRow } from "@/types";
+
+function SemesterCard({
+  archive,
+  index,
+  onDelete,
+}: {
+  archive: SemesterArchive;
+  index: number;
+  onDelete: (a: SemesterArchive) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const settled = useHasAnimated("history-archives");
+  return (
+    <motion.section
+      {...listEntry(index, settled)}
+      className="card overflow-hidden"
+    >
+      <button className="flex w-full items-center gap-4 p-5 text-left" onClick={() => setOpen((v) => !v)}>
+        <div className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-2xl bg-accent/10">
+          <span className="text-xl font-extrabold tabular accent-gradient-text">
+            {archive.sgpa === null ? "—" : archive.sgpa.toFixed(2)}
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-bold">{archive.label}</p>
+          <p className="text-xs font-medium text-muted">
+            {archive.credits ?? 0} credits · {archive.summary.length} subjects
+            {archive.summary.length > 0 && archive.summary.every((r) => r.total === null)
+              ? " · from transcript"
+              : archive.archived_at
+                ? ` · archived ${formatDate(archive.archived_at.slice(0, 10))}`
+                : ""}
+          </p>
+        </div>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} className="border-t">
+          <div className="space-y-1.5 p-4">
+            {archive.summary.map((r: SubjectArchiveRow) => (
+              <div key={r.code} className="flex items-center gap-3 rounded-xl bg-surface-2/40 px-3 py-2">
+                <Dot color={r.color_hex} className="h-2 w-2" />
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{r.name}</span>
+                {r.attendancePct !== null ? (
+                  <span className="text-xs font-medium tabular text-muted">{Math.round(r.attendancePct)}%</span>
+                ) : (
+                  r.attendanceBand && (
+                    <span className="text-xs font-medium tabular text-muted" title="Attendance band from the grade card">
+                      {ATTENDANCE_BANDS[r.attendanceBand]}
+                    </span>
+                  )
+                )}
+                <span className="flex items-center gap-0.5">
+                  <GradeBadge grade={r.grade as Grade} />
+                  {r.starred && <span className="text-sm font-extrabold text-ink">*</span>}
+                </span>
+              </div>
+            ))}
+            <Button
+              variant="danger"
+              size="sm"
+              className="mt-2"
+              onClick={() => onDelete(archive)}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Delete this record
+            </Button>
+          </div>
+        </motion.div>
+      )}
+    </motion.section>
+  );
+}
+
+export default function History() {
+  const tone = useTone();
+  const { confirm, promptText } = useDialog();
+  const navigate = useNavigate();
+  const pin = useAppStore((s) => s.pin)!;
+  const qc = useQueryClient();
+  const { data: archives, isLoading } = useArchives();
+  const { data: subjects } = useSubjects();
+  const { data: marks } = useMarks();
+  const { data: attendance } = useAttendance();
+  const { data: snapshots } = usePortalSnapshots();
+  const { data: settings } = useSettings();
+  const deleteArchive = useDeleteArchive();
+  const updateSettings = useUpdateSettings();
+  const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
+
+  const current = useMemo(
+    () => computeSgpa(subjects ?? [], groupMarksBySubject(marks ?? [])),
+    [subjects, marks]
+  );
+  const currentCodes = useMemo(() => (subjects ?? []).map((s) => s.code), [subjects]);
+
+  const { cgpa, completed, cgpaWithCurrent, ladder } = useMemo(() => {
+    const record = completedRecord(archives ?? []);
+    let cgpaWithCurrent: number | null = record.cgpa;
+    if (current.sgpa !== null && current.totalCredits > 0) {
+      const totalCr = record.credits + current.totalCredits;
+      cgpaWithCurrent =
+        totalCr > 0 ? (record.points + current.sgpa * current.totalCredits) / totalCr : null;
+    }
+    return {
+      cgpa: record.cgpa,
+      completed: record.semesters,
+      cgpaWithCurrent,
+      // What this semester has to return to land on each rung. The
+      // inverse of the number above, which is the direction you can
+      // actually act on in week three.
+      ladder: cgpaLadder(record, current.totalCredits),
+    };
+  }, [archives, current]);
+
+  async function archiveNow() {
+    const overall = computeOverallAttendance(subjects ?? [], attendance ?? [], snapshots ?? []);
+    const attBySubject = new Map(overall.subjects.map((s) => [s.subject.id, s.percentage]));
+    const summary: SubjectArchiveRow[] = current.rows
+      .filter((r) => r.marks.hasAnyMarks || r.subject.credits > 0)
+      .map((r) => ({
+        code: r.subject.code,
+        name: r.subject.name,
+        credits: r.subject.credits,
+        grade: r.marks.grade,
+        points: r.marks.points,
+        total: r.marks.predictedTotal,
+        attendancePct: attBySubject.get(r.subject.id) ?? null,
+        color_hex: r.subject.color_hex,
+      }));
+
+    const defaultLabel = `Semester ${settings?.semester ?? (archives?.length ?? 0) + 1}`;
+    const label = await promptText({
+      title: "Name this semester",
+      body: "Saved to your history with its SGPA and per-subject grades.",
+      defaultValue: defaultLabel,
+      confirmLabel: "Archive",
+    });
+    if (label === null) return;
+
+    setBusy(true);
+    try {
+      await insertArchive(pin, {
+        label: label.trim() || defaultLabel,
+        sgpa: current.sgpa,
+        credits: current.totalCredits,
+        summary,
+        sem_start: settings?.sem_start ?? null,
+        sem_end: settings?.sem_end ?? null,
+      });
+      await qc.invalidateQueries({ queryKey: ["archives", pin] });
+      toast.success(say(VOICE.semesterArchived, tone));
+      // The recap plays now, while the term it counts is still here;
+      // clearing for the new semester is its last card (Wrapped.tsx).
+      navigate("/wrapped", { state: { archived: label.trim() || defaultLabel } });
+    } catch (err) {
+      toast.error("Couldn't archive", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4">
+        <Skeleton className="h-9 w-44" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  const hasArchives = (archives ?? []).length > 0;
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-4">
+      <div className="px-1">
+        <h1 className="text-2xl font-extrabold tracking-tight lg:text-3xl">
+          <Struck official="academic record" honest={say(VOICE.titleHistory, tone)} />
+        </h1>
+        {say(VOICE.subHistory, tone) && (
+          <p className="mt-0.5 text-xs italic text-muted">({say(VOICE.subHistory, tone)})</p>
+        )}
+      </div>
+
+      {/* CGPA hero */}
+      <section className="card flex items-center justify-around gap-3 p-6">
+        <div className="text-center">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted">CGPA</p>
+          <p className="mt-1 text-4xl font-extrabold accent-gradient-text">
+            {cgpa === null ? "—" : <AnimatedNumber value={cgpa} decimals={2} />}
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted">
+            {completed} completed semester{completed === 1 ? "" : "s"}
+          </p>
+        </div>
+        {current.sgpa !== null && (
+          <>
+            <div className="h-12 w-px bg-line/10" />
+            <div className="text-center">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                Incl. this sem
+              </p>
+              <p className="mt-1 text-4xl font-extrabold text-good-deep">
+                {cgpaWithCurrent === null ? "—" : <AnimatedNumber value={cgpaWithCurrent} decimals={2} />}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted">predicted so far</p>
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* The CGPA above is a number you read. */}
+      {/* Only once something is archived. With no prior record CGPA is
+          just this semester's SGPA, so every rung reads "need 8.5 for
+          8.5" - true, and worth nothing. */}
+      {completed > 0 && ladder.length > 0 && (
+        <section className="card p-5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
+            To finish this semester at
+          </p>
+          <ul className="mt-3 space-y-2">
+            {ladder.map(({ target, verdict }) => (
+              <li key={target} className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="font-bold tabular">{target.toFixed(1)} CGPA</span>
+                {verdict.kind === "secured" ? (
+                  <span className="text-xs font-semibold text-good-deep">
+                    already safe whatever happens
+                  </span>
+                ) : verdict.kind === "impossible" ? (
+                  <span className="text-xs font-semibold text-muted">
+                    out of reach - a perfect 10 lands {verdict.shortfall.toFixed(2)} short
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2 text-xs font-semibold">
+                    need <b className="tabular text-accent">{verdict.needed.toFixed(2)}</b> SGPA
+                    {/* Aim the whole plan at it: every subject's "what you need" reads target_sgpa. */}
+                    {Math.abs((settings?.target_sgpa ?? 0) - Math.ceil(verdict.needed * 100) / 100) < 0.005 ? (
+                      <span className="rounded-lg bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent">your target</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const t = Math.ceil(verdict.needed * 100) / 100;
+                          updateSettings.mutate({ target_sgpa: t });
+                          toast.success(`SGPA target set to ${t.toFixed(2)}, for a ${target.toFixed(1)} CGPA`);
+                        }}
+                        className="flex items-center gap-1 rounded-lg bg-surface-2 px-2 py-0.5 text-[11px] font-bold text-ink hover:bg-surface-2/70"
+                        aria-label={`Aim for ${target.toFixed(1)} CGPA`}
+                      >
+                        <Target className="h-3 w-3" /> aim
+                      </button>
+                    )}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] text-muted">
+            Across {current.totalCredits} credits this semester
+            {completed > 0 ? `, on top of ${completed} archived` : ""}. “Aim” makes it your SGPA target, which every
+            subject's plan works toward.
+          </p>
+        </section>
+      )}
+
+      <DegreePlan
+        archives={archives ?? []}
+        currentCredits={current.totalCredits}
+        currentCodes={currentCodes}
+        targetSgpa={settings?.target_sgpa ?? 8}
+        semester={settings?.semester ?? 1}
+      />
+
+      <div className="grid grid-cols-2 gap-3">
+        <Button className="w-full" onClick={archiveNow} disabled={busy}>
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+          Archive this semester
+        </Button>
+        <Button variant="secondary" className="w-full" onClick={() => setAdding(true)}>
+          <Plus className="h-4 w-4" /> Add past semester
+        </Button>
+      </div>
+      <PastSemesterSheet
+        open={adding}
+        onClose={() => setAdding(false)}
+        suggestedLabel={`Semester ${(archives?.length ?? 0) + 1}`}
+      />
+
+      {!hasArchives ? (
+        <section className="card">
+          <EmptyState
+            icon={GraduationCap}
+            title={say(VOICE.historyEmptyTitle, tone)}
+            description={say(VOICE.historyEmptyBody, tone)}
+            className="py-8"
+          />
+        </section>
+      ) : (
+        <div className="space-y-3">
+          {(archives ?? []).map((a, i) => (
+            <SemesterCard
+              key={a.id}
+              archive={a}
+              index={i}
+              onDelete={async (arc) => {
+                const ok = await confirm({
+                  title: `Delete ${arc.label}?`,
+                  body: "The archived record goes for good.",
+                  confirmLabel: "Delete record",
+                  destructive: true,
+                });
+                if (ok) deleteArchive.mutate(arc.id);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
