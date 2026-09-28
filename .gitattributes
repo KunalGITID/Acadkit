@@ -1,5 +1,4 @@
 *.swift linguist-detectable=false
 supabase/** linguist-detectable=false
 notebooks/** linguist-detectable=false
-html/** linguist-detectable=false
-css/** linguist-detectable=false
+
