@@ -11,7 +11,6 @@ import { Badge, Dot, Skeleton } from "@/components/ui/misc";
 import { SgpaDial } from "@/components/viz/sgpa-dial";
 import { GradeBadge } from "@/components/viz/grade-badge";
 import { AnimatedNumber } from "@/components/viz/animated-number";
-import { MarkTrend } from "@/components/viz/mark-trend";
 import { MarkSheet } from "@/components/sheets/mark-sheet";
 import {
   useAttendance,
@@ -163,13 +162,6 @@ function SubjectMarksCard({
           </span>
         </div>
         <Bar value={marks.internalObtained} max={marks.internalMax} color={subject.color_hex} />
-        {marks.internalComponents.length > 1 && (
-          <MarkTrend
-            marks={marks.internalComponents}
-            color={subject.color_hex}
-            className="mt-3"
-          />
-        )}
       </div>
 
       {/* Components */}
