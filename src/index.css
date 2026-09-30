@@ -23,7 +23,9 @@
   --surface-2: 0 0% 93%;
   --line: 0 0% 0%;
   --ink: 0 0% 6%;
-  --muted: 0 0% 45%;
+  /* 42%, not 45%: small muted text needs 4.5:1 on --bg (97%) and on
+     --surface-2 (93%). 45% came to 4.4:1 and failed Lighthouse's contrast check. */
+  --muted: 0 0% 42%;
   --accent: 72 89% 56%;
   --accent-2: 6 78% 60%;
   --good-deep: 142 62% 32%;
