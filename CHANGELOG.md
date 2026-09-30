@@ -20,6 +20,13 @@ existing data or installs, a minor version for new features, a patch version for
 - Issue and pull request templates, `CONTRIBUTING.md`, and tagged releases built from
   this file (#5).
 - MIT licence.
+- Crash reports carry the release they came from ("2.0.0+d6b27fa"), and the database
+  groups repeats of one crash by fingerprint. `npm run errors` prints them grouped
+  (migration 038).
+- The version is shown at the bottom of Settings, and in the error screen's details.
+- CI fails when the bundle grows past `bundle-budget.json`, or when Lighthouse scores
+  drop below `lighthouserc.json`.
+- A meta description for search results.
 
 ### Removed
 

@@ -25,6 +25,11 @@ CI runs all of these on every pull request, and a PR merges only when they pass.
 | `npm test`                             | Unit tests (Vitest)                                 |
 | `npm run test:e2e`                     | The app in a browser against `dev:mock` (Playwright) |
 | `supabase start` then `supabase test db --local` | Row-level security (pgTAP, needs Docker) |
+| `npx vite build && npm run size`       | Bundle size against `bundle-budget.json`            |
+| `npx vite build && npx @lhci/cli@0.15.1 autorun` | Lighthouse against `lighthouserc.json` |
+
+The size and Lighthouse limits sit a little above today's numbers. If a change needs more,
+raise the limit in the same PR and say why.
 
 The first time you run the e2e tests, install the browser with
 `npx playwright install chromium`.

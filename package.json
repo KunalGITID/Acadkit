@@ -14,8 +14,10 @@
     "sync:files": "node --env-file-if-exists=.env.local scripts/sync-study-folder.mjs",
     "sync:deletions": "node --env-file-if-exists=.env.local scripts/apply-study-deletions.mjs",
     "sync:app": "node --env-file-if-exists=.env.local scripts/apply-app-requests.mjs",
+    "errors": "node --env-file-if-exists=.env.local scripts/error-report.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "size": "node scripts/check-bundle-size.mjs",
     "dev:mock": "node scripts/dev-mock/server.mjs"
   },
   "dependencies": {

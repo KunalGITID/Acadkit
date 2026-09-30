@@ -12,10 +12,12 @@ dist
 dist-ssr
 *.local
 
-# Playwright output
+# Playwright and Lighthouse output
 test-results/
 playwright-report/
 blob-report/
+.lighthouseci/
+lighthouse-report/
 
 # Editor directories and files
 .vscode/*
