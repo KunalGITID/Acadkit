@@ -277,6 +277,9 @@ const db = {
   syllabus_progress: [],
 };
 
+// The seeded state, so the e2e tests can put it back between specs.
+const SEED = structuredClone(db);
+
 let seq = 1000;
 
 /** Apply PostgREST-style `col=eq.value` / `in.(…)` filters. */
@@ -390,6 +393,12 @@ const server = createServer((req, res) => {
   if (req.method === "OPTIONS") return res.writeHead(204).end();
 
   const u = new URL(req.url, "http://x");
+
+  // ---- test reset ---- e2e/fixtures.ts calls this before every spec, so each one starts from the seeded semester whatever an earlier spec (or a retry) wrote.
+  if (req.method === "POST" && u.pathname === "/__reset") {
+    Object.assign(db, structuredClone(SEED));
+    return res.writeHead(204).end();
+  }
 
   // ---- auth ---- The app gates on a Supabase session now, so the mock has to hand one out or the preview never gets past the sign-in screen.
   if (u.pathname.startsWith("/auth/v1/")) {
