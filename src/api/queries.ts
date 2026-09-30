@@ -1,6 +1,7 @@
 import type { Suggestion, SuggestionStatus } from "@/lib/suggestions";
 import { labelMatchKey } from "@/lib/componentLabel";
 import { supabase } from "@/lib/supabase";
+import type { DraftSubject } from "@/lib/onboarding";
 import { SEED_SUBJECTS, SEMESTER_START, SEMESTER_END } from "@/data/semester";
 import type {
   AttendanceRecord,
@@ -68,6 +69,60 @@ export async function seedAccount(pin: string): Promise<void> {
       .insert(SEED_SUBJECTS.map((s) => ({ ...s, device_id: pin })));
     throwIf(subErr);
   }
+}
+
+export interface AccountSetup {
+  name: string;
+  semester: number;
+  min_attendance: number;
+  target_sgpa: number | null;
+  subjects: DraftSubject[];
+}
+
+/**
+ * A new account from the onboarding answers. Safe to run again after a
+ * failure halfway: settings are updated rather than duplicated, and the
+ * subjects go in only while the account has none.
+ */
+export async function setupAccount(pin: string, setup: AccountSetup): Promise<void> {
+  const profile = {
+    name: setup.name.trim() || null,
+    semester: setup.semester,
+    min_attendance: setup.min_attendance,
+    ...(setup.target_sgpa !== null ? { target_sgpa: setup.target_sgpa } : {}),
+  };
+  if (await fetchSettings(pin)) {
+    const { error } = await supabase.from("settings").update(profile).eq("device_id", pin);
+    throwIf(error);
+  } else {
+    const { error } = await supabase.from("settings").insert({
+      device_id: pin,
+      ...profile,
+      sem_start: SEMESTER_START,
+      sem_end: SEMESTER_END,
+      declared_holidays: [],
+    });
+    throwIf(error);
+  }
+  if (!setup.subjects.length) return;
+  const { count, error } = await supabase
+    .from("subjects")
+    .select("id", { count: "exact", head: true })
+    .eq("device_id", pin);
+  throwIf(error);
+  if (count) return;
+  const { error: subErr } = await supabase.from("subjects").insert(
+    setup.subjects.map((s) => ({
+      device_id: pin,
+      code: s.code,
+      name: s.name.trim(),
+      credits: s.credits ?? 0,
+      type: s.type,
+      faculty: s.faculty,
+      color_hex: s.color_hex,
+    }))
+  );
+  throwIf(subErr);
 }
 
 // ---------- subjects ----------

@@ -107,6 +107,7 @@ describe("sp.srmist.edu.in — attendance", () => {
       conducted: 30,
       absent: 21,
       percentage: 30,
+      title: "DATA STRUCTURES AND ALGORITHMS",
     });
     // "Absent hours" must not also be claimed as the conducted column.
     expect(rows[2]).toEqual({
@@ -114,6 +115,7 @@ describe("sp.srmist.edu.in — attendance", () => {
       conducted: 18,
       absent: 7,
       percentage: 61.11,
+      title: "ADVANCED OBJECT ORIENTED PROGRAMMING",
     });
   });
 

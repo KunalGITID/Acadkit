@@ -22,6 +22,7 @@ import { AnimatedNumber } from "@/components/viz/animated-number";
 import { GradeBadge } from "@/components/viz/grade-badge";
 import { DeadlineSheet } from "@/components/sheets/deadline-sheet";
 import { DayOrderChip } from "@/components/layout/day-order-chip";
+import { GettingStartedCard } from "@/components/getting-started";
 import {
   useAttendance,
   usePortalSnapshots,
@@ -599,6 +600,7 @@ export default function Dashboard() {
           {/* First, because it's the one card asking for a decision -
               and it renders nothing when there isn't one. */}
           <SuggestionsCard />
+          <GettingStartedCard />
           <ExamCountdown />
           <TodayCard />
         </div>

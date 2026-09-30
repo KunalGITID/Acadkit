@@ -3,6 +3,8 @@ import { test as base, expect, type APIRequestContext, type Page } from "@playwr
 /** The mock backend (scripts/dev-mock/server.mjs) and the PIN it seeds. */
 const MOCK_ORIGIN = "http://127.0.0.1:54321";
 export const MOCK_API = `${MOCK_ORIGIN}/rest/v1`;
+/** The account an email starting with "new" signs in to: no PIN yet, so it gets onboarding. */
+export const NEW_USER = "11111111-1111-4111-8111-111111111111";
 
 /**
  * Every spec runs on Wednesday 7 Oct 2026 at 07:30 IST: a working day
@@ -16,10 +18,13 @@ const NOW = new Date(`${TODAY}T07:30:00+05:30`);
 export async function serverRows<T = Record<string, unknown>>(
   request: APIRequestContext,
   table: string,
-  query: Record<string, string> = {}
+  query: Record<string, string> = {},
+  /** Whose rows: the mock filters PIN claims by account, the way RLS does. */
+  as: "seeded" | "new" = "seeded"
 ): Promise<T[]> {
   const params = new URLSearchParams(query);
-  const res = await request.get(`${MOCK_API}/${table}?${params}`);
+  const headers = as === "new" ? { authorization: `Bearer mock-access-token.${NEW_USER}` } : undefined;
+  const res = await request.get(`${MOCK_API}/${table}?${params}`, { headers });
   expect(res.ok()).toBeTruthy();
   return res.json();
 }
