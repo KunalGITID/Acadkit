@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, openSignIn, signIn, test } from "./fixtures";
+import { expect, openSignIn, signIn, test, waitForLaunch } from "./fixtures";
 
 /**
  * axe on every main screen, in light and dark: WCAG 2.1 A and AA. A
@@ -58,6 +58,7 @@ for (const scheme of ["light", "dark"] as const) {
       test(`${path}`, async ({ page }) => {
         await signIn(page);
         if (path !== "/") await page.goto(path);
+        await waitForLaunch(page);
         // Let entrance animations finish: axe reads colours mid-fade as low contrast.
         await page.waitForTimeout(1200);
         expect(await audit(page)).toEqual([]);

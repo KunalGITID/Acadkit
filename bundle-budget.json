@@ -1,6 +1,7 @@
 {
-  "//": "Gzipped KB, checked by scripts/check-bundle-size.mjs after a build. Set a little above the sizes on 2026-09-30 (initial 284, largest 390, JS 1051, CSS 10). Raise a number only on purpose, in the PR that needs it.",
-  "initialKB": 300,
+  "//": "Gzipped KB, checked by scripts/check-bundle-size.mjs after a build. A little above the sizes on 2026-09-30: visitor load 106 (the landing page alone), signed-in start 294, largest chunk 390, all JS 1058, CSS 10.5. Raise a number only on purpose, in the PR that needs it.",
+  "initialKB": 115,
+  "appStartKB": 310,
   "largestChunkKB": 410,
   "totalJsKB": 1120,
   "cssKB": 15

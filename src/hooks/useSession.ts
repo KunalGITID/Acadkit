@@ -2,24 +2,12 @@ import { useEffect, useState } from "react";
 import { isAuthRetryableFetchError, type Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { flushPendingReports } from "@/lib/crashLog";
+import { savedSession } from "@/lib/savedSession";
 
 export interface SessionState {
   session: Session | null;
   /** True until the stored session has been read back from storage. */
   loading: boolean;
-}
-
-const AUTH_KEY = "acadkit:auth"; // storageKey in src/lib/supabase.ts
-
-/** The session this device last saved, read synchronously. */
-function savedSession(): Session | null {
-  try {
-    const raw = localStorage.getItem(AUTH_KEY);
-    const s = raw ? (JSON.parse(raw) as Session) : null;
-    return s?.access_token && s.refresh_token && s.user ? s : null;
-  } catch {
-    return null;
-  }
 }
 
 /** The current auth session, kept live. */

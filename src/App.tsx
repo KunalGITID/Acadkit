@@ -12,7 +12,8 @@ import { LaunchScreen } from "@/components/launch-screen";
 import { DialogProvider } from "@/components/ui/dialog";
 import { UpdatePrompt } from "@/components/update-prompt";
 import Onboarding from "@/pages/Onboarding";
-import Landing from "@/pages/Landing";
+import Welcome from "@/pages/Welcome";
+import type { AuthMode } from "@/pages/Landing";
 import { useSession } from "@/hooks/useSession";
 import { useAutoDevice } from "@/hooks/useAutoDevice";
 import { RQ_CACHE_KEY, useAuthReset } from "@/hooks/useAuthReset";
@@ -128,7 +129,8 @@ function AppRoutes() {
   );
 }
 
-export default function App() {
+/** `initialAuth`: arriving from the landing page (src/public.tsx) with Sign in or Get started already tapped. */
+export default function App({ initialAuth = null }: { initialAuth?: AuthMode | null } = {}) {
   const pin = useAppStore((s) => s.pin);
   const { session, loading } = useSession();
   const { resolved: devicesResolved } = useAutoDevice(!!session);
@@ -176,11 +178,12 @@ export default function App() {
           <AuthReset />
           <UpdatePrompt />
           {/* Order matters: hold the launch screen until the stored session has been read, or every launch flashes a sign-in screen at someone who is already signed in. */}
-          <LaunchScreen ready={!loading} />
+          {/* Not when arriving from the landing page: the visitor has already seen a page load, and a splash between tapping Sign in and the form would only be in the way. */}
+          {!initialAuth && <LaunchScreen ready={!loading} />}
           {screen === "holding" ? (
             <div className="min-h-dvh" />
           ) : screen === "sign-in" ? (
-            <Landing />
+            <Welcome initialAuth={initialAuth} />
           ) : screen === "onboarding" ? (
             <Onboarding />
           ) : (
