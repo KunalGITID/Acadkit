@@ -68,3 +68,24 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  rls:
+    # pgTAP tests in supabase/tests: a throwaway local Supabase is built
+    # from supabase/migrations, then every table is checked for one account
+    # reaching another's data. `--local` only - never the hosted project.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Auth and Storage stay: their own migrations define auth.uid() and
+      # the storage.objects policies under test. Everything else is skipped.
+      - name: Start local Supabase
+        run: supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: RLS tests
+        run: supabase test db --local
