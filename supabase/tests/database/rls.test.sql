@@ -11,7 +11,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(60);
+select plan(64);
 
 -- ---------------------------------------------------------------------------
 -- Seed, as the table owner (RLS does not apply)
@@ -61,6 +61,9 @@ insert into suggestions (device_id, key, kind, payload)
   select d, 'deadline-1', 'deadline', '{}'::jsonb from unnest(array['1111', '2222']) d;
 insert into syllabus_progress (device_id, course_code, unit, topic)
   select d, '21CSC202J', 1, 'Process states' from unnest(array['1111', '2222']) d;
+
+insert into active_days (device_id, day)
+  select d, '2026-10-07' from unnest(array['1111', '2222']) d;
 
 insert into storage.buckets (id, name, public) values ('study-files', 'study-files', false)
   on conflict (id) do nothing;
@@ -114,8 +117,22 @@ from unnest(array[
   'semester_archives', 'portal_snapshots', 'portal_snapshot_history',
   'push_subscriptions', 'error_log', 'forecast_log', 'sent_notifications',
   'study_chunks', 'study_file_deletions', 'study_uploads', 'suggestions',
-  'syllabus_progress', 'device_owners'
+  'syllabus_progress', 'device_owners', 'active_days'
 ]) t;
+
+-- Activity is write-only from the app: not even your own days come back.
+select is_empty(
+  $$select 1 from active_days where device_id = '1111'$$,
+  'A cannot read even their own active days'
+);
+select lives_ok(
+  $$insert into active_days (device_id, day) values ('1111', '2026-10-08')$$,
+  'A can record their own active day'
+);
+select throws_ok(
+  $$insert into active_days (device_id, day) values ('2222', '2026-10-08')$$,
+  '42501', null, 'A cannot record a day under B''s PIN'
+);
 
 -- Writing into B's PIN is refused outright.
 select throws_ok(

@@ -31,6 +31,9 @@ existing data or installs, a minor version for new features, a patch version for
   then subjects from a pasted SRM portal attendance page (any branch; credits filled in
   where known, the rest asked for), the CSE (Data Science) Semester 3 list, or nothing.
   Pasted attendance is kept.
+- Privacy-friendly usage counts: each account records the days it opens the app (no
+  times, pages, IPs or device details), write-only from the app. `npm run stats` shows
+  weekly active users (migration 039).
 - A "Getting started" card on Home until the timetable is added and the app is on the
   home screen.
 
