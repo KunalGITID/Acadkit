@@ -16,6 +16,13 @@ updates:
         update-types: [minor, patch]
     # Major versions still come one PR each, so a breaking change is
     # reviewed on its own.
+    ignore:
+      # Needs Vite 8; upgrade them together, by hand.
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      # Moves with ESLint 10 and its plugins; upgrade them together, by hand.
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: deps
 
