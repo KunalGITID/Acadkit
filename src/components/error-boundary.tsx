@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from "react";
 import { buildReport, fileReport } from "@/lib/crashLog";
 import { isStaleChunkError, recoverFromStaleChunk } from "@/lib/staleChunk";
+import { RELEASE } from "@/lib/release";
 
 interface Props {
   children: ReactNode;
@@ -36,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
     const { error, componentStack } = this.state;
     return [
       `${error?.name ?? "Error"}: ${error?.message ?? "unknown"}`,
-      location.pathname,
+      `AcadKit ${RELEASE} · ${location.pathname}`,
       error?.stack ?? "",
       componentStack ?? "",
     ]

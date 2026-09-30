@@ -7,7 +7,8 @@ if (!globalThis.crypto) {
   (globalThis as Record<string, unknown>).crypto = webcrypto;
 }
 
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -36,7 +37,29 @@ function pdfjsWasm() {
   };
 }
 
+/**
+ * The build's release tag, "2.0.0+d6b27fa": package version plus commit.
+ * Crash reports carry it (src/lib/release.ts), so a crash can be tied to
+ * the deploy it came from. Vercel and CI provide the commit; a local build
+ * asks git.
+ */
+function release(): string {
+  const { version } = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8"));
+  let sha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || "";
+  if (!sha) {
+    try {
+      sha = execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    } catch {
+      sha = "dev";
+    }
+  }
+  return `${version}+${sha.slice(0, 7)}`;
+}
+
 export default defineConfig({
+  define: {
+    __APP_RELEASE__: JSON.stringify(release()),
+  },
   plugins: [
     pdfjsWasm(),
     react(),

@@ -19,6 +19,7 @@ import { useTone } from "@/hooks/useTone";
 import { syncHealth } from "@/lib/syncHealth";
 import { relativeDay } from "@/lib/dates";
 import { signOut } from "@/lib/auth";
+import { COMMIT, VERSION } from "@/lib/release";
 import {
   updateSettings as apiUpdateSettings,
 } from "@/api/queries";
@@ -743,6 +744,11 @@ export default function Settings() {
 
       <p className="pb-4 pt-2 text-center text-xs text-muted">
         {say(VOICE.footer, tone)}
+        {/* The build, for bug reports: the same tag every crash report carries. */}
+        <span className="mt-1 block tabular opacity-70">
+          AcadKit {VERSION}
+          {COMMIT && ` · ${COMMIT}`}
+        </span>
       </p>
     </div>
   );

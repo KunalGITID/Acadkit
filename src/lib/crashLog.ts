@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { getStoredPin } from "@/lib/pin";
 import { isStaleChunkError, recoverFromStaleChunk } from "@/lib/staleChunk";
+import { RELEASE } from "@/lib/release";
 
 /** Best-effort crash reporting. */
 
@@ -14,6 +15,8 @@ export interface CrashReport {
   component_stack: string;
   url: string;
   user_agent: string;
+  /** The build it happened in, "2.0.0+d6b27fa" (migration 038). */
+  release: string;
 }
 
 /** Reading the pin touches localStorage, which throws outright when storage is disabled rather than returning null. */
@@ -37,6 +40,7 @@ export function buildReport(
     component_stack: (componentStack ?? "").slice(0, 4000),
     url: location.pathname,
     user_agent: navigator.userAgent,
+    release: RELEASE,
   };
 }
 

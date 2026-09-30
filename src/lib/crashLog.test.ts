@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { buildReport } from "@/lib/crashLog";
+import { RELEASE } from "@/lib/release";
 
 describe("buildReport", () => {
   it("keeps the message and stack, bounded", () => {
@@ -30,6 +31,11 @@ describe("buildReport", () => {
 
   it("records where it happened", () => {
     expect(buildReport(new Error("e")).url).toBe(location.pathname);
+  });
+
+  /** Without it a crash can't be tied to the deploy that caused it. */
+  it("records which build it happened in", () => {
+    expect(buildReport(new Error("e")).release).toBe(RELEASE);
   });
 
   /**
