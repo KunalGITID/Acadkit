@@ -1,6 +1,8 @@
 # AcadKit
 
 [![CI](https://github.com/KunalGITID/Acadkit/actions/workflows/ci.yml/badge.svg)](https://github.com/KunalGITID/Acadkit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/KunalGITID/Acadkit)](https://github.com/KunalGITID/Acadkit/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 A personal academic app for SRM KTR: attendance, marks and SGPA, the Day Order timetable,
 deadlines, and study files. It's a PWA, so you install it to your phone's home screen or run it
@@ -51,3 +53,7 @@ can read it.
 ## Stack
 
 React · TypeScript · Vite · Tailwind · TanStack Query · Supabase
+
+## License
+
+[MIT](LICENSE)
