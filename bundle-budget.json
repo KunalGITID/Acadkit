@@ -1,0 +1,7 @@
+{
+  "//": "Gzipped KB, checked by scripts/check-bundle-size.mjs after a build. Set a little above the sizes on 2026-09-30 (initial 284, largest 390, JS 1051, CSS 10). Raise a number only on purpose, in the PR that needs it.",
+  "initialKB": 300,
+  "largestChunkKB": 410,
+  "totalJsKB": 1120,
+  "cssKB": 15
+}

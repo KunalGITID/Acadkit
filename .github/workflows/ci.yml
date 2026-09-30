@@ -38,6 +38,9 @@ jobs:
       - name: Build
         run: npx vite build
 
+      - name: Bundle size
+        run: npm run size
+
   e2e:
     # Playwright against `npm run dev:mock`: sign in, mark attendance, add
     # marks, and replay a write made offline. No real Supabase involved.
@@ -89,3 +92,38 @@ jobs:
 
       - name: RLS tests
         run: supabase test db --local
+
+  lighthouse:
+    # Lighthouse on the production build, median of three runs, against the
+    # limits in lighthouserc.json. It loads the sign-in screen, so this is the
+    # first visit's download and render speed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The app refuses to start without these. Nothing is contacted: the
+      # sign-in screen renders without a network call.
+      - name: Build
+        run: npx vite build
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_ANON_KEY: lighthouse
+
+      - name: Lighthouse
+        run: npx -y @lhci/cli@0.15.1 autorun
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: lighthouse-report/
+          retention-days: 14
