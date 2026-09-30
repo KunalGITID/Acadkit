@@ -3,16 +3,9 @@ import { Link } from "react-router-dom";
 import { Check, X } from "lucide-react";
 import { useTimetable } from "@/hooks/useData";
 import { cn } from "@/lib/utils";
+import { isInstalled } from "@/lib/activity";
 
 const DISMISSED_KEY = "acadkit:getting-started-dismissed";
-
-/** Opened from the home screen rather than a browser tab. */
-function isInstalled(): boolean {
-  return (
-    window.matchMedia?.("(display-mode: standalone)").matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
 
 function isIos(): boolean {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);

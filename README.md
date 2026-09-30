@@ -46,6 +46,7 @@ and start the app with `npm run dev`.
 | `npm run test:e2e`   | Browser tests on the mock backend (Playwright) |
 | `npm run size`       | Check the built bundle against its size budget |
 | `npm run errors`     | Crash reports from the app, grouped            |
+| `npm run stats`      | Weekly active users, from `active_days`        |
 | `npm run sync:files` | Mirror the Mac's study folder to the app       |
 
 `sync:files` needs `SUPABASE_SERVICE_ROLE_KEY` and `STUDY_PIN` in `.env.local`. Never give the

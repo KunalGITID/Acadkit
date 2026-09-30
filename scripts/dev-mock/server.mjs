@@ -275,6 +275,8 @@ const db = {
   study_uploads: [],
   // Migration 034.
   syllabus_progress: [],
+  // Migration 039.
+  active_days: [],
 };
 
 // The seeded state, so the e2e tests can put it back between specs.
