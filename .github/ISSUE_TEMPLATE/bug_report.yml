@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in AcadKit is wrong or broken.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please don't paste your PIN, email, register number or
+        screenshots showing them: this repository is public.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+      placeholder: |
+        Marked Operating Systems present on the Calendar, then reopened the app.
+        Expected it still marked. It showed as unmarked.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open Calendar
+        2. Tap 7 Oct, then "Mark attendance for this day"
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - Phone, installed to the home screen
+        - Phone, in the browser
+        - Mac or PC, installed
+        - Mac or PC, in the browser
+    validations:
+      required: true
+  - type: dropdown
+    id: online
+    attributes:
+      label: Were you online?
+      options: ["Yes", "No, offline", "Not sure"]
+  - type: input
+    id: device
+    attributes:
+      label: Device and browser
+      placeholder: iPhone 13, iOS 19, Safari
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Console errors, or a screenshot with personal details hidden.
