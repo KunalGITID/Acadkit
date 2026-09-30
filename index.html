@@ -55,6 +55,21 @@
       content="Attendance, marks and SGPA, the Day Order timetable, deadlines and study files for SRM KTR students. Works offline."
     />
     <script>
+      // A signed-out visitor lands on the landing page, whose demo image is
+      // its largest element. The app only renders it after the bundle has
+      // run, so start the download now. Signed-in devices never fetch it.
+      try {
+        if (!localStorage.getItem("acadkit:auth")) {
+          var demo = document.createElement("link");
+          demo.rel = "preload";
+          demo.as = "image";
+          demo.href = "/demo.webp";
+          demo.fetchPriority = "high";
+          document.head.appendChild(demo);
+        }
+      } catch (e) {}
+    </script>
+    <script>
       // Apply theme before first paint to avoid a flash of the wrong theme/mode.
       // The hex map here mirrors each theme's --bg in src/index.css — keep in sync.
       (function () {

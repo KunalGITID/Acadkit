@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, serverRows, test } from "./fixtures";
+import { expect, openSignIn, serverRows, test } from "./fixtures";
 
 /** The Academia attendance page, as a copy of it arrives on the clipboard. */
 const ATTENDANCE_PAGE = `<table><thead><tr>
@@ -13,7 +13,7 @@ const ATTENDANCE_PAGE = `<table><thead><tr>
 const FINISH = /set up my semester|see the damage/i;
 
 async function signInAsNewStudent(page: Page) {
-  await page.goto("/");
+  await openSignIn(page);
   await page.getByLabel("Email").fill("new-student@acadkit.test");
   await page.getByLabel("Password").fill("e2e-password");
   await page.locator("form").getByRole("button").click();

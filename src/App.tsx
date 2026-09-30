@@ -12,7 +12,7 @@ import { LaunchScreen } from "@/components/launch-screen";
 import { DialogProvider } from "@/components/ui/dialog";
 import { UpdatePrompt } from "@/components/update-prompt";
 import Onboarding from "@/pages/Onboarding";
-import SignIn from "@/pages/SignIn";
+import Landing from "@/pages/Landing";
 import { useSession } from "@/hooks/useSession";
 import { useAutoDevice } from "@/hooks/useAutoDevice";
 import { RQ_CACHE_KEY, useAuthReset } from "@/hooks/useAuthReset";
@@ -180,7 +180,7 @@ export default function App() {
           {screen === "holding" ? (
             <div className="min-h-dvh" />
           ) : screen === "sign-in" ? (
-            <SignIn />
+            <Landing />
           ) : screen === "onboarding" ? (
             <Onboarding />
           ) : (

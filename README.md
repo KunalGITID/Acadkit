@@ -8,6 +8,8 @@ A personal academic app for SRM KTR: attendance, marks and SGPA, the Day Order t
 deadlines, and study files. It's a PWA, so you install it to your phone's home screen or run it
 on a Mac, and it syncs across devices when you sign in.
 
+<p align="center"><img src="public/demo.webp" width="300" alt="AcadKit on a phone: Home, attendance, marking a class from the calendar, marks and SGPA, days you can skip" /></p>
+
 ## Features
 
 - **Attendance**: how many classes you can miss, and what it takes to get back above the
@@ -47,6 +49,7 @@ and start the app with `npm run dev`.
 | `npm run size`       | Check the built bundle against its size budget |
 | `npm run errors`     | Crash reports from the app, grouped            |
 | `npm run stats`      | Weekly active users, from `active_days`        |
+| `npm run demo:record`| Re-record `public/demo.webp` from the mock     |
 | `npm run sync:files` | Mirror the Mac's study folder to the app       |
 
 `sync:files` needs `SUPABASE_SERVICE_ROLE_KEY` and `STUDY_PIN` in `.env.local`. Never give the

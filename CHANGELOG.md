@@ -34,6 +34,9 @@ existing data or installs, a minor version for new features, a patch version for
 - Privacy-friendly usage counts: each account records the days it opens the app (no
   times, pages, IPs or device details), write-only from the app. `npm run stats` shows
   weekly active users (migration 039).
+- A landing page for visitors who aren't signed in: what AcadKit does, a demo recorded on
+  sample data, how their data is handled, and Get started / Sign in. `npm run demo:record`
+  re-records the demo.
 - A "Getting started" card on Home until the timetable is added and the app is on the
   home screen.
 
