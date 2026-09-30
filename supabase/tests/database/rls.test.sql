@@ -30,8 +30,8 @@ insert into subjects (device_id, code, name, credits, type)
   select d, '21CSC202J', 'Operating Systems ' || d, 4, 'theory' from unnest(array['1111', '2222']) d;
 insert into timetable_slots (device_id, day_order, start_time, end_time)
   select d, 1, '08:00', '08:50' from unnest(array['1111', '2222']) d;
-insert into attendance (device_id, date, status)
-  select d, '2026-10-07', 'present' from unnest(array['1111', '2222']) d;
+insert into attendance (device_id, date, start_time, end_time, status)
+  select d, '2026-10-07', '08:00', '08:50', 'present' from unnest(array['1111', '2222']) d;
 insert into marks (device_id, component_type, label, marks_obtained, max_marks)
   select d, 'CT', 'CT-1 ' || d, 12, 15 from unnest(array['1111', '2222']) d;
 insert into deadlines (device_id, title, type, due_date)
@@ -124,7 +124,7 @@ select throws_ok(
   '42501', null, 'A cannot add marks under B''s PIN'
 );
 select throws_ok(
-  $$insert into attendance (device_id, date, status) values ('2222', '2026-10-08', 'absent')$$,
+  $$insert into attendance (device_id, date, start_time, end_time, status) values ('2222', '2026-10-08', '08:00', '08:50', 'absent')$$,
   '42501', null, 'A cannot mark attendance under B''s PIN'
 );
 select throws_ok(
