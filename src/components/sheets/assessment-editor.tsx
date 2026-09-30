@@ -57,7 +57,7 @@ export function AssessmentEditor({
             className={cn(
               "h-9 rounded-xl px-3 text-xs font-bold transition-all",
               value.internal === p.internal
-                ? "bg-accent/15 text-accent ring-1.5 ring-inset ring-accent"
+                ? "bg-accent/15 text-accent-deep ring-1.5 ring-inset ring-accent"
                 : "bg-surface-2 text-muted"
             )}
           >

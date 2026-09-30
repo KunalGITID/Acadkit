@@ -22,6 +22,7 @@ export default {
         good: "#4ade80",
         warn: "#facc15",
         bad: "#fb7185",
+        "accent-deep": "hsl(var(--accent-deep) / <alpha-value>)",
         "good-deep": "hsl(var(--good-deep) / <alpha-value>)",
         "warn-deep": "hsl(var(--warn-deep) / <alpha-value>)",
         "bad-deep": "hsl(var(--bad-deep) / <alpha-value>)",

@@ -29,8 +29,11 @@
   --accent: 72 89% 56%;
   --accent-2: 6 78% 60%;
   --good-deep: 142 62% 32%;
-  --warn-deep: 35 85% 34%;
-  --bad-deep: 6 78% 52%;
+  /* warn/bad-deep and accent-deep are text colours: each clears 4.5:1 on
+     every light surface here, tinted badges included (axe, e2e). */
+  --warn-deep: 35 85% 30%;
+  --bad-deep: 6 78% 44%;
+  --accent-deep: 72 70% 26%;
   /* Flat by design — the colour blocks do the separating, not depth. */
   --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
   --line-alpha: 0.1;
@@ -50,6 +53,7 @@
   --good-deep: 142 70% 58%;
   --warn-deep: 45 90% 62%;
   --bad-deep: 6 82% 64%;
+  --accent-deep: 72 89% 60%;
   --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
   --line-alpha: 0.14;
   --radius-card: 1.75rem;
@@ -67,8 +71,9 @@
   --accent: 0 0% 20%;
   --accent-2: 0 0% 42%;
   --good-deep: 142 60% 30%;
-  --warn-deep: 35 85% 34%;
+  --warn-deep: 35 85% 30%;
   --bad-deep: 350 72% 42%;
+  --accent-deep: 0 0% 20%;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06), 0 10px 26px -14px rgb(0 0 0 / 0.16);
   --line-alpha: 0.12;
   --radius-card: 0.875rem;
@@ -88,6 +93,7 @@
   --accent: 0 0% 38%;
   --accent-2: 0 0% 58%;
   --good-deep: 142 70% 55%;
+  --accent-deep: 0 0% 80%;
   --warn-deep: 45 90% 60%;
   --bad-deep: 350 85% 65%;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 14px 34px -16px rgb(0 0 0 / 0.9);
@@ -227,6 +233,14 @@
 }
 
 @layer components {
+  /* A grade's hue as text on its own 13% tint: mixed with black in light
+     mode to clear 4.5:1, used as-is in dark mode where it already does. */
+  .grade-badge {
+    color: color-mix(in srgb, var(--grade) 45%, black);
+  }
+  .dark .grade-badge {
+    color: var(--grade);
+  }
   .card {
     @apply rounded-3xl border bg-surface shadow-card;
     border-radius: var(--radius-card, 1.5rem);
@@ -440,4 +454,21 @@
 @keyframes find-sweep { from { left: -35%; } to { left: 100%; } }
 @media (prefers-reduced-motion: reduce) {
   .find-btn[data-open="true"]::before, .find-scan::after, .find-btn .find-glint { animation: none !important; }
+}
+
+/*
+ * Pinch-zoom is allowed (people who need bigger text rely on it), so the
+ * viewport no longer sets maximum-scale=1. What that setting was really
+ * for: iOS zooms the whole page into any field whose text is under 16px
+ * the moment it's focused. Keeping every field at 16px or more on touch
+ * screens stops that. !important because this has to beat the text-xs /
+ * text-sm utilities some fields carry, whatever the source order.
+ */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea,
+  [contenteditable="true"] {
+    font-size: max(16px, 1em) !important;
+  }
 }

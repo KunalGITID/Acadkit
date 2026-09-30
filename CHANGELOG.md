@@ -36,6 +36,12 @@ existing data or installs, a minor version for new features, a patch version for
 
 ### Fixed
 
+- Text that was too faint to read comfortably, found by an automated accessibility check
+  (axe) now run on every main screen in light and dark mode: white on lime buttons,
+  lime text on light backgrounds, light red and orange warnings, pale grade badges and
+  faded labels.
+- Pinch-zoom works again. Text fields stay at 16px on phones, so iOS still doesn't
+  zoom into them on tap.
 - Small grey text in the light default theme had too little contrast to read comfortably
   (4.4:1, below the 4.5:1 minimum).
 

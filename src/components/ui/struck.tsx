@@ -19,7 +19,7 @@ export function Struck({
     <span className={cn("block", className)}>
       <span
         aria-hidden
-        className="block text-[0.7em] font-semibold leading-tight text-bad-deep/70 line-through decoration-[1.5px]"
+        className="block text-[0.7em] font-semibold leading-tight text-bad-deep line-through decoration-[1.5px]"
       >
         {official}
       </span>

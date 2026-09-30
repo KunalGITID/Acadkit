@@ -116,7 +116,7 @@ export default function Practice() {
                   aria-pressed={unit === u}
                   className={cn(
                     "rounded-full px-3 py-1.5 text-xs font-bold",
-                    unit === u ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-ink"
+                    unit === u ? "bg-brand text-brand-ink" : "bg-surface-2 text-muted hover:text-ink"
                   )}
                 >
                   {u == null ? "All units" : `Unit ${u}`}

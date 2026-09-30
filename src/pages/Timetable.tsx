@@ -228,9 +228,9 @@ export default function Timetable() {
                     </p>
                   </div>
                   {isNow ? (
-                    <Badge className="animate-pulse bg-accent text-white">now</Badge>
+                    <Badge className="animate-pulse bg-brand text-brand-ink">now</Badge>
                   ) : isNext ? (
-                    <Badge className="bg-accent/15 text-accent">next</Badge>
+                    <Badge className="bg-accent/15 text-accent-deep">next</Badge>
                   ) : (
                     <Badge
                       className={

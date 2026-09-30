@@ -283,9 +283,9 @@ function TodayCard() {
                       <Ban className="h-4 w-4" />
                     </span>
                   ) : isNow ? (
-                    <Badge className="animate-pulse bg-accent text-white">now</Badge>
+                    <Badge className="animate-pulse bg-brand text-brand-ink">now</Badge>
                   ) : isNext ? (
-                    <Badge className="bg-accent/15 text-accent">next</Badge>
+                    <Badge className="bg-accent/15 text-accent-deep">next</Badge>
                   ) : null}
                 </motion.div>
               );
@@ -551,7 +551,7 @@ function DeadlinesCard() {
                 </button>
                 <Badge
                   className={cn(
-                    d.type === "exam" ? "bg-bad/10 text-bad-deep" : "bg-accent/10 text-accent"
+                    d.type === "exam" ? "bg-bad/10 text-bad-deep" : "bg-accent/10 text-accent-deep"
                   )}
                 >
                   {d.type}
