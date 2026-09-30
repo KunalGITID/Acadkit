@@ -41,6 +41,7 @@ and start the app with `npm run dev`.
 | `npm run dev:mock`   | Dev server on a local mock backend             |
 | `npm run build`      | Type-check and production build                |
 | `npm run test`       | Unit tests                                     |
+| `npm run test:e2e`   | Browser tests on the mock backend (Playwright) |
 | `npm run sync:files` | Mirror the Mac's study folder to the app       |
 
 `sync:files` needs `SUPABASE_SERVICE_ROLE_KEY` and `STUDY_PIN` in `.env.local`. Never give the
