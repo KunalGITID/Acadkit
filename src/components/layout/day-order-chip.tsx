@@ -12,7 +12,7 @@ export function DayOrderChip({ expanded = false }: { expanded?: boolean }) {
 
   let icon: React.ReactNode;
   let label: string;
-  let tone = "bg-accent text-white";
+  let tone = "bg-brand text-brand-ink";
   if (info.kind === "working" && info.dayOrder !== null) {
     icon = info.dayOrder;
     label = `Day Order ${info.dayOrder}`;

@@ -745,7 +745,7 @@ export default function Settings() {
       <p className="pb-4 pt-2 text-center text-xs text-muted">
         {say(VOICE.footer, tone)}
         {/* The build, for bug reports: the same tag every crash report carries. */}
-        <span className="mt-1 block tabular opacity-70">
+        <span className="mt-1 block tabular">
           AcadKit {VERSION}
           {COMMIT && ` · ${COMMIT}`}
         </span>

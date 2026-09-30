@@ -277,7 +277,7 @@ export default function History() {
                     need <b className="tabular text-accent">{verdict.needed.toFixed(2)}</b> SGPA
                     {/* Aim the whole plan at it: every subject's "what you need" reads target_sgpa. */}
                     {Math.abs((settings?.target_sgpa ?? 0) - Math.ceil(verdict.needed * 100) / 100) < 0.005 ? (
-                      <span className="rounded-lg bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent">your target</span>
+                      <span className="rounded-lg bg-accent/15 px-2 py-0.5 text-[11px] font-bold text-accent-deep">your target</span>
                     ) : (
                       <button
                         type="button"

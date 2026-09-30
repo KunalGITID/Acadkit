@@ -59,7 +59,7 @@ export default function SheetView({ blob, path }: { blob: Blob; path: string }) 
               onClick={() => setActive(i)}
               className={cn(
                 "shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold",
-                i === active ? "bg-accent/15 text-accent" : "bg-surface-2 text-muted"
+                i === active ? "bg-accent/15 text-accent-deep" : "bg-surface-2 text-muted"
               )}
             >
               {s.name || `Sheet ${i + 1}`}

@@ -140,7 +140,7 @@ export function ImportSheet({ data, onClose }: ImportSheetProps) {
                 <span
                   className={cn(
                     "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
-                    active ? "bg-accent text-white" : "bg-surface text-muted"
+                    active ? "bg-brand text-brand-ink" : "bg-surface text-muted"
                   )}
                 >
                   <row.icon className="h-5 w-5" />
@@ -154,7 +154,7 @@ export function ImportSheet({ data, onClose }: ImportSheetProps) {
                 <span
                   className={cn(
                     "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2",
-                    active ? "border-accent bg-accent text-white" : "border-ink/20"
+                    active ? "border-accent bg-brand text-brand-ink" : "border-ink/20"
                   )}
                 >
                   {active && "✓"}

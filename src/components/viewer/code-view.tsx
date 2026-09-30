@@ -56,7 +56,7 @@ export default function CodeView({ blob, language }: { blob: Blob; language: str
           aria-pressed={wrap}
           className={cn(
             "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold",
-            wrap ? "bg-accent/15 text-accent" : "bg-surface-2 text-muted"
+            wrap ? "bg-accent/15 text-accent-deep" : "bg-surface-2 text-muted"
           )}
         >
           <WrapText className="h-3.5 w-3.5" /> Wrap

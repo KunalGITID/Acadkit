@@ -108,7 +108,7 @@ export default function Electives() {
             onClick={() => setKind(k)}
             className={cn(
               "h-10 rounded-xl text-sm font-bold",
-              kind === k ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-ink"
+              kind === k ? "bg-brand text-brand-ink" : "bg-surface-2 text-muted hover:text-ink"
             )}
           >
             {k === "E" ? "Professional" : "Open"}

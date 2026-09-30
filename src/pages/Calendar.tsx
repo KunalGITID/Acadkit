@@ -210,11 +210,11 @@ export default function Calendar() {
                 className={cn(
                   "relative flex aspect-square flex-col items-center justify-center rounded-2xl text-sm font-semibold transition-colors",
                   isToday
-                    ? "bg-accent text-white shadow-pop"
+                    ? "bg-brand text-brand-ink shadow-pop"
                     : isHoliday
                       ? "bg-warn/15 text-warn-deep hover:bg-warn/25"
                       : info.kind === "weekend"
-                        ? "text-muted/50 hover:bg-surface-2"
+                        ? "text-muted hover:bg-surface-2"
                         : "hover:bg-surface-2"
                 )}
               >
@@ -223,7 +223,7 @@ export default function Calendar() {
                   <span
                     className={cn(
                       "text-[9px] font-extrabold leading-tight",
-                      isToday ? "text-white/80" : "text-accent"
+                      isToday ? "text-brand-ink/80" : "text-accent-deep"
                     )}
                   >
                     D{info.dayOrder}
@@ -301,7 +301,7 @@ export default function Calendar() {
                       </p>
                       {subject && <p className="text-xs text-muted">{subject.code}</p>}
                     </div>
-                    <Badge className={cn(d.type === "exam" ? "bg-bad/10 text-bad-deep" : "bg-accent/10 text-accent")}>
+                    <Badge className={cn(d.type === "exam" ? "bg-bad/10 text-bad-deep" : "bg-accent/10 text-accent-deep")}>
                       {d.type}
                     </Badge>
                   </div>

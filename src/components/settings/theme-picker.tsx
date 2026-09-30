@@ -69,7 +69,7 @@ export function ThemePicker() {
                 {active && <Check className="ml-auto h-4 w-4 text-accent" />}
               </p>
               <p className="mt-0.5 text-xs font-semibold text-muted">{meta.tagline}</p>
-              <p className="mt-1.5 text-[11px] leading-snug text-muted/80">{meta.xFactor}</p>
+              <p className="mt-1.5 text-[11px] leading-snug text-muted">{meta.xFactor}</p>
             </div>
           </button>
         );

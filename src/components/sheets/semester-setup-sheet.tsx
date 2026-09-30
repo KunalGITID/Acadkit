@@ -87,7 +87,7 @@ export function SemesterSetupSheet({
               onClick={() => setSemester(s.n)}
               className={cn(
                 "h-9 min-w-9 rounded-xl px-3 text-sm font-bold",
-                semester === s.n ? "bg-accent text-white" : "bg-surface-2 text-muted hover:text-ink"
+                semester === s.n ? "bg-brand text-brand-ink" : "bg-surface-2 text-muted hover:text-ink"
               )}
             >
               {s.n}
