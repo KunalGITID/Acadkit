@@ -27,6 +27,12 @@ existing data or installs, a minor version for new features, a patch version for
 - CI fails when the bundle grows past `bundle-budget.json`, or when Lighthouse scores
   drop below `lighthouserc.json`.
 - A meta description for search results.
+- Onboarding for new students: your name, semester, minimum attendance and target SGPA,
+  then subjects from a pasted SRM portal attendance page (any branch; credits filled in
+  where known, the rest asked for), the CSE (Data Science) Semester 3 list, or nothing.
+  Pasted attendance is kept.
+- A "Getting started" card on Home until the timetable is added and the app is on the
+  home screen.
 
 ### Fixed
 

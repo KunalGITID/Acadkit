@@ -27,10 +27,33 @@ describe("parsePastedPortal", () => {
   it("reads an attendance report out of pasted markup", () => {
     const out = parsePastedPortal(ATTENDANCE);
     expect(out.attendance).toEqual([
-      { subject_code: "21CSC202J", conducted: 45, absent: 6, percentage: 86.67 },
-      { subject_code: "21CSC203J", conducted: 40, absent: 2, percentage: 95 },
+      { subject_code: "21CSC202J", conducted: 45, absent: 6, percentage: 86.67, title: "OS" },
+      { subject_code: "21CSC203J", conducted: 40, absent: 2, percentage: 95, title: "DSA" },
     ]);
     expect(out.diagnostic).toBeNull();
+  });
+
+  /** Onboarding turns these rows into a new student's subjects, so the name, category and faculty have to come through too. */
+  it("reads each course's title, category and faculty from the Academia layout", () => {
+    const out = parsePastedPortal(`<table><thead><tr>
+      <th>Course Code</th><th>Course Title</th><th>Category</th><th>Faculty Name</th>
+      <th>Slot</th><th>Room No</th><th>Hours Conducted</th><th>Hours Absent</th><th>Attn %</th>
+    </tr></thead><tbody>
+      <tr><td>21CSC202J</td><td>Operating Systems</td><td>Theory</td><td>Dr. A (100001)</td>
+        <td>A</td><td>TP301</td><td>40</td><td>4</td><td>90.00</td></tr>
+      <tr><td>21CSC206P</td><td> Advanced Object Oriented Programming </td><td>Practical</td><td></td>
+        <td>P1</td><td>TP302</td><td>20</td><td>0</td><td>100.00</td></tr>
+    </tbody></table>`);
+    expect(out.attendance).toEqual([
+      {
+        subject_code: "21CSC202J", conducted: 40, absent: 4, percentage: 90,
+        title: "Operating Systems", category: "Theory", faculty: "Dr. A (100001)",
+      },
+      {
+        subject_code: "21CSC206P", conducted: 20, absent: 0, percentage: 100,
+        title: "Advanced Object Oriented Programming", category: "Practical", faculty: undefined,
+      },
+    ]);
   });
 
   it("survives the wrapper markup a real copy drags along", () => {

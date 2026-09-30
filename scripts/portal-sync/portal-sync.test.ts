@@ -50,8 +50,8 @@ const MARKS_NESTED_HTML = `
 describe("attendance scraping", () => {
   it("reads conducted/absent/% by header text", () => {
     expect(api.scrapeAttendance(load(ATTENDANCE_HTML))).toEqual([
-      { subject_code: "21CSC201J", conducted: 45, absent: 6, percentage: 86.67 },
-      { subject_code: "21CSC203P", conducted: 30, absent: 9, percentage: 70 },
+      { subject_code: "21CSC201J", conducted: 45, absent: 6, percentage: 86.67, title: "Data Structures", category: "Theory" },
+      { subject_code: "21CSC203P", conducted: 30, absent: 9, percentage: 70, title: "Advanced Programming", category: "Practical" },
     ]);
   });
 

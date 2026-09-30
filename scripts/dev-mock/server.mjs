@@ -402,17 +402,56 @@ const server = createServer((req, res) => {
 
   // ---- auth ---- The app gates on a Supabase session now, so the mock has to hand one out or the preview never gets past the sign-in screen.
   if (u.pathname.startsWith("/auth/v1/")) {
+    let raw = "";
+    req.on("data", (c) => (raw += c));
+    return req.on("end", () => authReply(req, res, u, raw));
+  }
+
+  // ---- storage (study files) ---- Serves the real study folder from this Mac, so /files previews with real names and sizes.
+  if (u.pathname.startsWith("/storage/v1/")) return mockStorage(req, res, u);
+
+  handleRest(req, res, u);
+});
+
+/** The seeded account, and the one an email starting with "new" signs in to: no PIN yet, so the app shows onboarding. */
+const SEEDED_USER = "00000000-0000-4000-8000-000000000000";
+const NEW_USER = "11111111-1111-4111-8111-111111111111";
+
+/** Which account a request comes from: the access token names it. */
+function userOf(req) {
+  return (req.headers.authorization || "").match(/mock-access-token\.([0-9a-f-]{36})/)?.[1] ?? SEEDED_USER;
+}
+
+function authReply(req, res, u, raw) {
+  let uid = userOf(req);
+  let email = "you@localhost.mock";
+  if (u.pathname.endsWith("/token") && raw) {
+    try {
+      const body = JSON.parse(raw);
+      if (body.email) {
+        email = body.email;
+        uid = /^new/i.test(email) ? NEW_USER : SEEDED_USER;
+      } else {
+        // A refresh: the e2e tests pin the clock past this token's expiry,
+        // so the app swaps it straight away. Same account as before.
+        uid = String(body.refresh_token ?? "").match(/mock-refresh-token\.([0-9a-f-]{36})/)?.[1] ?? uid;
+      }
+    } catch {
+      /* not JSON: keep the account from the access token */
+    }
+  }
+  {
     const session = {
-      access_token: "mock-access-token",
-      refresh_token: "mock-refresh-token",
+      access_token: `mock-access-token.${uid}`,
+      refresh_token: `mock-refresh-token.${uid}`,
       token_type: "bearer",
       expires_in: 3600,
       expires_at: Math.floor(Date.now() / 1000) + 3600,
       user: {
-        id: "00000000-0000-4000-8000-000000000000",
+        id: uid,
         aud: "authenticated",
         role: "authenticated",
-        email: "you@localhost.mock",
+        email,
         app_metadata: {},
         user_metadata: {},
         created_at: new Date().toISOString(),
@@ -420,12 +459,11 @@ const server = createServer((req, res) => {
     };
     res.writeHead(200, { "content-type": "application/json" });
     // /logout returns no body; everything else gets the session.
-    return res.end(u.pathname.includes("logout") ? "" : JSON.stringify(session));
+    res.end(u.pathname.includes("logout") ? "" : JSON.stringify(session));
   }
+}
 
-  // ---- storage (study files) ---- Serves the real study folder from this Mac, so /files previews with real names and sizes.
-  if (u.pathname.startsWith("/storage/v1/")) return mockStorage(req, res, u);
-
+function handleRest(req, res, u) {
   const table = u.pathname.replace(/^\/rest\/v1\//, "");
   if (!(table in db)) {
     res.writeHead(404, { "content-type": "application/json" });
@@ -438,13 +476,15 @@ const server = createServer((req, res) => {
     const json = body ? JSON.parse(body) : null;
     // maybeSingle()/single() ask for one object rather than an array.
     const single = (req.headers.accept || "").includes("pgrst.object");
-    const reply = (code, data) => {
-      res.writeHead(code, { "content-type": "application/json" });
-      res.end(data === undefined ? "" : JSON.stringify(data));
+    const reply = (code, data, headers = {}) => {
+      res.writeHead(code, { "content-type": "application/json", ...headers });
+      res.end(data === undefined || req.method === "HEAD" ? "" : JSON.stringify(data));
     };
 
-    if (req.method === "GET") {
+    if (req.method === "GET" || req.method === "HEAD") {
       let rows = filter(db[table], u.searchParams);
+      // Row-level security, for the one table where it decides what the app does: each account sees only its own PIN claims.
+      if (table === "device_owners") rows = rows.filter((r) => r.user_id === userOf(req));
       const order = u.searchParams.get("order");
       if (order) {
         const [col, dir] = order.split(".");
@@ -453,11 +493,18 @@ const server = createServer((req, res) => {
         );
         if (dir === "desc") rows.reverse();
       }
-      return reply(200, single ? rows[0] ?? null : rows);
+      // select(..., { count: "exact", head: true }) reads the count from here.
+      const count = (req.headers.prefer || "").includes("count=exact")
+        ? { "content-range": rows.length ? `0-${rows.length - 1}/${rows.length}` : "*/0" }
+        : {};
+      return reply(200, single ? rows[0] ?? null : rows, count);
     }
 
     if (req.method === "POST") {
       const rows = Array.isArray(json) ? json : [json];
+      // A PIN has one owner: claiming a taken one fails the way the primary key makes it fail.
+      if (table === "device_owners" && rows.some((r) => db.device_owners.some((o) => o.device_id === r.device_id)))
+        return reply(409, { code: "23505", message: "duplicate key value violates unique constraint" });
       const conflict = (u.searchParams.get("on_conflict") || "").split(",").filter(Boolean);
       const out = [];
       for (const row of rows) {
@@ -487,7 +534,7 @@ const server = createServer((req, res) => {
     }
     reply(405, { message: "not implemented in the mock" });
   });
-});
+}
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`\n  mock Supabase  →  http://127.0.0.1:${PORT}`);

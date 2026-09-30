@@ -5,6 +5,11 @@ export interface PortalAttendanceRow {
   conducted: number;
   absent: number;
   percentage: number | null;
+  /** The course's name, when the table has a title column. Onboarding makes subjects from these. */
+  title?: string;
+  /** "Theory" / "Practical", when the table says. */
+  category?: string;
+  faculty?: string;
 }
 
 export interface PortalMarkRow {
@@ -114,6 +119,9 @@ const RE_ABSENT = /absent/;
 /** Some portals report classes attended instead of missed; absences are then conducted − present. */
 const RE_PRESENT = /present|attended/;
 const RE_PCT = /%|percent/;
+const RE_TITLE = /course\s*title|subject\s*(?:name|title)|course\s*name|description/;
+const RE_CATEGORY = /category/;
+const RE_FACULTY = /faculty/;
 
 export function scrapeAttendance(all: Element[]): PortalAttendanceRow[] {
   for (const table of all) {
@@ -125,6 +133,11 @@ export function scrapeAttendance(all: Element[]): PortalAttendanceRow[] {
     if (iCode < 0 || iCond < 0 || (iAbs < 0 && iPres < 0)) continue;
 
     const iPct = col(hs, RE_PCT);
+    const iTitle = col(hs, RE_TITLE);
+    const iCat = col(hs, RE_CATEGORY);
+    const iFac = col(hs, RE_FACULTY);
+    /** A text column's value for this row, or undefined when the table has no such column. */
+    const text = (c: Element[], i: number) => (i >= 0 && c[i] ? norm(c[i].textContent) || undefined : undefined);
     const out: PortalAttendanceRow[] = [];
     for (const row of bodyRows(table)) {
       const c = cellsOf(row);
@@ -144,6 +157,9 @@ export function scrapeAttendance(all: Element[]): PortalAttendanceRow[] {
         conducted,
         absent,
         percentage: iPct >= 0 && c[iPct] ? num(c[iPct].textContent) : null,
+        title: text(c, iTitle),
+        category: text(c, iCat),
+        faculty: text(c, iFac),
       });
     }
     if (out.length) return out;

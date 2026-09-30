@@ -506,10 +506,6 @@ export const VOICE = {
     plain: () => "Set up my semester",
     brutal: () => "let's see the damage",
   }),
-  onboardingNote: pick({
-    plain: () => "Seeds your SRM subjects so there's something to edit rather than a blank app.",
-    brutal: () => "seeds your srm subjects. edit them, they're probably wrong.",
-  }),
   onboardingDone: pick({
     plain: () => "You're set up - your subjects are ready to edit.",
     brutal: () => "done. now go ruin it.",
