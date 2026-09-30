@@ -19,6 +19,7 @@ existing data or installs, a minor version for new features, a patch version for
 - Dependabot: weekly grouped npm updates and monthly GitHub Actions updates (#5).
 - Issue and pull request templates, `CONTRIBUTING.md`, and tagged releases built from
   this file (#5).
+- MIT licence.
 
 ### Removed
 
