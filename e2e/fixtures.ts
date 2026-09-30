@@ -29,9 +29,16 @@ export async function serverRows<T = Record<string, unknown>>(
   return res.json();
 }
 
+/** From the landing page to the sign-in form. */
+export async function openSignIn(page: Page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Sign in" }).first().click();
+  await expect(page.getByLabel("Email")).toBeVisible();
+}
+
 /** Sign in through the real form. The mock accepts any email and password. */
 export async function signIn(page: Page) {
-  await page.goto("/");
+  await openSignIn(page);
   await page.getByLabel("Email").fill("e2e@acadkit.test");
   await page.getByLabel("Password").fill("e2e-password");
   await page.locator("form").getByRole("button").click();

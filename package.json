@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "size": "node scripts/check-bundle-size.mjs",
+    "demo:record": "node scripts/record-demo.mjs",
     "dev:mock": "node scripts/dev-mock/server.mjs"
   },
   "dependencies": {

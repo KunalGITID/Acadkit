@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,17 @@ import { Field, Input } from "@/components/ui/input";
 import { MIN_PASSWORD, signIn, signUp } from "@/lib/auth";
 
 /** Email and password, once per device. */
-export default function SignIn() {
+export default function SignIn({
+  initialMode = "in",
+  onBack,
+}: {
+  /** "up" when arriving from the landing page's Get started. */
+  initialMode?: "in" | "up";
+  /** Back to the landing page. */
+  onBack?: () => void;
+} = {}) {
   const tone = useTone();
-  const [mode, setMode] = useState<"in" | "up">("in");
+  const [mode, setMode] = useState<"in" | "up">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -103,6 +111,15 @@ export default function SignIn() {
         <p className="mt-6 px-1 text-center text-xs text-muted">
           {say(VOICE.staysSignedIn, tone)}
         </p>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="mx-auto mt-4 flex items-center gap-1.5 text-xs font-semibold text-muted underline-offset-4 hover:text-ink hover:underline"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> What is AcadKit?
+          </button>
+        )}
       </motion.div>
     </div>
   );

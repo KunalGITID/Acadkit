@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
-import { expect, signIn, test } from "./fixtures";
+import { expect, openSignIn, signIn, test } from "./fixtures";
 
 /**
  * axe on every main screen, in light and dark: WCAG 2.1 A and AA. A
@@ -20,18 +20,27 @@ async function audit(page: Page) {
 
 for (const scheme of ["light", "dark"] as const) {
   test.describe(`${scheme} mode`, () => {
-    test.use({ colorScheme: scheme });
+    // Reduced motion: the app then skips its entrance animations (MotionConfig
+    // reducedMotion="user"), so axe never reads a colour mid-fade. A fixed
+    // wait wasn't enough - Marks' SGPA dial failed about one run in five.
+    test.use({ colorScheme: scheme, reducedMotion: "reduce" });
+
+    test("the landing page", async ({ page }) => {
+      await page.goto("/");
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      await page.waitForTimeout(500);
+      expect(await audit(page)).toEqual([]);
+    });
 
     test("the sign-in screen", async ({ page }) => {
-      await page.goto("/");
-      await expect(page.getByLabel("Email")).toBeVisible();
+      await openSignIn(page);
       // It fades in: axe reads colours mid-fade as low contrast.
       await page.waitForTimeout(1200);
       expect(await audit(page)).toEqual([]);
     });
 
     test("onboarding", async ({ page }) => {
-      await page.goto("/");
+      await openSignIn(page);
       await page.getByLabel("Email").fill("new-student@acadkit.test");
       await page.getByLabel("Password").fill("e2e-password");
       await page.locator("form").getByRole("button").click();
