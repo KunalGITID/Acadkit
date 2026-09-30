@@ -88,6 +88,7 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
           // to show yet, so it is announced as busy rather than read out.
           role="presentation"
           aria-hidden
+          data-launch-screen
           // items-center, and the wordmark is positioned off the mark rather than stacked with it in a column - a column would centre the *pair*, lifting the mark off the middle of the screen and away from where iOS just drew it.
           className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-bg"
           style={{ willChange: "transform" }}

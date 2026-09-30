@@ -2,9 +2,10 @@
  * Fail the build when the app gets heavier than bundle-budget.json allows.
  * Run after `vite build`: `npm run size`.
  *
- * "Initial" is what a phone downloads before the app can start - every
- * script and stylesheet dist/index.html references. Everything else is
- * lazy (a page, the PDF viewer) and only its size cap applies. Sizes are
+ * "Visitor load" is what dist/index.html pulls in: all a signed-out
+ * visitor downloads before the landing page shows. "Signed-in start" adds
+ * the app chunk and everything it imports. Everything else is lazy (a
+ * page, the PDF viewer) and only the per-chunk cap applies. Sizes are
  * gzipped, which is roughly what goes over the wire.
  */
 import { appendFileSync, readdirSync, readFileSync } from "node:fs";
@@ -28,8 +29,31 @@ const css = assets.filter((f) => f.endsWith(".css"));
 const total = (files) => files.reduce((sum, f) => sum + gz(f), 0);
 const [largestSize, largestFile] = js.map((f) => [gz(f), f]).sort((a, b) => b[0] - a[0])[0];
 
+/**
+ * A signed-in start: the visitor's files plus the app chunk (src/main.tsx
+ * imports src/App.tsx lazily) and every chunk it statically imports.
+ */
+function withStaticImports(start) {
+  const seen = new Set();
+  const visit = (file) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const code = readFileSync(`dist/${file}`, "utf8");
+    for (const m of code.matchAll(/(?:from|import)\s*"\.\/([^"]+\.js)"/g)) visit(`assets/${m[1]}`);
+  };
+  start.forEach(visit);
+  return [...seen];
+}
+const appChunk = js.find((f) => /^assets\/App-[\w-]+\.js$/.test(f));
+if (!appChunk) {
+  console.error("Couldn't find the App chunk (assets/App-*.js) - has src/main.tsx stopped importing it lazily?");
+  process.exit(1);
+}
+const appStart = [...new Set([...initialFiles, ...withStaticImports([appChunk])])];
+
 const rows = [
-  ["Initial load", kb(total(initialFiles)), budget.initialKB, `${initialFiles.length} files`],
+  ["Visitor load", kb(total(initialFiles)), budget.initialKB, `${initialFiles.length} files, the landing page`],
+  ["Signed-in start", kb(total(appStart)), budget.appStartKB, `${appStart.length} files`],
   ["Largest chunk", kb(largestSize), budget.largestChunkKB, largestFile.replace(/^assets\//, "")],
   ["All JavaScript", kb(total(js)), budget.totalJsKB, `${js.length} files`],
   ["All CSS", kb(total(css)), budget.cssKB, `${css.length} files`],

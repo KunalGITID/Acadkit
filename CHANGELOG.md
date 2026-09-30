@@ -37,6 +37,9 @@ existing data or installs, a minor version for new features, a patch version for
 - A landing page for visitors who aren't signed in: what AcadKit does, a demo recorded on
   sample data, how their data is handled, and Get started / Sign in. `npm run demo:record`
   re-records the demo.
+- Visitors load a third as much before the landing page shows (106 KB instead of 292 KB):
+  the app itself is fetched when they reach for Sign in. On Lighthouse's slow phone the
+  page now paints its main content in 3.2 s instead of 4.3 s (performance 81 → 92).
 - A "Getting started" card on Home until the timetable is added and the app is on the
   home screen.
 

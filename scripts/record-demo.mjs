@@ -71,6 +71,9 @@ try {
   await page.clock.setFixedTime(new Date("2026-10-07T10:20:00+05:30"));
 
   const shot = async (ms) => {
+    // The first app launch of the day plays the full splash; wait it out.
+    // The app mounts after the page loads, so wait for its content with no splash over it.
+    await page.waitForFunction(() => document.querySelector("main") && !document.querySelector("[data-launch-screen]"), undefined, { timeout: 10000 });
     // Toasts ("there goes a day off") would sit over the top of a frame.
     await page.locator("[data-sonner-toast]").first().waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
     await page.waitForTimeout(700);

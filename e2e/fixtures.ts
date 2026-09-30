@@ -29,6 +29,22 @@ export async function serverRows<T = Record<string, unknown>>(
   return res.json();
 }
 
+/**
+ * Wait out the launch screen. The first app launch of a day plays the full
+ * sequence (~1.9 s), and anything read before it lifts - a screenshot, an
+ * axe contrast check - reads the splash instead of the page.
+ */
+export async function waitForLaunch(page: Page) {
+  // Not just "the splash is gone": the app mounts after the page loads
+  // (src/main.tsx imports it lazily), so right after a navigation the splash
+  // may not have appeared yet. Wait for the app's content with no splash over it.
+  await page.waitForFunction(
+    () => document.querySelector("main") && !document.querySelector("[data-launch-screen]"),
+    undefined,
+    { timeout: 10_000 }
+  );
+}
+
 /** From the landing page to the sign-in form. */
 export async function openSignIn(page: Page) {
   await page.goto("/");

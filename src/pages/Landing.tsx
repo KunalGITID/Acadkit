@@ -1,7 +1,6 @@
-import { useState } from "react";
 import { ArrowRight, CalendarDays, Github, GraduationCap, ShieldCheck, Smartphone, Sparkles, Target } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import SignIn from "@/pages/SignIn";
+import { buttonVariants } from "@/components/ui/button-variants";
+import { cn } from "@/lib/utils";
 
 const REPO = "https://github.com/KunalGITID/Acadkit";
 
@@ -28,22 +27,32 @@ const FEATURES = [
   },
 ];
 
+export type AuthMode = "in" | "up";
+
 /**
  * What a signed-out visitor sees first: what AcadKit is, a look at it,
  * and the way in. Signed-in devices never see it.
+ *
+ * Deliberately light: plain buttons and no Supabase, animation library or
+ * query client, so src/public.tsx can show it before the app has loaded.
  */
-export default function Landing() {
-  const [auth, setAuth] = useState<"in" | "up" | null>(null);
-  if (auth) return <SignIn initialMode={auth} onBack={() => setAuth(null)} />;
-
+export default function Landing({ onAuth }: { onAuth: (mode: AuthMode) => void }) {
   const cta = (
     <div className="flex flex-col gap-2.5 sm:flex-row">
-      <Button size="lg" className="h-14 sm:flex-1" onClick={() => setAuth("up")}>
+      <button
+        type="button"
+        className={cn(buttonVariants({ size: "lg" }), "h-14 sm:flex-1")}
+        onClick={() => onAuth("up")}
+      >
         Get started, it's free <ArrowRight className="h-5 w-5" aria-hidden />
-      </Button>
-      <Button size="lg" variant="secondary" className="h-14 sm:flex-1" onClick={() => setAuth("in")}>
+      </button>
+      <button
+        type="button"
+        className={cn(buttonVariants({ size: "lg", variant: "secondary" }), "h-14 sm:flex-1")}
+        onClick={() => onAuth("in")}
+      >
         Sign in
-      </Button>
+      </button>
     </div>
   );
 
@@ -56,9 +65,9 @@ export default function Landing() {
           </span>
           AcadKit
         </span>
-        <Button variant="ghost" size="sm" onClick={() => setAuth("in")}>
+        <button type="button" className={buttonVariants({ variant: "ghost", size: "sm" })} onClick={() => onAuth("in")}>
           Sign in
-        </Button>
+        </button>
       </header>
 
       <main className="mx-auto max-w-5xl px-5">
