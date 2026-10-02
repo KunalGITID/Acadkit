@@ -11,7 +11,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(64);
+select plan(66);
 
 -- ---------------------------------------------------------------------------
 -- Seed, as the table owner (RLS does not apply)
@@ -132,6 +132,19 @@ select lives_ok(
 select throws_ok(
   $$insert into active_days (device_id, day) values ('2222', '2026-10-08')$$,
   '42501', null, 'A cannot record a day under B''s PIN'
+);
+-- What src/lib/activity.ts relies on. A second launch the same day must
+-- fail as a duplicate (23505), which the app treats as already recorded -
+-- and an upsert can't be used instead: ON CONFLICT reads the existing row,
+-- and with no read policy that is refused (42501). It was, for every user,
+-- until the app switched to a plain insert.
+select throws_ok(
+  $$insert into active_days (device_id, day) values ('1111', '2026-10-08')$$,
+  '23505', null, 'A second record of the same day is a duplicate, not a refusal'
+);
+select throws_ok(
+  $$insert into active_days (device_id, day) values ('1111', '2026-10-09') on conflict (device_id, day) do nothing$$,
+  '42501', null, 'An upsert is refused: ON CONFLICT needs a read policy active_days does not have'
 );
 
 -- Writing into B's PIN is refused outright.

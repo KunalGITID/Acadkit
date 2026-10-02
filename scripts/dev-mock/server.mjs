@@ -507,6 +507,13 @@ function handleRest(req, res, u) {
       // A PIN has one owner: claiming a taken one fails the way the primary key makes it fail.
       if (table === "device_owners" && rows.some((r) => db.device_owners.some((o) => o.device_id === r.device_id)))
         return reply(409, { code: "23505", message: "duplicate key value violates unique constraint" });
+      // One row per account per day (the primary key): a plain insert of a day already recorded fails.
+      if (
+        table === "active_days" &&
+        !u.searchParams.get("on_conflict") &&
+        rows.some((r) => db.active_days.some((d) => d.device_id === r.device_id && d.day === r.day))
+      )
+        return reply(409, { code: "23505", message: "duplicate key value violates unique constraint \"active_days_pkey\"" });
       const conflict = (u.searchParams.get("on_conflict") || "").split(",").filter(Boolean);
       const out = [];
       for (const row of rows) {
