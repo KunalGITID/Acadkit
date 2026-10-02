@@ -27,13 +27,14 @@ export async function recordActiveDay(pin: string, today: Date = new Date()): Pr
     /* storage disabled: record anyway, the primary key dedupes */
   }
   try {
+    // A plain insert, not an upsert: ON CONFLICT has to read the existing
+    // row, and active_days is write-only (no read policy), so an upsert was
+    // refused for every user and no day was ever recorded. A second launch
+    // the same day now fails as a duplicate (23505) - which means recorded.
     const { error } = await supabase
       .from("active_days")
-      .upsert(
-        { device_id: pin, day, installed: isInstalled(), release: RELEASE },
-        { onConflict: "device_id,day", ignoreDuplicates: true }
-      );
-    if (error) return;
+      .insert({ device_id: pin, day, installed: isInstalled(), release: RELEASE });
+    if (error && error.code !== "23505") return;
     try {
       localStorage.setItem(KEY, stamp);
     } catch {
