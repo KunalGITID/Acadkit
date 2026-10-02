@@ -4,6 +4,7 @@ import { GRADE_TABLE, gradeForTotal, type Grade } from "@/lib/grades";
 import {
   ceilHalf,
   floorHalf,
+  floorMarks,
   floorTotal,
   gradeForTargetSgpa,
   solveSubjectPlan,
@@ -387,6 +388,24 @@ describe("rounding must never contradict the grade beside it", () => {
       expect(gradeForTotal(shown).grade, `${total} → ${shown}`).toBe(
         gradeForTotal(total).grade
       );
+      expect(shown).toBeLessThanOrEqual(total + 1e-9);
+    }
+  });
+
+  it("keeps SRM's decimals: 2 + 7.6 is 9.6, not 10 (or 9.5)", () => {
+    expect(floorMarks(2 + 7.6)).toBe(9.6);
+    expect(floorMarks(9.34)).toBe(9.34);
+    expect(floorMarks(9.349)).toBe(9.34); // never rounded up
+    expect(floorMarks(0.1 + 0.2)).toBe(0.3); // float error doesn't leak out
+    expect(floorTotal(90.6)).toBe(90.6); // A+, and shown as 90.6 - not "91" (O) or "90"
+    expect(gradeForTotal(floorTotal(90.6)).grade).toBe("A+");
+  });
+
+  it("a total shown to 2 decimals still never contradicts its grade", () => {
+    for (let i = 0; i <= 10000; i++) {
+      const total = i / 100 + 0.004; // between hundredths, where rounding would bite
+      const shown = floorTotal(total);
+      expect(gradeForTotal(shown).grade, `${total} → ${shown}`).toBe(gradeForTotal(total).grade);
       expect(shown).toBeLessThanOrEqual(total + 1e-9);
     }
   });

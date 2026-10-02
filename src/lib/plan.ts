@@ -23,9 +23,21 @@ export function floorHalf(n: number): number {
   return v === 0 ? 0 : v;
 }
 
-/** A /100 total, floored so it can never contradict its own grade. */
+/**
+ * Marks you hold, as shown: floored to 2 decimals. SRM keeps the decimals
+ * (CT-1 7.6 + an assignment 2 is 9.6, not 10), and a grade cut-off counts
+ * them (90.6 is A+, not O), so showing fewer decimals - or rounding up -
+ * can show a total on the wrong side of a grade. The epsilon absorbs float
+ * error (9.6 * 100 is 959.999...).
+ */
+export function floorMarks(n: number): number {
+  const v = Math.floor(n * 100 + 1e-6) / 100;
+  return v === 0 ? 0 : v;
+}
+
+/** A /100 total, floored (to 2 decimals) so it can never contradict its own grade. */
 export function floorTotal(n: number): number {
-  return Math.floor(n + 1e-9);
+  return floorMarks(n);
 }
 
 /** Marks are awarded in halves; 12.1 needed means 12 is not enough. */

@@ -9,6 +9,7 @@ import {
   ceilHalf,
   editableAssessment,
   floorHalf,
+  floorMarks,
   floorTotal,
   type SolvedComponent,
 } from "@/lib/plan";
@@ -25,8 +26,9 @@ import type { Grade } from "@/types";
 
 const TARGETABLE = GRADE_TABLE.filter((g) => g.grade !== "F");
 
+/** Up to 2 decimals, no trailing zeros: SRM marks keep their decimals (9.34, 9.6, 10). */
 function fmt(v: number): string {
-  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+  return String(Number(v.toFixed(2)));
 }
 
 /** A mark you have to reach: rounds up, because 10.4 needs an 10.5. */
@@ -34,9 +36,9 @@ function need(n: number): string {
   return fmt(ceilHalf(n));
 }
 
-/** A mark you already hold: rounds down, so it is never overstated. */
+/** A mark you already hold: floored to 2 decimals, so it is never overstated (or understated by a half). */
 function have(n: number): string {
-  return fmt(floorHalf(n));
+  return fmt(floorMarks(n));
 }
 
 function pct(rate: number): string {
@@ -446,7 +448,7 @@ function ExpectInput({
   const c = row.component;
   // Shown in the component's current units, whatever it was typed in.
   const stored =
-    row.state === "expected" && row.expected ? fmt(floorHalf((row.expected.obtained / row.expected.max) * c.max)) : "";
+    row.state === "expected" && row.expected ? fmt(floorMarks((row.expected.obtained / row.expected.max) * c.max)) : "";
   const [draft, setDraft] = useState(stored);
   useEffect(() => setDraft(stored), [stored]);
 
