@@ -240,11 +240,11 @@ describe("SubjectBudgetCard", () => {
     };
     const t = text(renderFor(oneBigCT, [mark("CT-1", 42.36, 60)]));
     // The likely total and the grade beside it are one reading of one number.
-    const [, total, grade] = t.match(/Likely (\d+)\/100 (\S+)/)!;
+    const [, total, grade] = t.match(/Likely (\d+(?:\.\d+)?)\/100 (\S+)/)!;
     expect(gradeForTotal(Number(total)).grade).toBe(grade);
-    // And what is returned is floored, not rounded up to 42.5.
-    expect(t).toContain("42 returned");
-    expect(t).toContain("Returned 42/100");
+    // And what is returned keeps SRM's decimals (floored to 2 places), not rounded to 42 or 42.5.
+    expect(t).toContain("42.36 returned");
+    expect(t).toContain("Returned 42.36/100");
   });
 
   it("leads with attendance when the end-sem is at risk", () => {
@@ -308,7 +308,7 @@ describe("SubjectBudgetCard", () => {
   it("gives the chance of the target, and a likely range", () => {
     const t = text(render([mark("Assignment", 5, 5), mark("CT-1", 12, 15)]));
     expect(t).toMatch(/Chance of A or better (\d+%|>99%|<1%)/);
-    expect(t).toMatch(/Likely \d+\/100 \w\+? \d+–\d+/);
+    expect(t).toMatch(/Likely \d+(?:\.\d+)?\/100 \w\+? \d+(?:\.\d+)?–\d+(?:\.\d+)?/);
     expect(t).toContain("From 2 graded components here");
   });
 
@@ -316,7 +316,7 @@ describe("SubjectBudgetCard", () => {
     // 14/15 then 2/15 averages to the same place as two 8/15s and says
     // something very different about how much to trust it.
     const range = (marks: Mark[]) => {
-      const m = text(render(marks)).match(/Likely \d+\/100 \w\+? (\d+)–(\d+)/)!;
+      const m = text(render(marks)).match(/Likely \d+(?:\.\d+)?\/100 \w\+? (\d+(?:\.\d+)?)–(\d+(?:\.\d+)?)/)!;
       return Number(m[2]) - Number(m[1]);
     };
     const steady = range([mark("Assignment", 3, 5), mark("CT-1", 8, 15), mark("CT-2", 8, 15)]);
@@ -439,7 +439,7 @@ describe("SubjectBudgetCard", () => {
     const t = text(render([mark("Assignment", 5, 5)]));
     expect(t).toContain("Returned 5/100");
     expect(t).not.toContain("Returned 5/100 F");
-    expect(t).toMatch(/Likely \d+\/100/);
+    expect(t).toMatch(/Likely \d+(?:\.\d+)?\/100/);
   });
 
   it("counts a result you're waiting on at what you expect", () => {

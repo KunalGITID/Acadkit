@@ -11,7 +11,7 @@ import { AnimatedNumber } from "@/components/viz/animated-number";
 import { expectedOutlook, realisedSgpa, type ExpectedOutlook } from "@/lib/expected";
 import { countsInSgpa, GRADE_COLORS, groupMarksBySubject } from "@/lib/grades";
 import { formatChance, type SemesterOdds } from "@/lib/odds";
-import { ceilHalf, floorHalf } from "@/lib/plan";
+import { ceilHalf, floorMarks } from "@/lib/plan";
 import type { buildProjection, SubjectGradeProjection } from "@/lib/projections";
 import { todayISO } from "@/lib/dates";
 import { say, VOICE } from "@/lib/voice";
@@ -21,13 +21,12 @@ import { cn } from "@/lib/utils";
 
 /** Chased marks round up; held marks round down. See src/lib/plan.ts. */
 function need(n: number): string {
-  const v = ceilHalf(n);
-  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+  return String(ceilHalf(n));
 }
 
+/** Floored to 2 decimals: SRM keeps the decimals, so 9.6 held is 9.6, not 9.5. */
 function have(n: number): string {
-  const v = floorHalf(n);
-  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+  return String(floorMarks(n));
 }
 
 /** The subjects worth pushing on, worst first, each with why: shut out of the end-sem, attendance that decides whether you sit it, a target gone, or one that asks more than you've been giving. */

@@ -22,7 +22,7 @@ import {
 import { say, VOICE } from "@/lib/voice";
 import { useTone } from "@/hooks/useTone";
 import { countsInSgpa, groupMarksBySubject } from "@/lib/grades";
-import { announcedPending, computeSgpa, floorTotal, type SubjectOutlook } from "@/lib/plan";
+import { announcedPending, computeSgpa, floorMarks, floorTotal, type SubjectOutlook } from "@/lib/plan";
 import { buildShareData, renderShareCard, shareCard } from "@/lib/shareCard";
 import { computeOverallAttendance } from "@/lib/attendance";
 import type { Mark, PlannedComponent, Subject } from "@/types";
@@ -157,7 +157,7 @@ function SubjectMarksCard({
         <div className="mb-1.5 flex items-baseline justify-between text-xs font-semibold">
           <span className="text-muted">Internals so far</span>
           <span className="tabular">
-            <AnimatedNumber value={marks.internalObtained} decimals={0} />
+            <AnimatedNumber value={floorMarks(marks.internalObtained)} decimals={2} trim />
             <span className="text-muted"> / {marks.internalMax}</span>
           </span>
         </div>
@@ -201,7 +201,7 @@ function SubjectMarksCard({
         {marks.hasAnyMarks ? (
           <p className="flex items-center gap-1.5 text-sm font-bold tabular">
             <TrendingUp className="h-4 w-4 text-accent" />
-            On pace for <AnimatedNumber value={floorTotal(marks.predictedTotal)} decimals={0} />
+            On pace for <AnimatedNumber value={floorTotal(marks.predictedTotal)} decimals={2} trim />
             <span className="text-muted">/ 100</span>
           </p>
         ) : (

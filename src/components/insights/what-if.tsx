@@ -5,8 +5,9 @@ import { groupMarksBySubject, GRADE_COLORS } from "@/lib/grades";
 import { currentOutcome, gradeThresholds, whatIfMark, type WhatIfComponent } from "@/lib/whatIf";
 import { floorTotal } from "@/lib/plan";
 
+/** Up to 2 decimals, no trailing zeros: SRM marks keep their decimals (9.34, 9.6, 10). */
 function fmt(v: number): string {
-  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+  return String(Number(v.toFixed(2)));
 }
 
 /** "What if I get this?" - the budget, run backwards. */

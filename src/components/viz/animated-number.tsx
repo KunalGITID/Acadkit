@@ -6,13 +6,15 @@ interface AnimatedNumberProps {
   decimals?: number;
   className?: string;
   suffix?: string;
+  /** Drop trailing zeros: 9.60 -> "9.6", 10.00 -> "10". */
+  trim?: boolean;
 }
 
 /** Number that springs to its new value (tabular digits, no layout shift). */
-export function AnimatedNumber({ value, decimals = 0, className, suffix }: AnimatedNumberProps) {
+export function AnimatedNumber({ value, decimals = 0, className, suffix, trim }: AnimatedNumberProps) {
   const reduced = useReducedMotion();
   const spring = useSpring(value, { stiffness: 70, damping: 18 });
-  const display = useTransform(spring, (v) => v.toFixed(decimals) + (suffix ?? ""));
+  const display = useTransform(spring, (v) => (trim ? String(Number(v.toFixed(decimals))) : v.toFixed(decimals)) + (suffix ?? ""));
   const first = useRef(true);
 
   useEffect(() => {

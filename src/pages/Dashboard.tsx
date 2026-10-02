@@ -49,7 +49,7 @@ import { SurvivalCard } from "@/components/viz/survival-card";
 import { SuggestionsCard } from "@/components/viz/suggestions-card";
 import { useHasAnimated } from "@/hooks/useHasAnimated";
 import { gradeForTotal, groupMarksBySubject } from "@/lib/grades";
-import { computeSgpa } from "@/lib/plan";
+import { computeSgpa, floorMarks } from "@/lib/plan";
 import { cn, haptic } from "@/lib/utils";
 import { useAppStore } from "@/store/app";
 import type { Deadline, TimetableSlot } from "@/types";
@@ -395,7 +395,7 @@ function MarksSummaryCard() {
         <div className="mt-2 flex items-end justify-between gap-3">
           <div>
             <p className="text-3xl font-extrabold tabular leading-none">
-              <AnimatedNumber value={result.totalObtained} decimals={0} />
+              <AnimatedNumber value={floorMarks(result.totalObtained)} decimals={2} trim />
               <span className="text-base font-bold text-muted"> / {result.totalMax}</span>
             </p>
             <p className="mt-1.5 text-xs font-semibold text-muted">internals so far</p>
