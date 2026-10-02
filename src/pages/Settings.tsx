@@ -10,6 +10,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { Dot } from "@/components/ui/misc";
 import { SubjectSheet } from "@/components/sheets/subject-sheet";
 import { PortalPasteSheet } from "@/components/sheets/portal-paste-sheet";
+import { CopyAllMarks } from "@/components/settings/copy-all-marks";
 import { usePush } from "@/hooks/usePush";
 import { useSession } from "@/hooks/useSession";
 import { DataCard } from "@/components/settings/data-card";
@@ -672,9 +673,11 @@ function RefreshCard() {
         Paste a portal page
       </Button>
       <p className="text-[11px] text-muted">
-        Copy your attendance or marks page from the portal and paste it here - works on your
-        phone. The bookmarklet is still there for a desktop, and does the same thing.
+        Copy your attendance, marks or timetable page from the portal and paste it here - works on
+        your phone.
       </p>
+
+      <CopyAllMarks />
 
       <PortalPasteSheet open={pasteOpen} onClose={() => setPasteOpen(false)} />
     </section>

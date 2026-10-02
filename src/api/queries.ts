@@ -433,17 +433,22 @@ export async function importPortalData(
       (subjects ?? []).map((s) => [String(s.code).trim().toUpperCase(), s.id as string])
     );
 
-    // Only rows this sync owns are touched, so a mark typed by hand is
-    // never overwritten by a re-import.
+    // One test, one row. A portal mark lands on the row it already has
+    // for that test - matched the way the rest of the app matches labels,
+    // so "FT-I" is "FT-1" is "CT-1" - or else on the one you typed in by
+    // hand for it, which the portal's official value replaces. (Keeping
+    // both counted the test twice.)
     const { data: existing, error: exErr } = await supabase
       .from("marks")
-      .select("id,subject_id,label")
+      .select("id,subject_id,label,source")
       .eq("device_id", pin)
-      .eq("source", "portal");
+      .eq("is_external", false);
     throwIf(exErr);
-    const seen = new Map(
-      (existing ?? []).map((m) => [`${m.subject_id}|${m.label}`, m.id as string])
-    );
+    const seen = new Map<string, string>();
+    for (const m of [...(existing ?? [])].sort((a, b) => (a.source === "portal" ? -1 : 0) - (b.source === "portal" ? -1 : 0))) {
+      const key = `${m.subject_id}|${labelMatchKey(String(m.label))}`;
+      if (!seen.has(key)) seen.set(key, m.id as string);
+    }
 
     const unmatched = new Set<string>();
     const updates: Record<string, unknown>[] = [];
@@ -464,7 +469,7 @@ export async function importPortalData(
         is_external: false,
         source: "portal",
       };
-      const id = seen.get(`${subjectId}|${m.label}`);
+      const id = seen.get(`${subjectId}|${labelMatchKey(m.label)}`);
       if (id) updates.push({ id, ...row });
       else inserts.push(row);
     }

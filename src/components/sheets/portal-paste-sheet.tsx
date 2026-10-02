@@ -5,8 +5,9 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import * as api from "@/api/queries";
-import { usePin, useSubjects, useTimetable } from "@/hooks/useData";
-import { looksLikeHtml, parsePastedPortal, type PastedPortal } from "@/lib/portal/paste";
+import { useMarks, usePin, useSubjects, useTimetable } from "@/hooks/useData";
+import { looksLikeHtml, parsePastedPortal, parsePastedText, type PastedPortal } from "@/lib/portal/paste";
+import { PastedMarksPreview } from "@/components/sheets/pasted-marks";
 import { periodsFromSlots } from "@/lib/portal/timetable";
 import { broadcastInvalidate } from "@/lib/broadcast";
 import { haptic } from "@/lib/utils";
@@ -16,14 +17,18 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
   const pin = usePin();
   const { data: subjects } = useSubjects();
   const { data: timetable } = useTimetable();
+  const { data: currentMarks } = useMarks();
   const qc = useQueryClient();
   const box = useRef<HTMLDivElement>(null);
   const [parsed, setParsed] = useState<PastedPortal | null>(null);
   const [plainText, setPlainText] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The subject for a popup pasted without its title.
+  const [assignTo, setAssignTo] = useState("");
 
   function reset() {
     setParsed(null);
+    setAssignTo("");
     setPlainText(false);
     if (box.current) box.current.innerHTML = "";
   }
@@ -37,6 +42,15 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
     // is worth naming: the parser would otherwise find no tables and
     // blame the portal for what is really a copy problem.
     if (!html || !looksLikeHtml(html)) {
+      // Marks survive as text: the popups and the summary read fine
+      // flattened, and it's what "Copy all marks" puts on the clipboard.
+      const fromText = text ? parsePastedText(text) : null;
+      if (fromText && (fromText.marks.length || fromText.uncodedMarks.length || fromText.markTotals.length)) {
+        setPlainText(false);
+        setParsed(fromText);
+        haptic();
+        return;
+      }
       setPlainText(Boolean(text));
       setParsed(null);
       return;
@@ -60,7 +74,7 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
     try {
       const out = await api.importPortalData(pin, {
         attendance: parsed.attendance,
-        marks: parsed.marks,
+        marks: [...parsed.marks, ...(assignTo ? parsed.uncodedMarks.map((m) => ({ ...m, subject_code: assignTo })) : [])],
       });
       const week = parsed.timetable.slots.length
         ? await api.importTimetable(pin, parsed.timetable.slots)
@@ -97,10 +111,14 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
     }
   }
 
+  // What Save would write. Totals are only checked, never saved: a total isn't a test.
   const total =
     (parsed?.attendance.length ?? 0) +
     (parsed?.marks.length ?? 0) +
+    (assignTo ? parsed?.uncodedMarks.length ?? 0 : 0) +
     (parsed?.timetable.slots.length ?? 0);
+  const found =
+    total + (parsed?.uncodedMarks.length ?? 0) + (parsed?.markTotals.length ?? 0);
 
   return (
     <Sheet
@@ -117,7 +135,7 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
       <div className="space-y-3">
         <ol className="space-y-1.5 text-xs text-muted">
           <li>1. Open your attendance, marks or timetable page on the SRM portal.</li>
-          <li>2. Select the whole page and copy it.</li>
+          <li>2. Select the whole page and copy it. For marks, copy a subject's View Details popup (several at once is fine), or use Copy all marks for every subject.</li>
           <li>3. Come back here and paste into the box below.</li>
         </ol>
 
@@ -143,7 +161,7 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
 
         {parsed && (
           <div className="space-y-2.5">
-            {total === 0 ? (
+            {found === 0 ? (
               <p className="rounded-2xl bg-bad/10 p-3 text-xs font-semibold text-bad-deep">
                 Found {parsed.tablesSeen} table{parsed.tablesSeen === 1 ? "" : "s"} but no
                 attendance, marks or timetable in them. If this was the right page, copy the
@@ -151,12 +169,23 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
               </p>
             ) : (
               <div className="space-y-2.5">
-                {(parsed.attendance.length > 0 || parsed.marks.length > 0) && (
+                {(parsed.marks.length > 0 || parsed.uncodedMarks.length > 0 || parsed.markTotals.length > 0) && (
+                  <PastedMarksPreview
+                    marks={parsed.marks}
+                    uncoded={parsed.uncodedMarks}
+                    totals={parsed.markTotals}
+                    subjects={subjects ?? []}
+                    current={currentMarks ?? []}
+                    assignTo={assignTo}
+                    onAssign={setAssignTo}
+                  />
+                )}
+
+                {parsed.attendance.length > 0 && (
                   <div className="rounded-2xl border bg-surface-2/40 p-3 text-xs">
                     <p className="font-bold">
                       {parsed.attendance.length} subject
                       {parsed.attendance.length === 1 ? "" : "s"} of attendance
-                      {parsed.marks.length > 0 ? ` · ${parsed.marks.length} marks` : ""}
                     </p>
                     <ul className="mt-1.5 space-y-0.5 text-muted">
                       {parsed.attendance.slice(0, 4).map((a) => (
