@@ -70,7 +70,7 @@ export function WhatIf({
           value={obtained}
           onChange={(e) => setObtained(Number(e.target.value))}
           aria-label={`Imagined mark for ${component.label}`}
-          className="mt-2 h-6 w-full cursor-pointer accent-[var(--accent)]"
+          className="mt-2 h-6 w-full cursor-pointer accent-(--accent)"
         />
 
         <p className="text-[11px] text-muted">

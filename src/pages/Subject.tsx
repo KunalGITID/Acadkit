@@ -115,7 +115,7 @@ export default function Subject() {
       <div className="flex items-center gap-2.5 px-1">
         {subject && <Dot color={subject.color_hex} className="h-3 w-3 shrink-0" />}
         <div className="min-w-0">
-          <h1 className="text-balance break-words text-2xl font-extrabold leading-tight tracking-tight lg:text-3xl">{subject?.name ?? (syllabus?.title ? titleCase(syllabus.title) : code)}</h1>
+          <h1 className="text-balance wrap-break-word text-2xl font-extrabold leading-tight tracking-tight lg:text-3xl">{subject?.name ?? (syllabus?.title ? titleCase(syllabus.title) : code)}</h1>
           <p className="text-sm font-medium text-muted">
             {code}
             {!subject && syllabus && typeof syllabus.semester === "number" && ` · Semester ${syllabus.semester}, not started yet`}

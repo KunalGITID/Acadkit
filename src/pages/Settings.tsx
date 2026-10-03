@@ -482,7 +482,7 @@ function AutoMarkCard() {
           {/* left-0 is load-bearing: an absolute box with `left: auto` falls back to its static position, which here resolves to 24px - the translate then lands the knob outside the track entirely. */}
           <span
             className={cn(
-              "absolute left-0 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform",
+              "absolute left-0 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
               on ? "translate-x-6" : "translate-x-1"
             )}
           />

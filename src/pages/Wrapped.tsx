@@ -193,7 +193,7 @@ export default function Wrapped() {
 
       <div
         {...swipe}
-        className="relative min-h-[22rem] touch-pan-y select-none"
+        className="relative min-h-88 touch-pan-y select-none"
         onClick={() => {
           if (!justSwiped.current) go(1);
         }}
@@ -205,7 +205,7 @@ export default function Wrapped() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -12, scale: 0.98 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="card flex min-h-[22rem] flex-col justify-center p-7"
+            className="card flex min-h-88 flex-col justify-center p-7"
           >
             {current.render()}
           </motion.section>

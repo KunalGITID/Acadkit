@@ -116,7 +116,7 @@ function AppRoutes() {
           <Route
             path="/view"
             element={
-              <div className="fixed inset-0 z-[60] bg-bg">
+              <div className="fixed inset-0 z-60 bg-bg">
                 <Suspense fallback={<div className="h-full bg-bg" />}>
                   <Viewer overlay />
                 </Suspense>
@@ -172,7 +172,7 @@ export default function App({ initialAuth = null }: { initialAuth?: AuthMode | n
             offset="calc(env(safe-area-inset-top) + 10px)"
             mobileOffset="calc(env(safe-area-inset-top) + 10px)"
             toastOptions={{
-              className: "!rounded-2xl !border !bg-surface !text-ink !shadow-card",
+              className: "rounded-2xl! border! bg-surface! text-ink! shadow-card!",
             }}
           />
           <AuthReset />

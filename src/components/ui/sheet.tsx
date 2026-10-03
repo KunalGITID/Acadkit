@@ -19,7 +19,7 @@ export function Sheet({ open, onOpenChange, title, description, children, classN
         <Drawer.Content
           className={cn(
             "fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-lg flex-col",
-            "rounded-t-[28px] border border-b-0 bg-surface outline-none",
+            "rounded-t-[28px] border border-b-0 bg-surface outline-hidden",
             className
           )}
         >

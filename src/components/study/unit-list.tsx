@@ -119,7 +119,7 @@ export function UnitList({
                           >
                             <span
                               className={cn(
-                                "mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                                "mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border",
                                 done ? "border-good bg-good text-bg" : "border-line"
                               )}
                             >

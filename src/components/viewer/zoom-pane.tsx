@@ -324,7 +324,7 @@ export function ZoomPane({
       </div>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-10 flex justify-center pb-safe-b">
-        <div className="pointer-events-auto mb-4 flex items-center gap-1 rounded-full border bg-surface/95 px-2 py-1.5 text-sm font-bold shadow-lg backdrop-blur">
+        <div className="pointer-events-auto mb-4 flex items-center gap-1 rounded-full border bg-surface/95 px-2 py-1.5 text-sm font-bold shadow-lg backdrop-blur-sm">
           <button
             type="button"
             onClick={() => zoomBy(1 / STEP)}
@@ -337,7 +337,7 @@ export function ZoomPane({
           <button
             type="button"
             onClick={() => zoomBy(null)}
-            className="min-w-[3.5rem] rounded-full px-1 text-center tabular"
+            className="min-w-14 rounded-full px-1 text-center tabular"
             aria-label="Reset zoom"
           >
             <span ref={pct}>100%</span>

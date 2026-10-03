@@ -40,19 +40,23 @@ export default function PdfView({
 
   useEffect(() => {
     let cancelled = false;
-    let loaded: PDFDocumentProxy | null = null;
+    // pdf.js 6 closes a document through the task that loaded it, which also
+    // cancels one still loading when the viewer goes away.
+    let task: { destroy(): Promise<void> } | null = null;
     (async () => {
       try {
         const { lib: pdfjs, worker } = await pdfEngine();
-        loaded = await pdfjs.getDocument({
+        if (cancelled) return;
+        const loading = pdfjs.getDocument({
           data: new Uint8Array(await blob.arrayBuffer()),
           worker,
           // The image decoders pdf.js loads on demand (vite.config.ts,
           // pdfjsWasm). Without them a scan's text masks are dropped.
           wasmUrl: new URL(`${import.meta.env.BASE_URL}pdfjs-wasm/`, window.location.origin).href,
-        }).promise;
-        if (cancelled) return loaded.destroy();
-        const doc = loaded;
+        });
+        task = loading;
+        const doc: PDFDocumentProxy = await loading.promise;
+        if (cancelled) return;
         // On screen as soon as page 1 is measured: the rest are assumed to be its shape (they nearly always are) and measured behind it, in parallel.
         const first = (await doc.getPage(1)).getViewport({ scale: 1 });
         const a1 = first.height / first.width;
@@ -83,7 +87,7 @@ export default function PdfView({
     })();
     return () => {
       cancelled = true;
-      void loaded?.destroy();
+      void task?.destroy();
     };
   }, [blob]);
 
@@ -256,7 +260,7 @@ function PdfPage({
     <div
       id={`pdf-page-${n}`}
       ref={wrap}
-      className="relative scroll-mt-3 overflow-hidden rounded-md bg-white shadow-sm"
+      className="relative scroll-mt-3 overflow-hidden rounded-md bg-white shadow-xs"
       style={{ height }}
     />
   );
