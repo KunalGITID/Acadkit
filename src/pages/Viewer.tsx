@@ -1,9 +1,10 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Download, FileQuestion } from "lucide-react";
 import { usePin } from "@/hooks/useData";
-import { fetchStudyManifest, studyDownloadUrl } from "@/api/studyFiles";
+import { fetchStudyBlob, fetchStudyManifest, studyDownloadUrl } from "@/api/studyFiles";
+import { saveFile } from "@/lib/saveFile";
 import { baseName, formatSize, prettyName, type StudyFile } from "@/lib/studyFiles";
 import { codeLanguage, isRenderable, shownFile, viewerKind } from "@/lib/viewer";
 import { ZoomPane } from "@/components/viewer/zoom-pane";
@@ -19,6 +20,9 @@ import {
 import { DomFind, FindBar, FindButton, MatchRail } from "@/components/viewer/find-bar";
 import { useFind } from "@/hooks/useFind";
 import type { Finder } from "@/components/viewer/find";
+
+/** Files up to this size are fetched as the viewer opens, so Download can save them from the tap itself. */
+const SAVE_AHEAD_BYTES = 40 * 1024 * 1024;
 
 /** A PDF's largest size at 1×, in CSS px per PDF point (1.33 is "actual size"). */
 const PDF_PX_PER_POINT = 1.5;
@@ -55,7 +59,23 @@ export default function Viewer({ overlay = false }: { overlay?: boolean }) {
     gcTime: 10 * 60_000,
     retry: 1,
   });
-  // Signed before any tap: a download started after an await is a
+  // The original file's bytes, ready before any tap, for Download: iOS only
+  // lets the share sheet open straight from a tap (lib/saveFile.ts). When the
+  // viewer shows the file itself this is the same query as `blob`; for a
+  // converted preview (a note's web version, an old Office file) it's the
+  // original, which is what should be saved. Very large files skip it and
+  // use the signed link below.
+  const original = useQuery({
+    queryKey: ["study-file", pin, file?.key ?? null],
+    queryFn: () => fetchStudyBlob(file!),
+    enabled: !!file && file.size <= SAVE_AHEAD_BYTES,
+    staleTime: Infinity,
+    gcTime: 10 * 60_000,
+    retry: 1,
+  });
+  const saveable = original.data instanceof Blob ? original.data : null;
+  // Fallback for a file too big to hold, or still loading: a signed link,
+  // made before any tap since a download started after an await is a
   // blocked pop-up in Safari.
   const download = useQuery({
     queryKey: ["study-download", pin, file?.key],
@@ -127,15 +147,18 @@ export default function Viewer({ overlay = false }: { overlay?: boolean }) {
             )}
           </div>
           <FindButton find={find} disabled={!finder} />
-          {download.data ? (
-            <a
+          {file && (saveable || download.data) ? (
+            <SaveLink
+              file={file}
+              blob={saveable}
               href={download.data}
-              download={file ? baseName(file.path) : undefined}
+              // On a phone the label is hidden and only the icon shows.
+              label="Download"
               className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-accent px-3 text-sm font-bold text-white"
             >
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Download</span>
-            </a>
+            </SaveLink>
           ) : (
             <span className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-surface-2 px-3 text-sm font-bold text-muted opacity-60">
               <Download className="h-4 w-4" />
@@ -198,12 +221,13 @@ export default function Viewer({ overlay = false }: { overlay?: boolean }) {
                   : "This kind of file can't be shown here. Download it to open it."
               }
               file={file}
+              blob={saveable}
               href={download.data}
             />
           )}
           {file && renderable && blob.isLoading && <p className="py-16 text-center text-sm font-medium text-muted">Opening…</p>}
           {file && renderable && blob.isError && (
-            <NoPreview message="Couldn't load this file. Check your connection and try again." file={file} href={download.data} />
+            <NoPreview message="Couldn't load this file. Check your connection and try again." file={file} blob={saveable} href={download.data} />
           )}
         </main>
       )}
@@ -242,16 +266,46 @@ function ImageView({ blob, alt }: { blob: Blob; alt: string }) {
   return url ? <img src={url} alt={alt} className="mx-auto mb-16 h-auto max-w-full rounded-xl" /> : null;
 }
 
-function NoPreview({ message, file, href }: { message: string; file?: StudyFile; href?: string }) {
+function NoPreview({ message, file, blob, href }: { message: string; file?: StudyFile; blob?: Blob | null; href?: string }) {
   return (
     <div className="card mx-auto mt-6 flex max-w-md flex-col items-center gap-3 p-6 text-center">
       <FileQuestion className="h-8 w-8 text-muted" />
       <p className="text-sm font-medium text-muted">{message}</p>
-      {file && href && (
-        <a href={href} download={baseName(file.path)} className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-white">
+      {file && (blob || href) && (
+        <SaveLink file={file} blob={blob ?? null} href={href} className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-bold text-white">
           <Download className="h-4 w-4" /> Download {baseName(file.path)}
-        </a>
+        </SaveLink>
       )}
     </div>
+  );
+}
+
+/**
+ * Download: the bytes, saved from the tap itself (the share sheet on an
+ * iPhone, a named download elsewhere) when they're here; otherwise the
+ * signed link, as before.
+ */
+function SaveLink({ file, blob, href, label, className, children }: {
+  file: StudyFile;
+  blob: Blob | null;
+  href?: string;
+  label?: string;
+  className: string;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      href={href ?? "#"}
+      aria-label={label}
+      download={baseName(file.path)}
+      className={className}
+      onClick={(e) => {
+        if (!blob) return; // let the signed link do it
+        e.preventDefault();
+        saveFile(blob, baseName(file.path));
+      }}
+    >
+      {children}
+    </a>
   );
 }

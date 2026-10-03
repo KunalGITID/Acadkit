@@ -35,8 +35,9 @@ export default defineConfig({
     // serves your real study folder, and the specs reset its data.
     reuseExistingServer: false,
     timeout: 60_000,
-    // The mock serves the study folder on the Files page. Point it at
-    // nothing, so a run on the Mac sees what CI sees.
-    env: { STUDY_DIR: "e2e/.no-study-folder" },
+    // The mock serves the study folder on the Files page. Point it at a
+    // tiny committed one (a PDF and a zip), so a run on the Mac sees what CI
+    // sees and the viewer's Download can be tested on real bytes.
+    env: { STUDY_DIR: "e2e/study-fixture" },
   },
 });
