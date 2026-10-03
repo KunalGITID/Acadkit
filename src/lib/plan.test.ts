@@ -585,6 +585,27 @@ describe("a test logged in Deadlines is an announced component", () => {
     expect(p.components.some((c) => c.label === "Lab record")).toBe(false);
   });
 
+  // TBVP, October 2026: FT-1 and FT-2 marked, FT-3 named on 6 Oct, and an
+  // old unnamed /15 "Exam" from 3 Sep - an earlier test - left over. It
+  // must not land on FT-4, which is sat after FT-3.
+  it("won't date a test before the one it follows", () => {
+    const tbvp = subject({ internal: 60, components: plan([["FT-1", 5], ["FT-2", 15], ["FT-3", 15], ["FT-4", 15], ["LLT-1", 10]]) });
+    const p = solveSubjectPlan(tbvp, [mark("FT-I", 5, 5), mark("FT-II", 3, 15)], "B+", {
+      deadlines: [dl("21MAB201T Exam", "2026-09-03", 15), dl("FT-3", "2026-10-06", 15), dl("21MAB201T Exam", "2026-11-25", 40)],
+    });
+    const date = (label: string) => p.components.find((c) => c.label === label)?.date ?? null;
+    expect(date("FT-3")).toBe("2026-10-06");
+    expect(date("FT-4")).toBeNull();
+  });
+
+  it("still dates a test by weight when the date fits the order", () => {
+    const tbvp = subject({ internal: 60, components: plan([["FT-1", 5], ["FT-2", 15], ["FT-3", 15], ["FT-4", 15], ["LLT-1", 10]]) });
+    const p = solveSubjectPlan(tbvp, [mark("FT-I", 5, 5), mark("FT-II", 3, 15)], "B+", {
+      deadlines: [dl("FT-3", "2026-10-06", 15), dl("21MAB201T Exam", "2026-11-20", 15)],
+    });
+    expect(p.components.find((c) => c.label === "FT-4")?.date).toBe("2026-11-20");
+  });
+
   it("orders what's next across planned and adopted alike", () => {
     const p = solveSubjectPlan(partial, [], "A", {
       deadlines: [dl("CT-1", "2026-11-01", 15), dl("Surprise quiz", "2026-10-20", 5)],
