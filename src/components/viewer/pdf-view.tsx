@@ -260,7 +260,7 @@ function PdfPage({
     <div
       id={`pdf-page-${n}`}
       ref={wrap}
-      className="relative scroll-mt-3 overflow-hidden rounded-md bg-white shadow-sm"
+      className="relative scroll-mt-3 overflow-hidden rounded-md bg-white shadow-xs"
       style={{ height }}
     />
   );

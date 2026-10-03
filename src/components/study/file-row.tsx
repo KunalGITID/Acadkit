@@ -81,7 +81,7 @@ export function FileRow({
     <>
       <Icon className="h-5 w-5 shrink-0 text-muted" strokeWidth={1.8} />
       <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 block break-words text-sm font-semibold">{title || baseName(file.path)}</span>
+        <span className="line-clamp-2 block wrap-break-word text-sm font-semibold">{title || baseName(file.path)}</span>
         {deleting ? (
           <span className="block truncate text-xs font-medium text-muted">Deleting on your Mac at the next sync…</span>
         ) : note ? (
@@ -111,7 +111,7 @@ export function FileRow({
   const side = "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-muted hover:text-ink";
   const swipe = swipeToDelete && !!onDelete && !deleting;
   const content = (
-    <div className="flex w-full items-center gap-1 bg-surface pr-2 hover:rounded-2xl hover:outline hover:outline-1 hover:outline-white/80 hover:[outline-offset:-6px]">
+    <div className="flex w-full items-center gap-1 bg-surface pr-2 hover:rounded-2xl hover:outline-solid hover:outline-1 hover:outline-white/80 hover:outline-offset-[-6px]">
       {main}
       {course && !deleting && (
         <Link
@@ -212,7 +212,7 @@ export function SearchHitRow({ file, hits, query }: { file: StudyFile; hits: Stu
     <>
       <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted" strokeWidth={1.8} />
       <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 block break-words text-sm font-semibold">{baseName(file.path)}</span>
+        <span className="line-clamp-2 block wrap-break-word text-sm font-semibold">{baseName(file.path)}</span>
         <span className="block truncate text-xs font-medium text-muted">
           {folder && prettyName(folder)}
           {pages.length > 0 && ` · p. ${pages.slice(0, 4).join(", ")}${pages.length > 4 ? "…" : ""}`}
@@ -220,7 +220,7 @@ export function SearchHitRow({ file, hits, query }: { file: StudyFile; hits: Stu
         <span className="mt-1 line-clamp-3 block text-xs font-medium text-ink/80">
           {highlight(best.content, query).map((part, i) =>
             part.hit ? (
-              <mark key={i} className="rounded bg-accent/20 px-0.5 font-semibold text-ink">
+              <mark key={i} className="rounded-sm bg-accent/20 px-0.5 font-semibold text-ink">
                 {part.text}
               </mark>
             ) : (
@@ -238,7 +238,7 @@ export function SearchHitRow({ file, hits, query }: { file: StudyFile; hits: Stu
       to={viewerHref(file.path, extOf(file.path) === "pdf" ? best.page : null)}
       state={viewerState}
       {...prefetch(file)}
-      className={`${row} hover:rounded-2xl hover:outline hover:outline-1 hover:outline-white/80 hover:[outline-offset:-6px]`}
+      className={`${row} hover:rounded-2xl hover:outline-solid hover:outline-1 hover:outline-white/80 hover:outline-offset-[-6px]`}
     >
       {body}
     </Link>

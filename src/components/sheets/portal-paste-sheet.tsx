@@ -147,7 +147,7 @@ export function PortalPasteSheet({ open, onClose }: { open: boolean; onClose: ()
           tabIndex={0}
           aria-label="Paste the portal page here"
           onPaste={onPaste}
-          className="max-h-28 min-h-24 overflow-hidden rounded-2xl border border-dashed bg-surface-2/40 p-4 text-xs text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="max-h-28 min-h-24 overflow-hidden rounded-2xl border border-dashed bg-surface-2/40 p-4 text-xs text-muted focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
         >
           {parsed || plainText ? null : "Tap here, then paste"}
         </div>

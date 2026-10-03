@@ -1,106 +1,273 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-bg: hsl(var(--bg));
+  --color-surface: hsl(var(--surface));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-line: hsl(var(--line));
+  --color-ink: hsl(var(--ink));
+  --color-muted: hsl(var(--muted));
+  --color-brand: hsl(var(--brand));
+  --color-brand-ink: hsl(var(--brand-ink));
+  --color-accent: hsl(var(--accent));
+  --color-accent-2: hsl(var(--accent-2));
+  --color-good: #4ade80;
+  --color-warn: #facc15;
+  --color-bad: #fb7185;
+  --color-accent-deep: hsl(var(--accent-deep));
+  --color-good-deep: hsl(var(--good-deep));
+  --color-warn-deep: hsl(var(--warn-deep));
+  --color-bad-deep: hsl(var(--bad-deep));
+
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: 0 12px 40px -8px hsl(var(--accent) / 0.45);
+
+  --spacing-safe-t: env(safe-area-inset-top);
+  --spacing-safe-b: env(safe-area-inset-bottom);
+}
 
 /*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility grade-badge {
+  /* A grade's hue as text on its own 13% tint: mixed with black in light
+     mode to clear 4.5:1, used as-is in dark mode where it already does. */
+  color: color-mix(in srgb, var(--grade) 45%, black);
+  .dark & {
+    color: var(--grade);
+  }
+}
+
+@utility card {
+  @apply rounded-3xl border bg-surface shadow-card;
+  border-radius: var(--radius-card, 1.5rem);
+}
+
+@utility glass {
+  /* The scrolling chrome: the sticky top bar and the bottom nav.
+     Opaque, and deliberately not glass any more.
+
+     A backdrop-filter on a sticky or fixed element makes the compositor
+     re-blur everything behind it on every scroll frame, and there are
+     two of these on screen at once — the measurable cause of scroll and
+     swipe stutter on a 120Hz phone, where a frame is 8ms. It also never
+     earned its keep: OLED had already opted out (a lit slab across the
+     top of a true-black page), and brutalist's whole argument is that
+     colour blocks separate surfaces, not depth — a blurred bar was the
+     one place the theme contradicted itself. The border does the work. */
+  background: hsl(var(--bg));
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility accent-gradient-text {
+  background: linear-gradient(120deg, hsl(var(--accent)), hsl(var(--accent-2)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ---- Brutalist: the structural half of the theme ----
+
+   These override utility classes on purpose (a title's text-2xl, a label's
+   tracking-widest, a card's shadow). Tailwind 3 let a more specific rule win
+   anywhere; Tailwind 4 puts utilities in a cascade layer that beats every
+   other layer, so the overrides live in that same layer, where specificity
+   decides again. */
+@layer utilities {
+  /* Stat numbers become the page's largest element, in a squared-off
+     display face. Every .tabular number in the app inherits this. */
+  [data-theme="brutalist"] .tabular {
+    font-family: "Chakra Petch", "Plus Jakarta Sans", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  /* Page titles become the loudest thing on screen: oversized, lowercase
+     and set in the display face, the way the reference treats its day
+     numbers. clamp() keeps it from swallowing a small phone. */
+  [data-theme="brutalist"] h1 {
+    font-family: "Chakra Petch", "Plus Jakarta Sans", system-ui, sans-serif;
+    text-transform: lowercase;
+    font-size: clamp(2.25rem, 8vw, 3.5rem);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+  }
+
+  /* Section labels: wide-tracked lowercase instead of tight uppercase. */
+  [data-theme="brutalist"] .uppercase {
+    text-transform: lowercase;
+    letter-spacing: 0.22em;
+  }
+
+  /* Cards are colour blocks, not raised surfaces — no shadow, a real
+     border, and a radius big enough to read as a squircle. */
+  [data-theme="brutalist"] .card {
+    border-width: 1.5px;
+    box-shadow: none;
+  }
+
+  /* The bottom bar sits on the screen edge, full width.
+
+     It used to detach into a floating pill — inset from the sides and
+     lifted off the bottom — which left a live strip of page below it.
+     Content scrolled *under* the bar in that gap rather than behind it,
+     so a subject card's last line and the tail of the attendance ring
+     showed through beneath the nav. That reads as a rendering fault
+     rather than a decision, and no amount of opacity fixes it: the gap
+     is the problem, not the background. Flush to the edge, there is no
+     gap to show anything in. */
+  [data-theme="brutalist"] nav[aria-label="Primary"].glass {
+    border-top: 1.5px solid hsl(var(--line) / 0.14);
+    background: hsl(var(--surface));
+  }
+  /* …and its active indicator from a soft rectangle to a solid disc. */
+  [data-theme="brutalist"] nav[aria-label="Primary"] [data-nav-pill] {
+    border-radius: 9999px;
+    background: hsl(var(--accent));
+  }
+  [data-theme="brutalist"] nav[aria-label="Primary"] a[aria-current="page"] svg,
+  [data-theme="brutalist"] nav[aria-label="Primary"] a[aria-current="page"] span {
+    color: hsl(0 0% 6%);
+  }
+
+  /* OLED x-factor: there isn't one, deliberately — zero saturation everywhere
+     and true #000 in dark mode (--radius-card above trims the corners a touch
+     tighter too). The restraint itself is the theme. */
+}
+
+@layer utilities {
+  /*
  * Three theme identities (Sakura / Terminal / Aurora), each with a light
  * and dark mode. Selected via [data-theme] on <html>, mode via .dark
  * (src/store/app.ts). Each theme distinguishes itself with color plus
- * exactly one restrained, static trait (see @layer components below) —
+ * exactly one restrained, static trait (see the brutalist overrides above) —
  * no animation, no overlays, nothing that fights the content.
  */
 
-/* ---------- Brutalist — colour-blocked, oversized, loud ---------- */
-/*
+  /* ---------- Brutalist — colour-blocked, oversized, loud ---------- */
+  /*
  * The one theme that changes the app's shape, not just its palette:
  * bigger squircles, flat colour instead of shadow, a floating pill nav,
  * and stat numbers set in a squared-off display face at display size.
- * See the @layer components block below for the structural half.
+ * See the brutalist overrides above for the structural half.
  */
-[data-theme="brutalist"] {
-  --bg: 0 0% 97%;
-  --surface: 0 0% 100%;
-  --surface-2: 0 0% 93%;
-  --line: 0 0% 0%;
-  --ink: 0 0% 6%;
-  /* 42%, not 45%: small muted text needs 4.5:1 on --bg (97%) and on
+  [data-theme='brutalist'] {
+    --bg: 0 0% 97%;
+    --surface: 0 0% 100%;
+    --surface-2: 0 0% 93%;
+    --line: 0 0% 0%;
+    --ink: 0 0% 6%;
+    /* 42%, not 45%: small muted text needs 4.5:1 on --bg (97%) and on
      --surface-2 (93%). 45% came to 4.4:1 and failed Lighthouse's contrast check. */
-  --muted: 0 0% 42%;
-  --accent: 72 89% 56%;
-  --accent-2: 6 78% 60%;
-  --good-deep: 142 62% 32%;
-  /* warn/bad-deep and accent-deep are text colours: each clears 4.5:1 on
+    --muted: 0 0% 42%;
+    --accent: 72 89% 56%;
+    --accent-2: 6 78% 60%;
+    --good-deep: 142 62% 32%;
+    /* warn/bad-deep and accent-deep are text colours: each clears 4.5:1 on
      every light surface here, tinted badges included (axe, e2e). */
-  --warn-deep: 35 85% 30%;
-  --bad-deep: 6 78% 44%;
-  --accent-deep: 72 70% 26%;
-  /* Flat by design — the colour blocks do the separating, not depth. */
-  --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
-  --line-alpha: 0.1;
-  --radius-card: 1.75rem;
-  --brand: var(--accent);
-  --brand-ink: 0 0% 6%;
-}
-[data-theme="brutalist"].dark {
-  --bg: 0 0% 4%;
-  --surface: 0 0% 8%;
-  --surface-2: 0 0% 14%;
-  --line: 0 0% 100%;
-  --ink: 0 0% 98%;
-  --muted: 0 0% 60%;
-  --accent: 72 89% 60%;
-  --accent-2: 6 78% 62%;
-  --good-deep: 142 70% 58%;
-  --warn-deep: 45 90% 62%;
-  --bad-deep: 6 82% 64%;
-  --accent-deep: 72 89% 60%;
-  --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
-  --line-alpha: 0.14;
-  --radius-card: 1.75rem;
-  --brand: var(--accent);
-  --brand-ink: 0 0% 6%;
-}
+    --warn-deep: 35 85% 30%;
+    --bad-deep: 6 78% 44%;
+    --accent-deep: 72 70% 26%;
+    /* Flat by design — the colour blocks do the separating, not depth. */
+    --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
+    --line-alpha: 0.1;
+    --radius-card: 1.75rem;
+    --brand: var(--accent);
+    --brand-ink: 0 0% 6%;
+  }
+  [data-theme='brutalist'].dark {
+    --bg: 0 0% 4%;
+    --surface: 0 0% 8%;
+    --surface-2: 0 0% 14%;
+    --line: 0 0% 100%;
+    --ink: 0 0% 98%;
+    --muted: 0 0% 60%;
+    --accent: 72 89% 60%;
+    --accent-2: 6 78% 62%;
+    --good-deep: 142 70% 58%;
+    --warn-deep: 45 90% 62%;
+    --bad-deep: 6 82% 64%;
+    --accent-deep: 72 89% 60%;
+    --shadow-card: 0 0 0 0 rgb(0 0 0 / 0);
+    --line-alpha: 0.14;
+    --radius-card: 1.75rem;
+    --brand: var(--accent);
+    --brand-ink: 0 0% 6%;
+  }
 
-[data-theme="oled"] {
-  --bg: 0 0% 100%;
-  --surface: 0 0% 100%;
-  --surface-2: 0 0% 93%;
-  --line: 0 0% 0%;
-  --ink: 0 0% 9%;
-  --muted: 0 0% 40%;
-  --accent: 0 0% 20%;
-  --accent-2: 0 0% 42%;
-  --good-deep: 142 60% 30%;
-  --warn-deep: 35 85% 30%;
-  --bad-deep: 350 72% 42%;
-  --accent-deep: 0 0% 20%;
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06), 0 10px 26px -14px rgb(0 0 0 / 0.16);
-  --line-alpha: 0.12;
-  --radius-card: 0.875rem;
-  /* Zero saturation is the whole theme, so the mark inverts rather than
+  [data-theme='oled'] {
+    --bg: 0 0% 100%;
+    --surface: 0 0% 100%;
+    --surface-2: 0 0% 93%;
+    --line: 0 0% 0%;
+    --ink: 0 0% 9%;
+    --muted: 0 0% 40%;
+    --accent: 0 0% 20%;
+    --accent-2: 0 0% 42%;
+    --good-deep: 142 60% 30%;
+    --warn-deep: 35 85% 30%;
+    --bad-deep: 350 72% 42%;
+    --accent-deep: 0 0% 20%;
+    --shadow-card:
+      0 1px 2px rgb(0 0 0 / 0.06), 0 10px 26px -14px rgb(0 0 0 / 0.16);
+    --line-alpha: 0.12;
+    --radius-card: 0.875rem;
+    /* Zero saturation is the whole theme, so the mark inverts rather than
      colouring — a 38% grey chip on a 4% ground reads as switched off. */
-  --brand: 0 0% 9%;
-  --brand-ink: 0 0% 100%;
-}
-[data-theme="oled"].dark {
-  /* --bg is literal #000 — actual pixels off on OLED panels, not just "very dark". */
-  --bg: 0 0% 0%;
-  --surface: 0 0% 4%;
-  --surface-2: 0 0% 10%;
-  --line: 0 0% 100%;
-  --ink: 0 0% 96%;
-  --muted: 0 0% 58%;
-  --accent: 0 0% 38%;
-  --accent-2: 0 0% 58%;
-  --good-deep: 142 70% 55%;
-  --accent-deep: 0 0% 80%;
-  --warn-deep: 45 90% 60%;
-  --bad-deep: 350 85% 65%;
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 14px 34px -16px rgb(0 0 0 / 0.9);
-  --line-alpha: 0.16;
-  --radius-card: 0.875rem;
-  --brand: 0 0% 96%;
-  --brand-ink: 0 0% 4%;
+    --brand: 0 0% 9%;
+    --brand-ink: 0 0% 100%;
+  }
+  [data-theme='oled'].dark {
+    /* --bg is literal #000 — actual pixels off on OLED panels, not just "very dark". */
+    --bg: 0 0% 0%;
+    --surface: 0 0% 4%;
+    --surface-2: 0 0% 10%;
+    --line: 0 0% 100%;
+    --ink: 0 0% 96%;
+    --muted: 0 0% 58%;
+    --accent: 0 0% 38%;
+    --accent-2: 0 0% 58%;
+    --good-deep: 142 70% 55%;
+    --accent-deep: 0 0% 80%;
+    --warn-deep: 45 90% 60%;
+    --bad-deep: 350 85% 65%;
+    --shadow-card:
+      0 1px 0 rgb(255 255 255 / 0.03) inset, 0 14px 34px -16px rgb(0 0 0 / 0.9);
+    --line-alpha: 0.16;
+    --radius-card: 0.875rem;
+    --brand: 0 0% 96%;
+    --brand-ink: 0 0% 4%;
+  }
 }
 
 @layer base {
@@ -230,112 +397,6 @@
     outline-offset: 2px;
     border-radius: 6px;
   }
-}
-
-@layer components {
-  /* A grade's hue as text on its own 13% tint: mixed with black in light
-     mode to clear 4.5:1, used as-is in dark mode where it already does. */
-  .grade-badge {
-    color: color-mix(in srgb, var(--grade) 45%, black);
-  }
-  .dark .grade-badge {
-    color: var(--grade);
-  }
-  .card {
-    @apply rounded-3xl border bg-surface shadow-card;
-    border-radius: var(--radius-card, 1.5rem);
-  }
-  /* The scrolling chrome: the sticky top bar and the bottom nav.
-     Opaque, and deliberately not glass any more.
-
-     A backdrop-filter on a sticky or fixed element makes the compositor
-     re-blur everything behind it on every scroll frame, and there are
-     two of these on screen at once — the measurable cause of scroll and
-     swipe stutter on a 120Hz phone, where a frame is 8ms. It also never
-     earned its keep: OLED had already opted out (a lit slab across the
-     top of a true-black page), and brutalist's whole argument is that
-     colour blocks separate surfaces, not depth — a blurred bar was the
-     one place the theme contradicted itself. The border does the work. */
-  .glass {
-    background: hsl(var(--bg));
-  }
-  .tabular {
-    font-variant-numeric: tabular-nums;
-  }
-  .accent-gradient-text {
-    background: linear-gradient(120deg, hsl(var(--accent)), hsl(var(--accent-2)));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-  .scrollbar-none {
-    scrollbar-width: none;
-  }
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* ---- Brutalist: the structural half of the theme ---- */
-
-  /* Stat numbers become the page's largest element, in a squared-off
-     display face. Every .tabular number in the app inherits this. */
-  [data-theme="brutalist"] .tabular {
-    font-family: "Chakra Petch", "Plus Jakarta Sans", system-ui, sans-serif;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-  }
-
-  /* Page titles become the loudest thing on screen: oversized, lowercase
-     and set in the display face, the way the reference treats its day
-     numbers. clamp() keeps it from swallowing a small phone. */
-  [data-theme="brutalist"] h1 {
-    font-family: "Chakra Petch", "Plus Jakarta Sans", system-ui, sans-serif;
-    text-transform: lowercase;
-    font-size: clamp(2.25rem, 8vw, 3.5rem);
-    line-height: 0.95;
-    letter-spacing: -0.03em;
-  }
-
-  /* Section labels: wide-tracked lowercase instead of tight uppercase. */
-  [data-theme="brutalist"] .uppercase {
-    text-transform: lowercase;
-    letter-spacing: 0.22em;
-  }
-
-  /* Cards are colour blocks, not raised surfaces — no shadow, a real
-     border, and a radius big enough to read as a squircle. */
-  [data-theme="brutalist"] .card {
-    border-width: 1.5px;
-    box-shadow: none;
-  }
-
-  /* The bottom bar sits on the screen edge, full width.
-     
-     It used to detach into a floating pill — inset from the sides and
-     lifted off the bottom — which left a live strip of page below it.
-     Content scrolled *under* the bar in that gap rather than behind it,
-     so a subject card's last line and the tail of the attendance ring
-     showed through beneath the nav. That reads as a rendering fault
-     rather than a decision, and no amount of opacity fixes it: the gap
-     is the problem, not the background. Flush to the edge, there is no
-     gap to show anything in. */
-  [data-theme="brutalist"] nav[aria-label="Primary"].glass {
-    border-top: 1.5px solid hsl(var(--line) / 0.14);
-    background: hsl(var(--surface));
-  }
-  /* …and its active indicator from a soft rectangle to a solid disc. */
-  [data-theme="brutalist"] nav[aria-label="Primary"] [data-nav-pill] {
-    border-radius: 9999px;
-    background: hsl(var(--accent));
-  }
-  [data-theme="brutalist"] nav[aria-label="Primary"] a[aria-current="page"] svg,
-  [data-theme="brutalist"] nav[aria-label="Primary"] a[aria-current="page"] span {
-    color: hsl(0 0% 6%);
-  }
-
-  /* OLED x-factor: there isn't one, deliberately — zero saturation everywhere
-     and true #000 in dark mode (--radius-card above trims the corners a touch
-     tighter too). The restraint itself is the theme. */
 }
 
 /* vaul drawer needs this for exit animations */

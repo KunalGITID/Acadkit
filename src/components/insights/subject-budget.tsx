@@ -61,7 +61,7 @@ export function TargetPicker({ p }: { p: SubjectGradeProjection }) {
         onChange={(e) =>
           update.mutate({ id: p.subject.id, patch: { target_grade: e.target.value as Grade } })
         }
-        className="h-9 appearance-none rounded-xl border-0 pl-3 pr-7 text-sm font-extrabold outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="h-9 appearance-none rounded-xl border-0 pl-3 pr-7 text-sm font-extrabold outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
         style={{ backgroundColor: `${color}26`, color, boxShadow: `inset 0 0 0 1.5px ${color}` }}
       >
         {TARGETABLE.map((g) => (
@@ -262,7 +262,7 @@ export function EndSemRow({ p, c }: { p: SubjectGradeProjection; c: SolvedCompon
             if (e.key === "Escape") setDraft(stored);
           }}
           className={cn(
-            "w-12 rounded-lg bg-transparent px-1 py-0.5 text-right font-bold tabular outline-none",
+            "w-12 rounded-lg bg-transparent px-1 py-0.5 text-right font-bold tabular outline-hidden",
             "focus-visible:bg-surface focus-visible:ring-2 focus-visible:ring-accent",
             c.assumed !== null ? "text-muted" : "text-accent placeholder:text-accent"
           )}
@@ -483,7 +483,7 @@ function ExpectInput({
           if (e.key === "Escape") setDraft(stored);
         }}
         className={cn(
-          "w-12 rounded-lg bg-transparent px-1 py-0.5 text-right font-bold tabular outline-none",
+          "w-12 rounded-lg bg-transparent px-1 py-0.5 text-right font-bold tabular outline-hidden",
           "focus-visible:bg-surface focus-visible:ring-2 focus-visible:ring-accent",
           stored ? "text-ink" : className
         )}

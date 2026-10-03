@@ -86,7 +86,7 @@ export default function Landing({ onAuth }: { onAuth: (mode: AuthMode) => void }
           </div>
 
           <figure className="mx-auto w-full max-w-[300px]">
-            <div className="overflow-hidden rounded-[2.5rem] border-[10px] border-ink bg-surface shadow-pop">
+            <div className="overflow-hidden rounded-[2.5rem] border-10 border-ink bg-surface shadow-pop">
               <img
                 src="/demo.webp"
                 width={390}

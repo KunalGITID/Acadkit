@@ -144,7 +144,7 @@ export function MarkRangeSheet({ open, onClose, defaultDate }: MarkRangeSheetPro
               type="checkbox"
               checked={replace}
               onChange={(e) => setReplace(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-(--accent)"
             />
             <span className="text-xs">
               <span className="font-bold">Replace what's already marked</span>

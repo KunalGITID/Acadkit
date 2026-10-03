@@ -65,7 +65,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-widest text-muted">
             What went wrong
           </summary>
-          <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-surface-2 p-3 text-left text-[11px] leading-relaxed text-muted">
+          <pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap wrap-break-word rounded-2xl bg-surface-2 p-3 text-left text-[11px] leading-relaxed text-muted">
             {this.details()}
           </pre>
           <button

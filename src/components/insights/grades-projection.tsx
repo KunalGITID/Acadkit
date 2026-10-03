@@ -129,7 +129,7 @@ export function GradesProjection({
                   className="inline-flex items-baseline gap-1.5 rounded-full bg-surface-2/70 px-2.5 py-1 text-xs font-semibold"
                 >
                   <Dot color={p.subject.color_hex} className="h-1.5 w-1.5 shrink-0 -translate-y-px" />
-                  <span className="max-w-[9rem] truncate text-muted">{p.subject.short_name?.trim() || p.subject.name}</span>
+                  <span className="max-w-36 truncate text-muted">{p.subject.short_name?.trim() || p.subject.name}</span>
                   <b style={{ color: GRADE_COLORS[g.grade] }}>{g.grade}</b>
                   {note && <span className="text-[10px] text-warn-deep">· {note}</span>}
                 </span>

@@ -90,7 +90,7 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
           aria-hidden
           data-launch-screen
           // items-center, and the wordmark is positioned off the mark rather than stacked with it in a column - a column would centre the *pair*, lifting the mark off the middle of the screen and away from where iOS just drew it.
-          className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-bg"
+          className="fixed inset-0 z-100 flex items-center justify-center overflow-hidden bg-bg"
           style={{ willChange: "transform" }}
           initial={false}
           exit={
@@ -143,7 +143,7 @@ export function LaunchScreen({ ready }: { ready: boolean }) {
             {full && (
             <div className="absolute left-1/2 top-full w-max -translate-x-1/2 overflow-hidden pt-[1vmin]">
               <motion.span
-                className="block text-[4.5vmin] font-bold lowercase tracking-[0.42em] text-ink [font-family:'Chakra_Petch','Plus_Jakarta_Sans',system-ui,sans-serif]"
+                className="block text-[4.5vmin] font-bold lowercase tracking-[0.42em] text-ink font-['Chakra_Petch','Plus_Jakarta_Sans',system-ui,sans-serif]"
                 style={{ willChange: "transform" }}
                 initial={{ y: "115%" }}
                 animate={{ y: "0%" }}

@@ -43,7 +43,7 @@ describe("suggestDueTime", () => {
     expect(suggestDueTime("exam", DSA, 3, DAY_3)).toEqual({ time: "10:00", anchor: "double" });
   });
 
-  it("treats rounded period times as one double period", () => {
+  it("treats rounded-sm period times as one double period", () => {
     // 09:00–09:50 then 10:00–10:50 is the same sitting written less exactly.
     const rounded = [slot(DSA, "09:00", "09:50"), slot(DSA, "10:00", "10:50")];
     expect(suggestDueTime("exam", DSA, 3, rounded)).toEqual({ time: "09:00", anchor: "double" });

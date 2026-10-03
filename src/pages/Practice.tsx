@@ -54,7 +54,7 @@ export default function Practice() {
           <ChevronLeft className="h-5 w-5" />
         </Link>
         <div className="min-w-0">
-          <h1 className="text-balance break-words text-2xl font-extrabold leading-tight tracking-tight lg:text-3xl">Past-paper practice</h1>
+          <h1 className="text-balance wrap-break-word text-2xl font-extrabold leading-tight tracking-tight lg:text-3xl">Past-paper practice</h1>
           <p className="truncate text-sm font-medium text-muted">
             {name}
             {data ? ` · ${data.topics.length} topics from ${data.papers} papers` : ""}
@@ -186,10 +186,10 @@ function Question({ q }: { q: AskedQuestion }) {
   const [reveal, setReveal] = useState(false);
   return (
     <div className="space-y-1.5 rounded-xl bg-surface-2/60 p-3">
-      <p className="whitespace-pre-line break-words text-sm leading-relaxed">{q.text}</p>
+      <p className="whitespace-pre-line wrap-break-word text-sm leading-relaxed">{q.text}</p>
       {q.answer &&
         (reveal ? (
-          <p className="whitespace-pre-line break-words border-l-2 border-accent pl-2 text-sm leading-relaxed text-muted">
+          <p className="whitespace-pre-line wrap-break-word border-l-2 border-accent pl-2 text-sm leading-relaxed text-muted">
             {q.answer}
           </p>
         ) : (

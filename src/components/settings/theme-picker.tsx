@@ -46,7 +46,7 @@ export function ThemePicker() {
             }}
             className={cn(
               "flex flex-col gap-3 rounded-3xl border p-4 text-left transition-all",
-              active ? "border-accent bg-accent/[0.06] shadow-pop" : "hover:bg-surface-2/60"
+              active ? "border-accent bg-accent/6 shadow-pop" : "hover:bg-surface-2/60"
             )}
           >
             <div

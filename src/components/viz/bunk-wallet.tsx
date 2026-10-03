@@ -125,7 +125,7 @@ export function BunkWallet({ stats }: { stats: SubjectAttendance[] }) {
       )}
 
       {wallet.debt.length > 0 && (
-        <div className="border-t bg-bad/[0.06]">
+        <div className="border-t bg-bad/6">
           <p className="px-5 pb-1 pt-3 text-[11px] font-bold uppercase tracking-[0.18em] text-bad-deep">
             {say(VOICE.walletDebt, tone)}
           </p>

@@ -57,16 +57,16 @@ export function PastSemesterSheet({
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
-          <label className="space-y-1">
+          <label className="[&>:not([hidden])~:not([hidden])]:mt-1">
             <span className="text-xs font-semibold text-muted">Name</span>
             <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={suggestedLabel} />
           </label>
-          <label className="space-y-1">
+          <label className="[&>:not([hidden])~:not([hidden])]:mt-1">
             <span className="text-xs font-semibold text-muted">Ended</span>
             <Input type="month" value={ended} onChange={(e) => setEnded(e.target.value)} />
           </label>
         </div>
-        <label className="block space-y-1">
+        <label className="block [&>:not([hidden])~:not([hidden])]:mt-1">
           <span className="text-xs font-semibold text-muted">
             Paste the grade table, or one course per line: code, name, credits, grade, and the grade card's ATT code (H, 9,
             8, L) if you have it. Put * after a grade to mark it.
@@ -76,7 +76,7 @@ export function PastSemesterSheet({
             onChange={(e) => setText(e.target.value)}
             rows={6}
             placeholder={"21MAB101T  Calculus and Linear Algebra  4  A*\n21CSS101J  Programming for Problem Solving  4  A+"}
-            className="w-full rounded-2xl border bg-surface-2/40 px-3 py-2 font-mono text-base leading-snug outline-none focus:border-accent sm:text-xs"
+            className="w-full rounded-2xl border bg-surface-2/40 px-3 py-2 font-mono text-base leading-snug outline-hidden focus:border-accent sm:text-xs"
           />
         </label>
 

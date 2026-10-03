@@ -141,7 +141,7 @@ export function AttendanceHeatmap({
                   aria-label={label(cell)}
                   aria-pressed={isSkipped}
                   onClick={() => onToggleSkip?.(cell.date)}
-                  className="-m-[3px] block cursor-pointer p-[3px] transition-transform active:scale-90"
+                  className="m-[-3px] block cursor-pointer p-[3px] transition-transform active:scale-90"
                 >
                   {square}
                 </button>

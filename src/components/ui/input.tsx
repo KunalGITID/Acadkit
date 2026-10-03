@@ -41,7 +41,7 @@ export function Field({
   className?: string;
 }) {
   return (
-    <label className={cn("block space-y-1.5", className)}>
+    <label className={cn("block [&>:not([hidden])~:not([hidden])]:mt-1.5", className)}>
       <span className="text-xs font-semibold uppercase tracking-wider text-muted">{label}</span>
       {children}
     </label>

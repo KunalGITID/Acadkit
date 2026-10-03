@@ -68,7 +68,7 @@ export default function CodeView({ blob, language }: { blob: Blob; language: str
             {lines.map((l, i) => (
               <tr key={i}>
                 <td data-find-skip className="sticky left-0 select-none bg-surface px-3 text-right align-top text-muted/60 tabular">{i + 1}</td>
-                <td className={cn("pr-4 align-top", wrap ? "whitespace-pre-wrap break-words" : "whitespace-pre")}>
+                <td className={cn("pr-4 align-top", wrap ? "whitespace-pre-wrap wrap-break-word" : "whitespace-pre")}>
                   <span dangerouslySetInnerHTML={{ __html: l || " " }} />
                 </td>
               </tr>

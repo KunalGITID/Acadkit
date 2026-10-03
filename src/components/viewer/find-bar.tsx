@@ -90,11 +90,11 @@ export function FindBar({ find, busy }: { find: FindState; busy?: boolean }) {
                   } else if (e.key === "Escape") find.close();
                 }}
                 placeholder="Find a word or a sentence"
-                className="h-10 w-full rounded-xl bg-surface-2 pl-9 pr-3 text-base font-medium text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/60"
+                className="h-10 w-full rounded-xl bg-surface-2 pl-9 pr-3 text-base font-medium text-ink placeholder:text-muted focus:outline-hidden focus:ring-2 focus:ring-accent/60"
                 aria-label="Find in this file"
               />
             </div>
-            <span className="w-[4.5rem] shrink-0 text-center text-xs font-bold text-muted tabular" aria-live="polite">
+            <span className="w-18 shrink-0 text-center text-xs font-bold text-muted tabular" aria-live="polite">
               {short ? "" : find.searching || busy ? "…" : find.total ? `${find.current + 1} / ${find.total}` : "No match"}
             </span>
             <button

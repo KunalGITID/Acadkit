@@ -273,7 +273,7 @@ export default function Onboarding() {
                     tabIndex={0}
                     aria-label="Paste your attendance page here"
                     onPaste={onPaste}
-                    className="min-h-20 overflow-hidden rounded-2xl border border-dashed bg-surface-2/40 p-4 text-xs text-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className="min-h-20 overflow-hidden rounded-2xl border border-dashed bg-surface-2/40 p-4 text-xs text-muted focus:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
                   >
                     {drafts.length > 0
                       ? `Pasted - ${drafts.length} subject${drafts.length === 1 ? "" : "s"} found. Paste again to replace.`

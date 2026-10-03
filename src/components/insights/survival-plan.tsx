@@ -120,7 +120,7 @@ export function SurvivalPlan({
             key={day.date}
             className={cn(
               "card flex items-center gap-3 p-3.5",
-              day.free && "border-good/40 bg-good/[0.06]"
+              day.free && "border-good/40 bg-good/6"
             )}
           >
             <div className="w-16 shrink-0">

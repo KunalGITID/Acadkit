@@ -232,7 +232,7 @@ export default function Files() {
       <>
         <Icon className="h-5 w-5 shrink-0 text-accent" strokeWidth={1.8} />
         <span className="min-w-0 flex-1">
-          <span className="block break-words text-sm font-bold">{prettyName(folder.name)}</span>
+          <span className="block wrap-break-word text-sm font-bold">{prettyName(folder.name)}</span>
           {deleting && <span className="block truncate text-xs font-medium text-muted">Deleting on your Mac at the next sync…</span>}
         </span>
         <span className="shrink-0 text-xs font-semibold text-muted tabular">{folder.count}</span>
@@ -257,7 +257,7 @@ export default function Files() {
       <button
         type="button"
         onClick={() => (code ? navigate(`/subject/${code}`) : setDir(folder.path))}
-        className="flex w-full items-center gap-3 bg-surface px-4 py-3.5 text-left hover:rounded-2xl hover:outline hover:outline-1 hover:outline-white/80 hover:[outline-offset:-6px]"
+        className="flex w-full items-center gap-3 bg-surface px-4 py-3.5 text-left hover:rounded-2xl hover:outline-solid hover:outline-1 hover:outline-white/80 hover:outline-offset-[-6px]"
       >
         {body}
         <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
