@@ -354,6 +354,26 @@ export function isExternalLabel(label: string): boolean {
   return EXTERNAL_ALIASES.has(labelMatchKey(label));
 }
 
+/**
+ * Whether a date can belong to this component, given the ones around it:
+ * a series of the same type is sat in plan order, so FT-4 can't come before
+ * FT-3. Without this, an old unnamed "Exam" deadline of the right weight (an
+ * earlier test, already marked) got pinned on a test still months away, and
+ * the card asked how it went.
+ */
+function fitsInOrder(
+  raw: Array<{ key: string; type: MarkComponentType; date: string | null; kind: ComponentKind }>,
+  c: { key: string; type: MarkComponentType },
+  date: string
+): boolean {
+  const series = raw.filter((r) => r.type === c.type && r.kind !== "deadline");
+  const at = series.findIndex((r) => r.key === c.key);
+  if (at < 0) return true;
+  const before = series.slice(0, at).some((r) => r.date !== null && r.date >= date);
+  const after = series.slice(at + 1).some((r) => r.date !== null && r.date <= date);
+  return !before && !after;
+}
+
 /** Match deadlines onto components, then adopt what is left over - but only into weight that is actually free. */
 function claimDeadlines(
   raw: Array<{ label: string; max: number; obtained: number | null; date: string | null; key: string; type: MarkComponentType; kind: ComponentKind }>,
@@ -410,11 +430,12 @@ function claimDeadlines(
     }
 
     // No room.
-    const rivals = pending().filter((c) => c.date === null && c.max === max);
+    const due = d.due_date.slice(0, 10);
+    const rivals = pending().filter((c) => c.date === null && c.max === max && fitsInOrder(raw, c, due));
     const others = weighed.filter((o) => !taken.has(o.id) && Number(o.max_marks) === max);
     if (rivals.length === 1 && others.length === 1) {
       taken.add(d.id);
-      rivals[0].date = d.due_date.slice(0, 10);
+      rivals[0].date = due;
     }
   }
 }
